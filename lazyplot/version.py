@@ -80,5 +80,6 @@ REQUIRES = [
     "nilearn",
     "lmfit",
     "nideconv",
-    "scikit-learn"
+    "scikit-learn",
+    "git+https://github.com/gjheij/nideconv"
 ]
