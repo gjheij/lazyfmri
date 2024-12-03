@@ -1,0 +1,10 @@
+setup.py
+lazyplot/__init__.py
+lazyplot/plotting.py
+lazyplot/utils.py
+lazyplot/version.py
+lazyplot.egg-info/PKG-INFO
+lazyplot.egg-info/SOURCES.txt
+lazyplot.egg-info/dependency_links.txt
+lazyplot.egg-info/requires.txt
+lazyplot.egg-info/top_level.txt

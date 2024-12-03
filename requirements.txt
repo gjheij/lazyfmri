@@ -1,0 +1,9 @@
+numpy>=1.19.1
+pandas>=1.1.5
+seaborn>=0.12.2
+nilearn>=0.10.0
+scipy>=1.9.1
+lmfit>=1.2.0
+nideconv
+scikit-learn>=1.2.2
+alive_progress
