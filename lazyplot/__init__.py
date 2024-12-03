@@ -1,4 +1,5 @@
 # Import specific items or entire modules here
-from .plotting import *
-from .utils import *
-from .glm import *
+# Import modules themselves for clearer namespace usage
+from . import plotting
+from . import utils
+from . import glm

@@ -6,36 +6,38 @@ import pandas as pd
 
 opj = os.path.join
 
+
 def str2operator(ops):
 
-    if ops in ["and","&","&&"]:
+    if ops in ["and", "&", "&&"]:
         return operator.and_
-    elif ops in ["or","|","||"]:
+    elif ops in ["or", "|", "||"]:
         return operator.or_
-    elif ops in ["is not","!="]:
+    elif ops in ["is not", "!="]:
         return operator.ne
-    elif ops in ["is","==","="]:
+    elif ops in ["is", "==", "="]:
         return operator.eq
-    elif ops in ["gt",">"]:
+    elif ops in ["gt", ">"]:
         return operator.gt
-    elif ops in ["lt","<"]:
+    elif ops in ["lt", "<"]:
             return operator.lt
-    elif ops in ["ge",">="]:
+    elif ops in ["ge", ">="]:
         return operator.ge
-    elif ops in ["le","<="]:
+    elif ops in ["le", "<="]:
             return operator.le
-    elif ops in ["x","*"]:
+    elif ops in ["x", "*"]:
         return operator.mul
     elif ops == "/":
         return operator.truediv
     else:
         raise NotImplementedError()
     
+
 def select_from_df(
-    df, 
-    expression=None, 
-    index=True, 
-    indices=None, 
+    df,
+    expression=None,
+    index=True,
+    indices=None,
     match_exact=True
     ):
     """select_from_df
@@ -68,13 +70,13 @@ def select_from_df(
     Notes
     ----------
     See https://linescanning.readthedocs.io/en/latest/examples/nideconv.html for an example of how to use this function (do ctrl+F and enter "select_from_df").
-    """    
+    """
 
     # not the biggest fan of a function within a function, but this allows easier translation of expressions/operators
     def sort_expressions(expression):
         expr_ = expression.split(" ")
         if len(expr_)>3:
-            for ix,i in enumerate(expr_):
+            for ix, i in enumerate(expr_):
                 try:
                     _ = str2operator(i)
                     break
@@ -85,17 +87,17 @@ def select_from_df(
             val1 = " ".join(expr_[(ix+1):])
             operator1 = expr_[ix]
         else:
-            col1,operator1,val1 = expr_
+            col1, operator1, val1 = expr_
 
-        return col1,operator1,val1
+        return col1, operator1, val1
     
-    if not isinstance(expression, (str,tuple,list)):
+    if not isinstance(expression, (str, tuple, list)):
         raise ValueError(f"Please specify expressions to apply to the dataframe. Input is '{expression}' of type ({type(expression)})")
     
     if expression == "ribbon":
         
         if isinstance(indices, tuple):
-            return df.iloc[:,indices[0]:indices[1]]
+            return df.iloc[:, indices[0]:indices[1]]
         elif isinstance(indices, list):
             if all(isinstance(item, str) for item in indices):
                 if match_exact:
@@ -107,9 +109,9 @@ def select_from_df(
 
                     return pd.concat(df_tmp, axis=1)
             else:
-                return df.iloc[:,indices]
+                return df.iloc[:, indices]
         elif isinstance(indices, np.ndarray):
-            return df.iloc[:,list(indices)]
+            return df.iloc[:, list(indices)]
         else:
             raise TypeError(f"Unknown type '{type(indices)}' for indices; must be a tuple of 2 values representing a range, or a list/array of indices to select")
     else:
@@ -130,7 +132,7 @@ def select_from_df(
         if isinstance(expression, str):
             expression = [expression]
 
-        if isinstance(expression, (tuple,list)):
+        if isinstance(expression, (tuple, list)):
 
             expressions = expression[::2]
             operators = expression[1::2]
@@ -138,7 +140,7 @@ def select_from_df(
             if len(expressions) == 1:
 
                 # find operator index
-                col1,operator1,val1 = sort_expressions(expressions[0])
+                col1, operator1, val1 = sort_expressions(expressions[0])
 
                 # convert to operator function
                 ops1 = str2operator(operator1)
@@ -148,8 +150,8 @@ def select_from_df(
                 sub_df = sub_df.loc[ops1(sub_df[col1], search_value[0])]
                 
             if len(expressions) == 2:
-                col1,operator1,val1 = sort_expressions(expressions[0])
-                col2,operator2,val2 = sort_expressions(expressions[1])
+                col1, operator1, val1 = sort_expressions(expressions[0])
+                col2, operator2, val2 = sort_expressions(expressions[1])
 
                 main_ops = str2operator(operators[0])
                 ops1 = str2operator(operator1)
@@ -173,6 +175,7 @@ def select_from_df(
         
         return sub_df
 
+
 def multiselect_from_df(df, expression=[]):
 
     if not isinstance(expression, list):
@@ -187,7 +190,8 @@ def multiselect_from_df(df, expression=[]):
 
     return df
 
-def round_decimals_down(number:float, decimals:int=2):
+
+def round_decimals_down(number: float, decimals: int=2):
     """
     Returns a value rounded down to a specific number of decimal places.
     see: https://kodify.net/python/math/round-decimals/#round-decimal-places-up-and-down-round
@@ -202,7 +206,8 @@ def round_decimals_down(number:float, decimals:int=2):
     factor = 10 ** decimals
     return math.floor(number * factor) / factor
 
-def round_decimals_up(number:float, decimals:int=2):
+
+def round_decimals_up(number: float, decimals: int=2):
     """
     Returns a value rounded up to a specific number of decimal places.
     see: https://kodify.net/python/math/round-decimals/#round-decimal-places-up-and-down-round
@@ -217,9 +222,11 @@ def round_decimals_up(number:float, decimals:int=2):
     factor = 10 ** decimals
     return math.ceil(number * factor) / factor
 
+
 def verbose(msg, verbose, flush=True, **kwargs):
     if verbose:
         print(msg, flush=flush, **kwargs)
+
 
 def get_unique_ids(df, id=None, sort=True, as_int=False, drop_na=True):
     try:
@@ -250,6 +257,8 @@ def get_unique_ids(df, id=None, sort=True, as_int=False, drop_na=True):
         raise RuntimeError(f"Could not find '{id}' in {list(df.columns)}")
 
 # Define a function 'pairwise' that iterates over all pairs of consecutive items in a list
+
+
 def pairwise(l1):
     # Create an empty list 'temp' to store the pairs
     temp = []
@@ -267,6 +276,7 @@ def pairwise(l1):
 
     # Return the list of pairs
     return temp
+
 
 def get_file_from_substring(filt, path, return_msg='error', exclude=None):
     """get_file_from_substring
@@ -327,14 +337,14 @@ def get_file_from_substring(filt, path, return_msg='error', exclude=None):
 
         # the idea is to create a binary matrix for the files in 'path', loop through the filters, and find the row where all values are 1
         filt_array = np.zeros((len(files_in_directory), len(filt)))
-        for ix,f in enumerate(files_in_directory):
-            for filt_ix,filt_opt in enumerate(filt):
-                filt_array[ix,filt_ix] = filt_opt in f
+        for ix, f in enumerate(files_in_directory):
+            for filt_ix, filt_opt in enumerate(filt):
+                filt_array[ix, filt_ix] = filt_opt in f
 
-        # now we have a binary <number of files x number of filters> array. If all filters were available in a file, the entire row should be 1, 
+        # now we have a binary <number of files x number of filters> array. If all filters were available in a file, the entire row should be 1,
         # so we're going to look for those rows
         full_match = np.ones(len(filt))
-        full_match_idc = np.where(np.all(filt_array==full_match,axis=1))[0]
+        full_match_idc = np.where(np.all(filt_array==full_match, axis=1))[0]
 
         if len(full_match_idc) == 1:
             fname = files_in_directory[full_match_idc[0]]
@@ -358,7 +368,7 @@ def get_file_from_substring(filt, path, return_msg='error', exclude=None):
             for match in full_match_idc:
                 fname = files_in_directory[match]
                 if input_is_list:
-                    match_list.append(fname)         
+                    match_list.append(fname)
                 else:
                     match_list.append(opj(path, fname))
 
@@ -381,6 +391,7 @@ def get_file_from_substring(filt, path, return_msg='error', exclude=None):
                 raise FileNotFoundError(f"Could not find file with filters: {filt} in {path}")
             else:
                 return None
+
 
 def update_kwargs(kwargs, el, val, force=False):
     if not force:

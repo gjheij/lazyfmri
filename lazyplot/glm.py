@@ -1,6 +1,6 @@
 from . import plotting, utils
 from nilearn.glm.first_level import first_level
-from nilearn.glm.first_level import hemodynamic_models 
+from nilearn.glm.first_level import hemodynamic_models
 from nilearn.plotting import (
     plot_contrast_matrix,
     plot_design_matrix
@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from scipy.interpolate import interp1d
 import seaborn as sns
+
 
 class GenericGLM():
     """GenericGLM
@@ -105,28 +106,28 @@ class GenericGLM():
     """
     
     def __init__(
-        self, 
-        onsets, 
-        data, 
-        hrf_pars=None, 
-        TR=None, 
-        osf=1, 
-        contrast_matrix=None, 
-        exp_type='event', 
-        block_length=None, 
-        amplitude=None, 
-        regressors=None, 
-        make_figure=False, 
-        xkcd=False, 
+        self,
+        onsets,
+        data,
+        hrf_pars=None,
+        TR=None,
+        osf=1,
+        contrast_matrix=None,
+        exp_type='event',
+        block_length=None,
+        amplitude=None,
+        regressors=None,
+        make_figure=False,
+        xkcd=False,
         plot_design=False,
         plot_convolve=False,
-        plot_event=None, 
-        plot_vox=None, 
+        plot_event=None,
+        plot_vox=None,
         plot_fit=False,
-        verbose=False, 
-        nilearn=False, 
-        derivative=False, 
-        dispersion=False, 
+        verbose=False,
+        nilearn=False,
+        derivative=False,
+        dispersion=False,
         add_intercept=True,
         fit=True,
         copes=None,
@@ -134,33 +135,33 @@ class GenericGLM():
         kw_conv={}
         ):
         
-        # instantiate 
-        self.onsets             = onsets
-        self.hrf_pars           = hrf_pars
-        self.TR                 = TR
-        self.osf                = osf
-        self.exp_type           = exp_type
-        self.block_length       = block_length
-        self.amplitude          = amplitude
-        self.regressors         = regressors
-        self.make_figure        = make_figure
-        self.xkcd               = xkcd
-        self.plot_event         = plot_event
-        self.plot_vox           = plot_vox
-        self.verbose            = verbose
-        self.contrast_matrix    = contrast_matrix
-        self.nilearn_method     = nilearn
-        self.dispersion         = dispersion
-        self.derivative         = derivative
-        self.add_intercept      = add_intercept
-        self.regressors         = regressors
-        self.cmap               = cmap
-        self.run_fit            = fit
-        self.copes              = copes
-        self.plot_fit           = plot_fit
-        self.plot_design        = plot_design
-        self.plot_convolve      = plot_convolve
-        self.kw_conv            = kw_conv
+        # instantiate
+        self.onsets = onsets
+        self.hrf_pars = hrf_pars
+        self.TR = TR
+        self.osf = osf
+        self.exp_type = exp_type
+        self.block_length = block_length
+        self.amplitude = amplitude
+        self.regressors = regressors
+        self.make_figure = make_figure
+        self.xkcd = xkcd
+        self.plot_event = plot_event
+        self.plot_vox = plot_vox
+        self.verbose = verbose
+        self.contrast_matrix = contrast_matrix
+        self.nilearn_method = nilearn
+        self.dispersion = dispersion
+        self.derivative = derivative
+        self.add_intercept = add_intercept
+        self.regressors = regressors
+        self.cmap = cmap
+        self.run_fit = fit
+        self.copes = copes
+        self.plot_fit = plot_fit
+        self.plot_design = plot_design
+        self.plot_convolve = plot_convolve
+        self.kw_conv = kw_conv
 
         if isinstance(data, np.ndarray):
             self.data = data.copy()
@@ -199,10 +200,10 @@ class GenericGLM():
     def define_stimvector(self):
         utils.verbose("Creating stimulus vector(s)", self.verbose)
         return make_stimulus_vector(
-            self.onsets, 
-            scan_length=self.data.shape[0], 
-            osf=self.osf, 
-            type=self.exp_type, 
+            self.onsets,
+            scan_length=self.data.shape[0],
+            osf=self.osf,
+            type=self.exp_type,
             TR=self.TR,
             block_length=self.block_length,
             amplitude=self.amplitude
@@ -211,11 +212,11 @@ class GenericGLM():
     def convolve_stims(self, **kwargs):
         utils.verbose("Convolve stimulus vectors with HRF", self.verbose)
         return convolve_hrf(
-            self.hrf, 
-            self.stims, 
+            self.hrf,
+            self.stims,
             TR=self.TR,
             osf=self.osf,
-            make_figure=self.plot_convolve, 
+            make_figure=self.plot_convolve,
             xkcd=self.xkcd,
             **kwargs
         )
@@ -233,8 +234,8 @@ class GenericGLM():
         utils.verbose("Creating design matrix", self.verbose)
 
         self.design = first_level_matrix(
-            self.stims_convolved_resampled, 
-            regressors=self.regressors, 
+            self.stims_convolved_resampled,
+            regressors=self.regressors,
             add_intercept=self.add_intercept
         )
 
@@ -244,10 +245,10 @@ class GenericGLM():
     def fit(
         self,
         nilearn_method=False,
-        make_figure=False, 
-        xkcd=False, 
-        plot_vox=None, 
-        plot_event=None, 
+        make_figure=False,
+        xkcd=False,
+        plot_vox=None,
+        plot_event=None,
         cmap="inferno",
         copes=None,
         plot_full_only=False,
@@ -288,8 +289,8 @@ class GenericGLM():
             self.labels, self.results = first_level.run_glm(self.data, self.design, noise_model='ar1')
 
             # Then, we inject this into the `fmri_glm`-class so we can compute contrasts
-            self.fmri_glm.labels_    = [self.labels]
-            self.fmri_glm.results_   = [self.results]
+            self.fmri_glm.labels_ = [self.labels]
+            self.fmri_glm.results_ = [self.results]
 
             # insert the design matrix:
             self.fmri_glm.design_matrices_ = []
@@ -299,10 +300,10 @@ class GenericGLM():
             if self.contrast_matrix == None:
                 if self.verbose:
                     print("Defining standard contrast matrix")
-                matrix                  = np.eye(len(self.condition_names))
-                icept                   = np.zeros((len(self.condition_names), 1))
-                matrix                  = np.hstack((icept, matrix)).astype(int)
-                self.contrast_matrix    = matrix.copy()
+                matrix = np.eye(len(self.condition_names))
+                icept = np.zeros((len(self.condition_names), 1))
+                matrix = np.hstack((icept, matrix)).astype(int)
+                self.contrast_matrix = matrix.copy()
 
                 self.conditions = {}
                 for idx, name in enumerate(self.condition_names):
@@ -313,25 +314,25 @@ class GenericGLM():
             self.tstats = []
             for event in self.conditions:
                 tstat = self.fmri_glm.compute_contrast(
-                    self.conditions[event], 
-                    stat_type='t', 
-                    output_type='stat', 
+                    self.conditions[event],
+                    stat_type='t',
+                    output_type='stat',
                     return_type=None)
                 self.tstats.append(tstat)
 
             self.tstats = np.array(self.tstats)
             
         else:
-            if not isinstance(self.plot_event, (str,list)):
+            if not isinstance(self.plot_event, (str, list)):
                 self.plot_event = self.condition_names
 
             self.results = fit_first_level(
-                self.design, 
-                self.data, 
-                make_figure=self.make_figure, 
-                xkcd=self.xkcd, 
-                plot_vox=self.plot_vox, 
-                plot_event=self.plot_event, 
+                self.design,
+                self.data,
+                make_figure=self.make_figure,
+                xkcd=self.xkcd,
+                plot_vox=self.plot_vox,
+                plot_event=self.plot_event,
                 cmap=self.cmap,
                 verbose=self.verbose,
                 copes=self.copes,
@@ -345,11 +346,11 @@ class GenericGLM():
     def plot_contrast_matrix(self, save_as=None):
         if self.nilearn_method:
             cols = list(self.design.columns)
-            fig,axs = plt.subplots(figsize=(len(cols),10))
+            fig, axs = plt.subplots(figsize=(len(cols), 10))
             plot_contrast_matrix(self.contrast_matrix, design_matrix=self.design, ax=axs)
             plotting.conform_ax_to_obj(axs)
 
-            fig,axs = plt.subplots(figsize=(10,10))
+            fig, axs = plt.subplots(figsize=(10, 10))
             plot_contrast_matrix(self.contrast_matrix, design_matrix=self.design, ax=axs)
 
             if save_as:
@@ -359,12 +360,13 @@ class GenericGLM():
 
     def plot_design_matrix(self, save_as=None):
         cols = list(self.design.columns)
-        fig,axs = plt.subplots(figsize=(len(cols),10))
+        fig, axs = plt.subplots(figsize=(len(cols), 10))
         plotting.plot_design_matrix(self.design, ax=axs)
         plotting.conform_ax_to_obj(axs)
 
         if save_as:
             fig.savefig(save_as)
+
 
 def glover_hrf(osf=1, TR=0.105, dispersion=False, derivative=False, time_length=25):
 
@@ -390,6 +392,7 @@ def glover_hrf(osf=1, TR=0.105, dispersion=False, derivative=False, time_length=
 
     return hrf_kernel
 
+
 def spm_hrf(osf=1, TR=0.105, dispersion=False, derivative=False, time_length=25):
 
     # osf factor is different in `hemodynamic_models`
@@ -414,14 +417,15 @@ def spm_hrf(osf=1, TR=0.105, dispersion=False, derivative=False, time_length=25)
 
     return hrf_kernel
 
+
 def make_stimulus_vector(
-    onset_df, 
-    scan_length=None, 
+    onset_df,
+    scan_length=None,
     cov_as_ampl=None,
-    TR=0.105, 
-    osf=1, 
-    type='event', 
-    block_length=None, 
+    TR=0.105,
+    osf=1,
+    type='event',
+    block_length=None,
     amplitude=None):
 
     """make_stimulus_vector
@@ -479,7 +483,7 @@ def make_stimulus_vector(
     try:
         onset_df = onset_df.reset_index()
     except:
-        onset_df = onset_df    
+        onset_df = onset_df
 
     # check conditions we have
     try:
@@ -488,7 +492,7 @@ def make_stimulus_vector(
         raise ValueError('Could not extract condition names; are you sure you formatted the dataframe correctly? Mostly likely you passed the functional dataframe as onset dataframe. Please switch')
 
     # check if we should use covariate as amplitude
-    if isinstance(cov_as_ampl, (bool,list)):
+    if isinstance(cov_as_ampl, (bool, list)):
         if isinstance(cov_as_ampl, bool):
             cov_as_ampl = [cov_as_ampl for _ in names_cond]
 
@@ -502,7 +506,7 @@ def make_stimulus_vector(
 
     # loop through unique conditions
     stim_vectors = {}
-    for idx,condition in enumerate(names_cond):
+    for idx, condition in enumerate(names_cond):
         
         tmp_onsets = utils.select_from_df(onset_df, expression=f"event_type = {condition}")
         set_ampl = True
@@ -526,7 +530,7 @@ def make_stimulus_vector(
         if type == "event":
             for rr, ii in enumerate(tmp_onsets['onset']):
                 try:
-                    if isinstance(ampl, (list,np.ndarray)):
+                    if isinstance(ampl, (list, np.ndarray)):
                         use_ampl = ampl[rr]
                     else:
                         use_ampl = ampl
@@ -546,26 +550,27 @@ def make_stimulus_vector(
 
     return stim_vectors
 
+
 def define_hrf(
-    hrf_pars="glover", 
+    hrf_pars="glover",
     TR=0.105,
-    osf=1, 
+    osf=1,
     dispersion=False,
     derivative=False):
 
     if isinstance(hrf_pars, str):
         if hrf_pars == "glover":
             hrf = glover_hrf(
-                osf=osf, 
-                TR=TR, 
-                dispersion=dispersion, 
+                osf=osf,
+                TR=TR,
+                dispersion=dispersion,
                 derivative=derivative)
             
         elif hrf_pars == "spm":
             hrf = spm_hrf(
-                osf=osf, 
-                TR=TR, 
-                dispersion=dispersion, 
+                osf=osf,
+                TR=TR,
+                dispersion=dispersion,
                 derivative=derivative)
 
         else:
@@ -580,18 +585,18 @@ def define_hrf(
                 np.ones_like(hrf_pars[1])*hrf_pars[0] *
                 hemodynamic_models.spm_hrf(
                     tr=TR,
-                    oversampling=osf, 
-                    time_length=40)[...,np.newaxis],
+                    oversampling=osf,
+                    time_length=40)[..., np.newaxis],
                 hrf_pars[1] *
                 hemodynamic_models.spm_time_derivative(
                     tr=TR,
-                    oversampling=osf, 
-                    time_length=40)[...,np.newaxis],
+                    oversampling=osf,
+                    time_length=40)[..., np.newaxis],
                 hrf_pars[2] *
                 hemodynamic_models.spm_dispersion_derivative(
                     tr=TR,
-                    oversampling=osf, 
-                    time_length=40)[...,np.newaxis]]).sum(
+                    oversampling=osf,
+                    time_length=40)[..., np.newaxis]]).sum(
             axis=0)
 
         hrf = [np.squeeze(hrf)]
@@ -604,12 +609,13 @@ def define_hrf(
     
     return hrf
 
+
 def convolve_hrf(
-    hrf, 
-    stim_v, 
+    hrf,
+    stim_v,
     TR=1,
     osf=1,
-    make_figure=False, 
+    make_figure=False,
     xkcd=False,
     time=None,
     *args,
@@ -656,37 +662,37 @@ def convolve_hrf(
     """
 
     def plot(
-        stim_v, 
-        hrf, 
-        convolved, 
-        osf=1, 
+        stim_v,
+        hrf,
+        convolved,
+        osf=1,
         ev=None,
-        xkcd=False, 
+        xkcd=False,
         time=time,
         **kwargs):
 
-        fig = plt.figure(figsize=(20,6))
+        fig = plt.figure(figsize=(20, 6))
         gs = fig.add_gridspec(2, 2, width_ratios=[20, 10], hspace=0.7)
 
         if isinstance(hrf, np.ndarray):
             hrf = [hrf]
 
         if stim_v.min() < 0:
-            y_lim = [-1,1]
-            y_ticks = [-1,0,1]
+            y_lim = [-1, 1]
+            y_ticks = [-1, 0, 1]
         else:
-            y_lim = [-0.5,1]
-            y_ticks = [0,1]
+            y_lim = [-0.5, 1]
+            y_ticks = [0, 1]
 
-        ax0 = fig.add_subplot(gs[0,0])
+        ax0 = fig.add_subplot(gs[0, 0])
         plotting.LazyLine(
-            stim_v, 
-            color="#B1BDBD", 
+            stim_v,
+            color="#B1BDBD",
             axs=ax0,
             title=f"Events ('{ev}')",
-            y_lim=y_lim, 
+            y_lim=y_lim,
             x_label='scan volumes (* osf)',
-            y_label='magnitude (a.u.)', 
+            y_label='magnitude (a.u.)',
             xkcd=xkcd,
             font_size=16,
             y_ticks=y_ticks,
@@ -700,13 +706,13 @@ def convolve_hrf(
             axs=ax1,
             title="Convolved stimulus-vector",
             x_label='scan volumes (* osf)',
-            y_label='magnitude (a.u.)', 
+            y_label='magnitude (a.u.)',
             *args,
             **kwargs)
         
         ax2 = fig.add_subplot(gs[:, 1])
-        if not isinstance(time, (list,np.ndarray)):
-            time = list(((np.arange(0,hrf[0].shape[0]))/osf)*TR)
+        if not isinstance(time, (list, np.ndarray)):
+            time = list(((np.arange(0, hrf[0].shape[0]))/osf)*TR)
         
         labels = [
             "HRF",
@@ -718,7 +724,7 @@ def convolve_hrf(
             hrf,
             xx=time,
             axs=ax2,
-            title="HRF", 
+            title="HRF",
             x_label='Time (s)',
             labels=labels[:len(hrf)],
             *args,
@@ -738,7 +744,7 @@ def convolve_hrf(
 
         if len(hrfs) >= 1:
             convolved_stim_vector = np.zeros((stim_v.shape[0], len(hrfs)))
-            for ix,rf in enumerate(hrfs):
+            for ix, rf in enumerate(hrfs):
                 convolved_stim_vector[:, ix] = np.convolve(stim_v, rf, 'full')[:stim_v.shape[0]]
 
         if make_figure:
@@ -752,7 +758,7 @@ def convolve_hrf(
             for event in list(stim_v.keys()):
                 hrf_conv = np.zeros((stim_v[event].shape[0], len(hrf)))
                 for ix, rf in enumerate(hrfs):
-                    hrf_conv[...,ix] = np.convolve(stim_v[event], rf, 'full')[:stim_v[event].shape[0]]
+                    hrf_conv[..., ix] = np.convolve(stim_v[event], rf, 'full')[:stim_v[event].shape[0]]
                 
                 convolved_stim_vector[event] = hrf_conv
                     
@@ -760,19 +766,19 @@ def convolve_hrf(
                     if xkcd:
                         with plt.xkcd():
                             plot(
-                                stim_v[event], 
-                                hrfs, 
-                                convolved_stim_vector[event], 
+                                stim_v[event],
+                                hrfs,
+                                convolved_stim_vector[event],
                                 osf=osf,
                                 ev=event,
                                 time=time,
-                                *args, 
+                                *args,
                                 **kwargs)
                     else:
                         plot(
-                            stim_v[event], 
-                            hrfs, 
-                            convolved_stim_vector[event], 
+                            stim_v[event],
+                            hrfs,
+                            convolved_stim_vector[event],
                             ev=event,
                             time=time,
                             osf=osf,
@@ -823,11 +829,11 @@ def resample_stim_vector(convolved_array, scan_length, interpolate='nearest'):
                     data = event_arr[..., elem]
                     interpolated = interp1d(
                         np.arange(len(data)), data, kind=interpolate, axis=0, fill_value='extrapolate')
-                    tmp[...,elem] = interpolated(np.linspace(0, len(data), scan_length))
+                    tmp[..., elem] = interpolated(np.linspace(0, len(data), scan_length))
                 downsampled[event] = tmp
             else:
                 interpolated = interp1d(np.arange(len(convolved_array[event])), convolved_array[event], kind=interpolate, axis=0, fill_value='extrapolate')
-                downsampled[event] = interpolated(np.linspace(0, len(convolved_array[event]), scan_length))                
+                downsampled[event] = interpolated(np.linspace(0, len(convolved_array[event]), scan_length))
     else:
         raise ValueError("Data must be 'np.ndarray' or 'dict'")
 
@@ -879,26 +885,26 @@ def first_level_matrix(stims_dict, regressors=None, add_intercept=True, names=No
         regressors_df = pd.DataFrame(regressors)
         return pd.concat([X_matrix, regressors_df], axis=1)
     elif isinstance(regressors, pd.DataFrame):
-        return pd.concat([X_matrix, regressors], axis=1)    
+        return pd.concat([X_matrix, regressors], axis=1)
     else:
         return X_matrix
 
 
 def fit_first_level(
-    stim_vector, 
-    data, 
-    make_figure=False, 
-    copes=None, 
-    xkcd=False, 
-    plot_vox=None, 
-    plot_event=1, 
-    verbose=False, 
-    cmap='inferno', 
+    stim_vector,
+    data,
+    make_figure=False,
+    copes=None,
+    xkcd=False,
+    plot_vox=None,
+    plot_event=1,
+    verbose=False,
+    cmap='inferno',
     plot_full_only=False,
     plot_full=False,
     add_intercept=True,
     axs=None,
-    figsize=(16,4),
+    figsize=(16, 4),
     **kwargs):
 
     """fit_first_level
@@ -941,7 +947,7 @@ def fit_first_level(
     if isinstance(data, (pd.DataFrame, pd.Series)):
         data = data.values
 
-    # add intercept if input is simple numpy array. 
+    # add intercept if input is simple numpy array.
     if isinstance(stim_vector, np.ndarray):
         if stim_vector.ndim == 1:
             stim_vector = stim_vector[:, np.newaxis]
@@ -950,7 +956,7 @@ def fit_first_level(
             data = data[:, np.newaxis]
 
         if stim_vector.shape[0] != data.shape[0]:
-            stim_vector = stim_vector[:data.shape[0],:]
+            stim_vector = stim_vector[:data.shape[0], :]
 
         # create design matrix with intercept
         if add_intercept:
@@ -971,7 +977,7 @@ def fit_first_level(
     X_conv = X_matrix.values.copy()
 
     # set default to first predictor
-    if not isinstance(copes, (int,list,np.ndarray)):
+    if not isinstance(copes, (int, list, np.ndarray)):
         copes = 1
 
     # convert to array
@@ -992,7 +998,7 @@ def fit_first_level(
 
     # force into 2d
     if C.ndim == 1:
-        C = C[np.newaxis,...]
+        C = C[np.newaxis, ...]
 
     # np.linalg.pinv(X) = np.inv(X.T @ X) @ X
     betas_conv, sse, rank, s = np.linalg.lstsq(X_conv, data, rcond=-1)
@@ -1028,12 +1034,12 @@ def fit_first_level(
         best_vox = plot_vox
 
     if betas_conv.ndim == 1:
-        betas_conv = betas_conv[...,np.newaxis]
+        betas_conv = betas_conv[..., np.newaxis]
 
     if make_figure:
 
         if not isinstance(axs, mpl.axes._axes.Axes):
-            fig,axs = plt.subplots(figsize=figsize)
+            fig, axs = plt.subplots(figsize=figsize)
 
         # set defaults for actual datapoints
         markers = ['.']
@@ -1052,16 +1058,16 @@ def fit_first_level(
             for ev in plot_event:
 
                 # always include intercept
-                beta_idx = [ix for ix,ii in enumerate(col_names) if ev in ii or "regressor" in ii or "intercept" in ii]
+                beta_idx = [ix for ix, ii in enumerate(col_names) if ev in ii or "regressor" in ii or "intercept" in ii]
 
                 # get betas for all voxels
                 betas = betas_conv[beta_idx]
-                event = X_conv[:,beta_idx]
+                event = X_conv[:, beta_idx]
 
                 # get predictions
                 ev_preds = event@betas
 
-                signals.append(ev_preds[:,best_vox])
+                signals.append(ev_preds[:, best_vox])
                 labels.append(f"Event '{ev}'")
                 markers.append(None)
                 linewidth.append(2)
@@ -1072,7 +1078,7 @@ def fit_first_level(
 
         # append full model
         if plot_full:
-            signals.append(preds[:,best_vox])
+            signals.append(preds[:, best_vox])
             labels.append(f"full model")
             markers.append(None)
             linewidth.append(1)
@@ -1105,6 +1111,7 @@ def fit_first_level(
         'dm': X_matrix
     }
 
+
 def calculate_r2(
         data,
         sse
@@ -1113,6 +1120,7 @@ def calculate_r2(
     tse = (data.shape[0]-1) * np.var(data, axis=0, ddof=1)
     r2 = 1-(sse/tse)
     return r2
+
 
 def calculate_tstats(
     dm=None,
@@ -1126,13 +1134,13 @@ def calculate_tstats(
     for co_ix in range(C.shape[0]):
         
         # contrast-specific vector
-        cope_c = C[co_ix,:]
+        cope_c = C[co_ix, :]
 
         # calculate some other relevant parameters
-        cope        = cope_c @ betas
-        dof         = dm.shape[0] - rank
-        sigma_hat   = sse/dof
-        varcope     = sigma_hat*design_variance(dm, which_predictor=cope_c)
+        cope = cope_c @ betas
+        dof = dm.shape[0] - rank
+        sigma_hat = sse/dof
+        varcope = sigma_hat*design_variance(dm, which_predictor=cope_c)
 
         # calculate t-stats
         t_ = cope / np.sqrt(varcope)
@@ -1142,6 +1150,7 @@ def calculate_tstats(
         tstat = np.array(tstat)
     
     return tstat
+
 
 def design_variance(X, which_predictor=1):
     ''' Returns the design variance of a predictor (or contrast) in X.
@@ -1172,6 +1181,7 @@ def design_variance(X, which_predictor=1):
     c[idx] = 1 if is_single == 1 else which_predictor[idx]
     des_var = c.dot(np.linalg.inv(X.T.dot(X))).dot(c.T)
     return des_var
+
 
 def double_gamma(x, lag=6, a2=12, b1=0.9, b2=0.9, c=0.35, scale=True):
     """double_gamma
@@ -1218,6 +1228,7 @@ def double_gamma(x, lag=6, a2=12, b1=0.9, b2=0.9, c=0.35, scale=True):
             (hrf.max() - hrf.min()) + hrf.min()
     return hrf
 
+
 class Posthoc(plotting.Defaults):
     """Posthoc
 
@@ -1247,7 +1258,7 @@ class Posthoc(plotting.Defaults):
         """sort the output of posthoc tests based on distance so that the longest significance bar spans the largest distance"""
 
         distances = []
-        for contr in range(df.shape[0]): 
+        for contr in range(df.shape[0]):
             A = df["A"].iloc[contr]
             B = df["B"].iloc[contr]
 
@@ -1260,11 +1271,11 @@ class Posthoc(plotting.Defaults):
         return df.sort_values("distances", ascending=False)
 
     def run_posthoc(
-        self, 
+        self,
         test: str="tukey",
         ano: dict=None,
         paired=False,
-        *args, 
+        *args,
         **kwargs):
         
         """run_posthoc
@@ -1339,7 +1350,7 @@ class Posthoc(plotting.Defaults):
         self.conditions = utils.get_unique_ids(self.data, id=getattr(self, tagger), sort=False)
 
     def plot_bars(
-        self, 
+        self,
         axs: mpl.axes._axes.Axes=None,
         alpha: float=0.05,
         y_pos: float=0.95,
@@ -1391,7 +1402,7 @@ class Posthoc(plotting.Defaults):
 
         # run posthoc if not present
         if not hasattr(self, "posthoc"):
-            self.run_posthoc(*args,**kwargs)
+            self.run_posthoc(*args, **kwargs)
             
             # internalize all kwargs
             self.__dict__.update(kwargs)
@@ -1408,7 +1419,7 @@ class Posthoc(plotting.Defaults):
 
         for contr in range(self.posthoc_sorted.shape[0]):
             txt = None
-            p_val = self.posthoc_sorted[p_meth].iloc[contr] 
+            p_val = self.posthoc_sorted[p_meth].iloc[contr]
             if p_val<self.alpha:
                 
                 if 0.01 < p_val < 0.05:
@@ -1427,7 +1438,7 @@ class Posthoc(plotting.Defaults):
                     txt = "ns"
                     style = "italic"
                     f_size = self.label_size
-                    dist = self.ast_frac*self.ns_frac                    
+                    dist = self.ast_frac*self.ns_frac
 
             # read indices from output dataframe and conditions
             if isinstance(txt, str):
@@ -1438,11 +1449,11 @@ class Posthoc(plotting.Defaults):
                 x2 = self.conditions.index(B)
 
                 diff = self.minmax[1]-self.minmax[0]
-                y,h,col =  (diff*self.y_pos)+self.minmax[0], diff*self.leg_size, self.color
+                y, h, col =  (diff*self.y_pos)+self.minmax[0], diff*self.leg_size, self.color
                 self.axs.plot(
-                    [x1,x1,x2,x2], 
-                    [y,y+h,y+h,y], 
-                    lw=self.tick_width, 
+                    [x1, x1, x2, x2],
+                    [y, y+h, y+h, y],
+                    lw=self.tick_width,
                     c=col
                 )
 
@@ -1450,11 +1461,11 @@ class Posthoc(plotting.Defaults):
                 y_txt = y+(y*dist)
                 # print(y,h)
                 self.axs.text(
-                    x_txt, 
-                    y_txt, 
-                    txt, 
-                    ha='center', 
-                    va='bottom', 
+                    x_txt,
+                    y_txt,
+                    txt,
+                    ha='center',
+                    va='bottom',
                     color=col,
                     fontname=self.fontname,
                     fontsize=f_size,
@@ -1466,6 +1477,7 @@ class Posthoc(plotting.Defaults):
 
                 # reset txt
                 txt = None
+
 
 class ANOVA(Posthoc):
 
@@ -1497,13 +1509,13 @@ class ANOVA(Posthoc):
     """
 
     def __init__(
-        self, 
-        alpha: float=0.05, 
+        self,
+        alpha: float=0.05,
         axs: mpl.axes._axes.Axes=None,
         posthoc_kw: dict={},
         plot_kw={},
         bar_kw={},
-        *args, 
+        *args,
         **kwargs):
         
         self.posthoc_kw = posthoc_kw
@@ -1521,8 +1533,8 @@ class ANOVA(Posthoc):
         )
         
     def _get_results(
-        self, 
-        df: pd.DataFrame, 
+        self,
+        df: pd.DataFrame,
         alpha: float=0.05):
 
         effects = df["Source"].to_list()
@@ -1536,14 +1548,14 @@ class ANOVA(Posthoc):
         return p_vals
     
     def run_anova(
-        self, 
+        self,
         alpha: float=0.05,
         axs: mpl.axes._axes.Axes=None,
         parametric="auto",
         posthoc_kw={},
         plot_kw={},
         bar_kw={},
-        *args, 
+        *args,
         **kwargs):
         
         self.alpha = alpha
@@ -1554,7 +1566,7 @@ class ANOVA(Posthoc):
         
         # do stats
         if parametric == "auto":
-            data,dv = kwargs["data"],kwargs["dv"]
+            data, dv = kwargs["data"], kwargs["dv"]
 
             try:
                 data.reset_index(inplace=True)
@@ -1595,6 +1607,7 @@ class ANOVA(Posthoc):
                 **bar_kw
             )
                 
+
 class ANCOVA(Posthoc):
 
     """ANCOVA
@@ -1626,13 +1639,13 @@ class ANCOVA(Posthoc):
     """
 
     def __init__(
-        self, 
-        alpha: float=0.05, 
+        self,
+        alpha: float=0.05,
         axs: mpl.axes._axes.Axes=None,
         posthoc_kw: dict={},
         bar_kw: dict={},
         plot_kw: dict={},
-        *args, 
+        *args,
         **kwargs):
         
         self.posthoc_kw = posthoc_kw
@@ -1660,13 +1673,13 @@ class ANCOVA(Posthoc):
         return p_vals
     
     def run_ancova(
-        self, 
+        self,
         alpha: float=0.05,
         axs: mpl.axes._axes.Axes=None,
         posthoc_kw={},
         plot_kw={},
         bar_kw={},
-        *args, 
+        *args,
         **kwargs):
 
         self.alpha = alpha
