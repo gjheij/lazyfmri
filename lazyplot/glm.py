@@ -36,7 +36,7 @@ class GenericGLM():
     TR: float
         repetition time of acquisition
     osf: int, optional
-        Oversampling factor used to account for decimal onset times, by default None. The larger this factor, the more accurate decimal onset times will be processed, but also the bigger your upsampled convolved becomes, which means convolving will take longer.   
+        Oversampling factor used to account for decimal onset times, by default None. The larger this factor, the more accurate decimal onset times will be processed, but also the bigger your upsampled convolved becomes, which means convolving will take longer.
     type: str, optional
         Use block design of event-related design, by default 'event'. If set to 'block', `block_length` is required.
     block_length: int, optional
@@ -48,9 +48,9 @@ class GenericGLM():
     make_figure: bool, optional
         Create overview figure of HRF, stimulus vector, and convolved stimulus vector, by default False
     scan_length: int
-        number of volumes in `data` (= `scan_length` in :func:`linescanning.glm.make_stimulus_vector`)        
+        number of volumes in `data` (= `scan_length` in :func:`linescanning.glm.make_stimulus_vector`)
     xkcd: bool, optional
-        Plot the figre in XKCD-style (cartoon), by default False    
+        Plot the figre in XKCD-style (cartoon), by default False
     plot_vox: int, optional
         Instead of plotting the best-fitting voxel, specify which voxel to plot the timecourse and fit of, by default None
     plot_event: str, int, list, optional
@@ -71,7 +71,7 @@ class GenericGLM():
         * resids: <n_timepoints, n_voxels> residuals>
 
     matplotlib.pyplot
-        plots along the process if `make_figure=True`        
+        plots along the process if `make_figure=True`
 
     Example
     ----------
@@ -85,13 +85,13 @@ class GenericGLM():
 
     >>> # load in functional data
     >>> obj = dataset.Dataset(
-    >>>     func_file, 
+    >>>     func_file,
     >>>     exp_file=exp_file,
-    >>>     subject=1, 
-    >>>     run=1, 
-    >>>     deleted_first_timepoints=200, 
+    >>>     subject=1,
+    >>>     run=1,
+    >>>     deleted_first_timepoints=200,
     >>>     deleted_last_timepoints=200)
-    
+
     >>> # fetch HP-filtered, percent-signal changed data
     >>> data = obj.fetch_fmri()
     >>> onsets = obj.fetch_onsets()
@@ -104,7 +104,7 @@ class GenericGLM():
     For `FirstLevelModel` to work with our type of data, I had to add the following to `https://github.com/nilearn/nilearn/blob/main/nilearn/glm/first_level/first_level.py#L683`:
 
     """
-    
+
     def __init__(
         self,
         onsets,
@@ -133,8 +133,8 @@ class GenericGLM():
         copes=None,
         cmap='inferno',
         kw_conv={}
-        ):
-        
+    ):
+
         # instantiate
         self.onsets = onsets
         self.hrf_pars = hrf_pars
@@ -170,13 +170,13 @@ class GenericGLM():
             self.data = data.values
         else:
             raise ValueError("Data must be 'np.ndarray' or 'pandas.DataFrame'")
-        
+
         # define HRF
         self.hrf = self.define_hrf()
 
         # make the stimulus vectors
         self.stims = self.define_stimvector()
-        
+
         # convolve stimulus vectors
         self.stims_convolved = self.convolve_stims(**self.kw_conv)
 
@@ -188,7 +188,9 @@ class GenericGLM():
 
     def define_hrf(self):
 
-        utils.verbose(f"Defining HRF with option '{self.hrf_pars}'", self.verbose)
+        utils.verbose(
+            f"Defining HRF with option '{self.hrf_pars}'",
+            self.verbose)
         return define_hrf(
             hrf_pars=self.hrf_pars,
             osf=self.osf,
@@ -224,7 +226,8 @@ class GenericGLM():
     def resample_stimvector(self):
         if self.osf > 1:
             utils.verbose("Resample convolved stimulus vectors", self.verbose)
-            return resample_stim_vector(self.stims_convolved, self.data.shape[0])
+            return resample_stim_vector(
+                self.stims_convolved, self.data.shape[0])
         else:
             return self.stims_convolved.copy()
 
@@ -241,7 +244,7 @@ class GenericGLM():
 
         if make_figure:
             self.plot_design_matrix()
-        
+
     def fit(
         self,
         nilearn_method=False,
@@ -255,7 +258,7 @@ class GenericGLM():
         plot_full=False,
         save_as=None,
         **kwargs
-        ):
+    ):
 
         self.nilearn_method = nilearn_method
         self.xkcd = xkcd
@@ -269,7 +272,8 @@ class GenericGLM():
         self.save_as = save_as
 
         if self.nilearn_method:
-            # we're going to hack Nilearn's FirstLevelModel to be compatible with our line-data. First, we specify the model as usual
+            # we're going to hack Nilearn's FirstLevelModel to be compatible
+            # with our line-data. First, we specify the model as usual
             self.fmri_glm = first_level.FirstLevelModel(
                 t_r=self.TR,
                 noise_model='ar1',
@@ -278,17 +282,22 @@ class GenericGLM():
                 drift_model='cosine',
                 high_pass=.01)
 
-            # Normally, we'd run `fmri_glm = fmri_glm.fit()`, but because this requires nifti-like inputs, we run `run_glm` outside of that function to get the labels:
+            # Normally, we'd run `fmri_glm = fmri_glm.fit()`, but because this
+            # requires nifti-like inputs, we run `run_glm` outside of that
+            # function to get the labels:
             if isinstance(self.data, pd.DataFrame):
                 self.data = self.data.values
             elif isinstance(self.data, np.ndarray):
                 self.data = self.data.copy()
             else:
-                raise ValueError(f"Unknown input type {type(self.data)} for functional data. Must be pd.DataFrame or np.ndarray [time, voxels]")
+                raise ValueError(
+                    f"Unknown input type {type(self.data)} for functional data. Must be pd.DataFrame or np.ndarray [time, voxels]")
 
-            self.labels, self.results = first_level.run_glm(self.data, self.design, noise_model='ar1')
+            self.labels, self.results = first_level.run_glm(
+                self.data, self.design, noise_model='ar1')
 
-            # Then, we inject this into the `fmri_glm`-class so we can compute contrasts
+            # Then, we inject this into the `fmri_glm`-class so we can compute
+            # contrasts
             self.fmri_glm.labels_ = [self.labels]
             self.fmri_glm.results_ = [self.results]
 
@@ -297,7 +306,7 @@ class GenericGLM():
             self.fmri_glm.design_matrices_.append(self.design)
 
             # Then we specify our contrast matrix:
-            if self.contrast_matrix == None:
+            if self.contrast_matrix is None:
                 if self.verbose:
                     print("Defining standard contrast matrix")
                 matrix = np.eye(len(self.condition_names))
@@ -321,7 +330,7 @@ class GenericGLM():
                 self.tstats.append(tstat)
 
             self.tstats = np.array(self.tstats)
-            
+
         else:
             if not isinstance(self.plot_event, (str, list)):
                 self.plot_event = self.condition_names
@@ -347,16 +356,23 @@ class GenericGLM():
         if self.nilearn_method:
             cols = list(self.design.columns)
             fig, axs = plt.subplots(figsize=(len(cols), 10))
-            plot_contrast_matrix(self.contrast_matrix, design_matrix=self.design, ax=axs)
+            plot_contrast_matrix(
+                self.contrast_matrix,
+                design_matrix=self.design,
+                ax=axs)
             plotting.conform_ax_to_obj(axs)
 
             fig, axs = plt.subplots(figsize=(10, 10))
-            plot_contrast_matrix(self.contrast_matrix, design_matrix=self.design, ax=axs)
+            plot_contrast_matrix(
+                self.contrast_matrix,
+                design_matrix=self.design,
+                ax=axs)
 
             if save_as:
                 fig.savefig(save_as)
         else:
-            raise NotImplementedError("Can't use this function without nilearn-fitting. Set 'nilearn=True'")
+            raise NotImplementedError(
+                "Can't use this function without nilearn-fitting. Set 'nilearn=True'")
 
     def plot_design_matrix(self, save_as=None):
         cols = list(self.design.columns)
@@ -368,50 +384,58 @@ class GenericGLM():
             fig.savefig(save_as)
 
 
-def glover_hrf(osf=1, TR=0.105, dispersion=False, derivative=False, time_length=25):
+def glover_hrf(osf=1, TR=0.105, dispersion=False,
+               derivative=False, time_length=25):
 
     # osf factor is different in `hemodynamic_models`
     # osf /= 10
 
     # set kernel
     hrf_kernel = []
-    hrf = hemodynamic_models.glover_hrf(TR, oversampling=osf, time_length=time_length)
+    hrf = hemodynamic_models.glover_hrf(
+        TR, oversampling=osf, time_length=time_length)
     hrf /= hrf.max()
 
     hrf_kernel.append(hrf)
 
     if derivative:
-        tderiv_hrf = hemodynamic_models.glover_time_derivative(tr=TR, oversampling=osf, time_length=time_length)
+        tderiv_hrf = hemodynamic_models.glover_time_derivative(
+            tr=TR, oversampling=osf, time_length=time_length)
         tderiv_hrf /= tderiv_hrf.max()
         hrf_kernel.append(tderiv_hrf)
 
     if dispersion:
-        tdisp_hrf = hemodynamic_models.glover_dispersion_derivative(TR, oversampling=osf, time_length=time_length)
+        tdisp_hrf = hemodynamic_models.glover_dispersion_derivative(
+            TR, oversampling=osf, time_length=time_length)
         tdisp_hrf /= tdisp_hrf.max()
         hrf_kernel.append(tdisp_hrf)
 
     return hrf_kernel
 
 
-def spm_hrf(osf=1, TR=0.105, dispersion=False, derivative=False, time_length=25):
+def spm_hrf(osf=1, TR=0.105, dispersion=False,
+            derivative=False, time_length=25):
 
     # osf factor is different in `hemodynamic_models`
     # osf /= 10
 
     # set kernel
     hrf_kernel = []
-    hrf = hemodynamic_models.spm_hrf(TR, oversampling=osf, time_length=time_length)
+    hrf = hemodynamic_models.spm_hrf(
+        TR, oversampling=osf, time_length=time_length)
     hrf /= hrf.max()
 
     hrf_kernel.append(hrf)
 
     if derivative:
-        tderiv_hrf = hemodynamic_models.spm_time_derivative(tr=TR, oversampling=osf, time_length=time_length)
+        tderiv_hrf = hemodynamic_models.spm_time_derivative(
+            tr=TR, oversampling=osf, time_length=time_length)
         tderiv_hrf /= tderiv_hrf.max()
         hrf_kernel.append(tderiv_hrf)
 
     if dispersion:
-        tdisp_hrf = hemodynamic_models.spm_dispersion_derivative(TR, oversampling=osf, time_length=time_length)
+        tdisp_hrf = hemodynamic_models.spm_dispersion_derivative(
+            TR, oversampling=osf, time_length=time_length)
         tdisp_hrf /= tdisp_hrf.max()
         hrf_kernel.append(tdisp_hrf)
 
@@ -419,15 +443,14 @@ def spm_hrf(osf=1, TR=0.105, dispersion=False, derivative=False, time_length=25)
 
 
 def make_stimulus_vector(
-    onset_df,
-    scan_length=None,
-    cov_as_ampl=None,
-    TR=0.105,
-    osf=1,
-    type='event',
-    block_length=None,
-    amplitude=None):
-
+        onset_df,
+        scan_length=None,
+        cov_as_ampl=None,
+        TR=0.105,
+        osf=1,
+        type='event',
+        block_length=None,
+        amplitude=None):
     """make_stimulus_vector
 
     Creates a stimulus vector for each of the conditions found in `onset_df`. You can account for onset times being in decimal using the oversampling factor `osf`. This would return an upsampled stimulus vector which should be convolved with an equally upsampled HRF. This can be ensured by using the same `osf` in :func:`linescanning.glm.double_gamma`.
@@ -459,7 +482,7 @@ def make_stimulus_vector(
     ValueError
         `onset_df` should contain event names
     ValueError
-        if multiple amplitudes are requested but the length of `amplitude` does not match the number of events 
+        if multiple amplitudes are requested but the length of `amplitude` does not match the number of events
     ValueError
         `block_length` should be an integer
 
@@ -482,14 +505,15 @@ def make_stimulus_vector(
     # check if we should reset or not
     try:
         onset_df = onset_df.reset_index()
-    except:
+    except BaseException:
         onset_df = onset_df
 
     # check conditions we have
     try:
         names_cond = utils.get_unique_ids(onset_df, id="event_type")
-    except:
-        raise ValueError('Could not extract condition names; are you sure you formatted the dataframe correctly? Mostly likely you passed the functional dataframe as onset dataframe. Please switch')
+    except BaseException:
+        raise ValueError(
+            'Could not extract condition names; are you sure you formatted the dataframe correctly? Mostly likely you passed the functional dataframe as onset dataframe. Please switch')
 
     # check if we should use covariate as amplitude
     if isinstance(cov_as_ampl, (bool, list)):
@@ -507,26 +531,29 @@ def make_stimulus_vector(
     # loop through unique conditions
     stim_vectors = {}
     for idx, condition in enumerate(names_cond):
-        
-        tmp_onsets = utils.select_from_df(onset_df, expression=f"event_type = {condition}")
+
+        tmp_onsets = utils.select_from_df(
+            onset_df, expression=f"event_type = {condition}")
         set_ampl = True
         if isinstance(cov_as_ampl, list):
             if cov_as_ampl[idx]:
                 if "cov" in list(tmp_onsets.columns):
                     ampl = tmp_onsets["cov"].values
                     set_ampl = False
-        
+
         if set_ampl:
             if isinstance(ampl_array, np.ndarray):
                 if ampl_array.shape[0] == names_cond.shape[0]:
                     ampl = amplitude[idx]
-                    print(f"Amplitude for event '{names_cond[idx]}' = {round(ampl,2)}")
+                    print(
+                        f"Amplitude for event '{names_cond[idx]}' = {round(ampl,2)}")
                 else:
-                    raise ValueError(f"Nr of amplitudes ({ampl_array.shape[0]}) does not match number of conditions ({names_cond.shape[0]})")
+                    raise ValueError(
+                        f"Nr of amplitudes ({ampl_array.shape[0]}) does not match number of conditions ({names_cond.shape[0]})")
             else:
                 ampl = 1
 
-        Y = np.zeros(int((scan_length*osf)))
+        Y = np.zeros(int((scan_length * osf)))
         if type == "event":
             for rr, ii in enumerate(tmp_onsets['onset']):
                 try:
@@ -535,14 +562,15 @@ def make_stimulus_vector(
                     else:
                         use_ampl = ampl
 
-                    Y[int((ii*osf)/TR)] = use_ampl
-                except:
-                    print(f"Warning: could not include event {rr} with t = {ii}. Probably experiment continued after functional acquisition")
-                        
+                    Y[int((ii * osf) / TR)] = use_ampl
+                except BaseException:
+                    print(
+                        f"Warning: could not include event {rr} with t = {ii}. Probably experiment continued after functional acquisition")
+
         elif type == 'block':
 
             for rr, ii in enumerate(tmp_onsets['onset']):
-                Y[int((ii*osf)/TR):int(((ii+block_length)*osf)/TR)] = ampl
+                Y[int((ii * osf) / TR):int(((ii + block_length) * osf) / TR)] = ampl
 
         else:
             raise ValueError(f"Event must be 'event' or 'block', not '{type}'")
@@ -552,11 +580,11 @@ def make_stimulus_vector(
 
 
 def define_hrf(
-    hrf_pars="glover",
-    TR=0.105,
-    osf=1,
-    dispersion=False,
-    derivative=False):
+        hrf_pars="glover",
+        TR=0.105,
+        osf=1,
+        dispersion=False,
+        derivative=False):
 
     if isinstance(hrf_pars, str):
         if hrf_pars == "glover":
@@ -565,7 +593,7 @@ def define_hrf(
                 TR=TR,
                 dispersion=dispersion,
                 derivative=derivative)
-            
+
         elif hrf_pars == "spm":
             hrf = spm_hrf(
                 osf=osf,
@@ -574,15 +602,16 @@ def define_hrf(
                 derivative=derivative)
 
         else:
-            raise ValueError(f"Invalid option '{hrf_pars}' specified. Must be either 'spm' or 'glover', a list of 3 parameters, a numpy array describing the HRF, or None (for standard double gamma)")
-        
+            raise ValueError(
+                f"Invalid option '{hrf_pars}' specified. Must be either 'spm' or 'glover', a list of 3 parameters, a numpy array describing the HRF, or None (for standard double gamma)")
+
     elif isinstance(hrf_pars, np.ndarray):
         hrf = [hrf_pars]
     elif isinstance(hrf_pars, list):
 
         hrf = np.array(
             [
-                np.ones_like(hrf_pars[1])*hrf_pars[0] *
+                np.ones_like(hrf_pars[1]) * hrf_pars[0] *
                 hemodynamic_models.spm_hrf(
                     tr=TR,
                     oversampling=osf,
@@ -603,27 +632,26 @@ def define_hrf(
 
     else:
         osf /= TR
-        dt = 1/osf
-        time_points = np.linspace(0, 25, np.rint(float(25)/dt).astype(int))
+        dt = 1 / osf
+        time_points = np.linspace(0, 25, np.rint(float(25) / dt).astype(int))
         hrf = [double_gamma(time_points, lag=6)]
-    
+
     return hrf
 
 
 def convolve_hrf(
-    hrf,
-    stim_v,
-    TR=1,
-    osf=1,
-    make_figure=False,
-    xkcd=False,
-    time=None,
-    *args,
-    **kwargs):
-
+        hrf,
+        stim_v,
+        TR=1,
+        osf=1,
+        make_figure=False,
+        xkcd=False,
+        time=None,
+        *args,
+        **kwargs):
     """convolve_hrf
 
-    Convolve :func:`linescanning.glm.double_gamma` with :func:`linescanning.glm.make_stimulus_vector`. There's an option to plot the result in a nice overview figure, though python-wise it's not the prettiest.. 
+    Convolve :func:`linescanning.glm.double_gamma` with :func:`linescanning.glm.make_stimulus_vector`. There's an option to plot the result in a nice overview figure, though python-wise it's not the prettiest..
 
     Parameters
     ----------
@@ -632,11 +660,11 @@ def convolve_hrf(
     stim_v: numpy.ndarray, list
         Stimulus vector as per :func:`linescanning.glm.make_stimulus_vector` or numpy array containing one stimulus vector (e.g., a *key* from :func:`linescanning.glm.make_stimulus_vector`)
     TR: float
-        repetition time of acquisition        
+        repetition time of acquisition
     make_figure: bool, optional
         Create overview figure of HRF, stimulus vector, and convolved stimulus vector, by default False
     scan_length: int
-        number of volumes in `data` (= `scan_length` in :func:`linescanning.glm.make_stimulus_vector`)        
+        number of volumes in `data` (= `scan_length` in :func:`linescanning.glm.make_stimulus_vector`)
     xkcd: bool, optional
         Plot the figre in XKCD-style (cartoon), by default False
     add_array1: numpy.ndarray, optional
@@ -662,14 +690,14 @@ def convolve_hrf(
     """
 
     def plot(
-        stim_v,
-        hrf,
-        convolved,
-        osf=1,
-        ev=None,
-        xkcd=False,
-        time=time,
-        **kwargs):
+            stim_v,
+            hrf,
+            convolved,
+            osf=1,
+            ev=None,
+            xkcd=False,
+            time=time,
+            **kwargs):
 
         fig = plt.figure(figsize=(20, 6))
         gs = fig.add_gridspec(2, 2, width_ratios=[20, 10], hspace=0.7)
@@ -698,7 +726,7 @@ def convolve_hrf(
             y_ticks=y_ticks,
             *args,
             **kwargs)
-        
+
         # print(list(convolved.T)[0].shape)
         ax1 = fig.add_subplot(gs[1, 0])
         plotting.LazyLine(
@@ -709,11 +737,11 @@ def convolve_hrf(
             y_label='magnitude (a.u.)',
             *args,
             **kwargs)
-        
+
         ax2 = fig.add_subplot(gs[:, 1])
         if not isinstance(time, (list, np.ndarray)):
-            time = list(((np.arange(0, hrf[0].shape[0]))/osf)*TR)
-        
+            time = list(((np.arange(0, hrf[0].shape[0])) / osf) * TR)
+
         labels = [
             "HRF",
             "1st derivative",
@@ -730,14 +758,14 @@ def convolve_hrf(
             *args,
             **kwargs)
 
-    
     # check hrf input
     if isinstance(hrf, np.ndarray):
         hrfs = [hrf]
     elif isinstance(hrf, list):
         hrfs = hrf.copy()
     else:
-        raise ValueError(f"Unknown input type '{type(hrf)}' for HRF. Must be list or array")
+        raise ValueError(
+            f"Unknown input type '{type(hrf)}' for HRF. Must be list or array")
 
     # convolve stimulus vectors
     if isinstance(stim_v, np.ndarray):
@@ -745,7 +773,8 @@ def convolve_hrf(
         if len(hrfs) >= 1:
             convolved_stim_vector = np.zeros((stim_v.shape[0], len(hrfs)))
             for ix, rf in enumerate(hrfs):
-                convolved_stim_vector[:, ix] = np.convolve(stim_v, rf, 'full')[:stim_v.shape[0]]
+                convolved_stim_vector[:, ix] = np.convolve(
+                    stim_v, rf, 'full')[:stim_v.shape[0]]
 
         if make_figure:
             plot(stim_v, hrfs, convolved_stim_vector, xkcd=xkcd)
@@ -758,10 +787,11 @@ def convolve_hrf(
             for event in list(stim_v.keys()):
                 hrf_conv = np.zeros((stim_v[event].shape[0], len(hrf)))
                 for ix, rf in enumerate(hrfs):
-                    hrf_conv[..., ix] = np.convolve(stim_v[event], rf, 'full')[:stim_v[event].shape[0]]
-                
+                    hrf_conv[..., ix] = np.convolve(stim_v[event], rf, 'full')[
+                        :stim_v[event].shape[0]]
+
                 convolved_stim_vector[event] = hrf_conv
-                    
+
                 if make_figure:
                     if xkcd:
                         with plt.xkcd():
@@ -816,12 +846,22 @@ def resample_stim_vector(convolved_array, scan_length, interpolate='nearest'):
     """
 
     if isinstance(convolved_array, np.ndarray):
-        interpolated = interp1d(np.arange(len(convolved_array)), convolved_array, kind=interpolate, axis=0, fill_value='extrapolate')
-        downsampled = interpolated(np.linspace(0, len(convolved_array), scan_length))
+        interpolated = interp1d(
+            np.arange(
+                len(convolved_array)),
+            convolved_array,
+            kind=interpolate,
+            axis=0,
+            fill_value='extrapolate')
+        downsampled = interpolated(
+            np.linspace(
+                0,
+                len(convolved_array),
+                scan_length))
     elif isinstance(convolved_array, dict):
         downsampled = {}
         for event in list(convolved_array.keys()):
-            
+
             event_arr = convolved_array[event]
             if event_arr.shape[-1] > 1:
                 tmp = np.zeros((scan_length, event_arr.shape[-1]))
@@ -829,25 +869,36 @@ def resample_stim_vector(convolved_array, scan_length, interpolate='nearest'):
                     data = event_arr[..., elem]
                     interpolated = interp1d(
                         np.arange(len(data)), data, kind=interpolate, axis=0, fill_value='extrapolate')
-                    tmp[..., elem] = interpolated(np.linspace(0, len(data), scan_length))
+                    tmp[..., elem] = interpolated(
+                        np.linspace(0, len(data), scan_length))
                 downsampled[event] = tmp
             else:
-                interpolated = interp1d(np.arange(len(convolved_array[event])), convolved_array[event], kind=interpolate, axis=0, fill_value='extrapolate')
-                downsampled[event] = interpolated(np.linspace(0, len(convolved_array[event]), scan_length))
+                interpolated = interp1d(
+                    np.arange(
+                        len(
+                            convolved_array[event])),
+                    convolved_array[event],
+                    kind=interpolate,
+                    axis=0,
+                    fill_value='extrapolate')
+                downsampled[event] = interpolated(np.linspace(
+                    0, len(convolved_array[event]), scan_length))
     else:
         raise ValueError("Data must be 'np.ndarray' or 'dict'")
 
     return downsampled
 
 
-def first_level_matrix(stims_dict, regressors=None, add_intercept=True, names=None):
+def first_level_matrix(stims_dict, regressors=None,
+                       add_intercept=True, names=None):
 
     # make dataframe of stimulus vectors
     if isinstance(stims_dict, np.ndarray):
         if names:
             stims = pd.DataFrame(stims_dict, columns=names)
         else:
-            stims = pd.DataFrame(stims_dict, columns=[f'event {ii}' for ii in range(stims_dict.shape[-1])])
+            stims = pd.DataFrame(stims_dict, columns=[
+                                 f'event {ii}' for ii in range(stims_dict.shape[-1])])
     elif isinstance(stims_dict, dict):
         # check if we got time/dispersion derivatives
         cols = []
@@ -859,7 +910,8 @@ def first_level_matrix(stims_dict, regressors=None, add_intercept=True, names=No
             elif stims_dict[key].shape[-1] == 2:
                 cols.extend([key, f'{key}_1st_derivative'])
             elif stims_dict[key].shape[-1] == 3:
-                cols.extend([key, f'{key}_1st_derivative', f'{key}_2nd_derivative'])
+                cols.extend([key, f'{key}_1st_derivative',
+                            f'{key}_2nd_derivative'])
 
             data.append(stims_dict[key])
 
@@ -879,7 +931,8 @@ def first_level_matrix(stims_dict, regressors=None, add_intercept=True, names=No
 
     # check if we should add regressors
     if isinstance(regressors, np.ndarray):
-        regressors_df = pd.DataFrame(regressors, columns=[f'regressor_{ii+1}' for ii in range(regressors.shape[-1])])
+        regressors_df = pd.DataFrame(regressors, columns=[
+                                     f'regressor_{ii+1}' for ii in range(regressors.shape[-1])])
         return pd.concat([X_matrix, regressors_df], axis=1)
     elif isinstance(regressors, dict):
         regressors_df = pd.DataFrame(regressors)
@@ -891,22 +944,21 @@ def first_level_matrix(stims_dict, regressors=None, add_intercept=True, names=No
 
 
 def fit_first_level(
-    stim_vector,
-    data,
-    make_figure=False,
-    copes=None,
-    xkcd=False,
-    plot_vox=None,
-    plot_event=1,
-    verbose=False,
-    cmap='inferno',
-    plot_full_only=False,
-    plot_full=False,
-    add_intercept=True,
-    axs=None,
-    figsize=(16, 4),
-    **kwargs):
-
+        stim_vector,
+        data,
+        make_figure=False,
+        copes=None,
+        xkcd=False,
+        plot_vox=None,
+        plot_event=1,
+        verbose=False,
+        cmap='inferno',
+        plot_full_only=False,
+        plot_full=False,
+        add_intercept=True,
+        axs=None,
+        figsize=(16, 4),
+        **kwargs):
     """fit_first_level
 
     First level models are, in essence, linear regression models run at the level of a single session or single subject. The model is applied on a voxel-wise basis, either on the whole brain or within a region of interest. The  timecourse of each voxel is regressed against a predicted BOLD response created by convolving the haemodynamic response function (HRF) with a set of predictors defined within the design matrix (source: https://nilearn.github.io/glm/first_level_model.html)
@@ -972,7 +1024,8 @@ def fit_first_level(
             data = data[:, np.newaxis]
 
         if stim_vector.shape[0] != data.shape[0]:
-            raise ValueError(f"Unequal shapes between design {stim_vector.shape} and data {data.shape}. Make sure first elements have the same shape")
+            raise ValueError(
+                f"Unequal shapes between design {stim_vector.shape} and data {data.shape}. Make sure first elements have the same shape")
 
     X_conv = X_matrix.values.copy()
 
@@ -1003,9 +1056,9 @@ def fit_first_level(
     # np.linalg.pinv(X) = np.inv(X.T @ X) @ X
     betas_conv, sse, rank, s = np.linalg.lstsq(X_conv, data, rcond=-1)
     # betas_conv  = np.linalg.inv(X_conv.T @ X_conv) @ X_conv.T @ data
-    
+
     # get full model predictions
-    preds = X_conv@betas_conv
+    preds = X_conv @ betas_conv
 
     # calculate r2
     r2 = calculate_r2(data, sse=sse)
@@ -1021,7 +1074,7 @@ def fit_first_level(
 
     if verbose:
         for co_ix in range(C.shape[0]):
-            if tstat[co_ix].shape[0]<10:
+            if tstat[co_ix].shape[0] < 10:
                 print(f"t-stat {C[co_ix,:]}: {tstat[co_ix]}")
 
     def best_voxel(r2):
@@ -1058,14 +1111,15 @@ def fit_first_level(
             for ev in plot_event:
 
                 # always include intercept
-                beta_idx = [ix for ix, ii in enumerate(col_names) if ev in ii or "regressor" in ii or "intercept" in ii]
+                beta_idx = [ix for ix, ii in enumerate(
+                    col_names) if ev in ii or "regressor" in ii or "intercept" in ii]
 
                 # get betas for all voxels
                 betas = betas_conv[beta_idx]
                 event = X_conv[:, beta_idx]
 
                 # get predictions
-                ev_preds = event@betas
+                ev_preds = event @ betas
 
                 signals.append(ev_preds[:, best_vox])
                 labels.append(f"Event '{ev}'")
@@ -1113,12 +1167,12 @@ def fit_first_level(
 
 
 def calculate_r2(
-        data,
-        sse
-    ):
+    data,
+    sse
+):
 
-    tse = (data.shape[0]-1) * np.var(data, axis=0, ddof=1)
-    r2 = 1-(sse/tse)
+    tse = (data.shape[0] - 1) * np.var(data, axis=0, ddof=1)
+    r2 = 1 - (sse / tse)
     return r2
 
 
@@ -1128,19 +1182,19 @@ def calculate_tstats(
     betas=None,
     sse=None,
     rank=None
-    ):
+):
 
     tstat = []
     for co_ix in range(C.shape[0]):
-        
+
         # contrast-specific vector
         cope_c = C[co_ix, :]
 
         # calculate some other relevant parameters
         cope = cope_c @ betas
         dof = dm.shape[0] - rank
-        sigma_hat = sse/dof
-        varcope = sigma_hat*design_variance(dm, which_predictor=cope_c)
+        sigma_hat = sse / dof
+        varcope = sigma_hat * design_variance(dm, which_predictor=cope_c)
 
         # calculate t-stats
         t_ = cope / np.sqrt(varcope)
@@ -1148,13 +1202,13 @@ def calculate_tstats(
 
     if len(tstat) > 0:
         tstat = np.array(tstat)
-    
+
     return tstat
 
 
 def design_variance(X, which_predictor=1):
     ''' Returns the design variance of a predictor (or contrast) in X.
-    
+
     Parameters
     ----------
     X : numpy array
@@ -1164,19 +1218,19 @@ def design_variance(X, which_predictor=1):
         Note that 0 refers to the intercept!
         Alternatively, "which_predictor" can be a contrast-vector
         (which will be discussed later this lab).
-        
+
     Returns
     -------
     des_var : float
         Design variance of the specified predictor/contrast from X.
     '''
-    
+
     is_single = isinstance(which_predictor, int)
     if is_single:
         idx = which_predictor
     else:
         idx = np.array(which_predictor) != 0
-    
+
     c = np.zeros(X.shape[1])
     c[idx] = 1 if is_single == 1 else which_predictor[idx]
     des_var = c.dot(np.linalg.inv(X.T.dot(X))).dot(c.T)
@@ -1220,8 +1274,8 @@ def double_gamma(x, lag=6, a2=12, b1=0.9, b2=0.9, c=0.35, scale=True):
     a1 = lag
     d1 = a1 * b1
     d2 = a2 * b2
-    hrf = np.array([(t/(d1))**a1 * np.exp(-(t-d1)/b1) - c *
-                   (t/(d2))**a2 * np.exp(-(t-d2)/b2) for t in x])
+    hrf = np.array([(t / (d1))**a1 * np.exp(-(t - d1) / b1) - c *
+                   (t / (d2))**a2 * np.exp(-(t - d2) / b2) for t in x])
 
     if scale:
         hrf = (1 - hrf.min()) * (hrf - hrf.min()) / \
@@ -1253,7 +1307,7 @@ class Posthoc(plotting.Defaults):
     def __init__(self, **kwargs):
         # initialize plotting setting
         super().__init__(**kwargs)
-        
+
     def sort_posthoc(self, df):
         """sort the output of posthoc tests based on distance so that the longest significance bar spans the largest distance"""
 
@@ -1265,19 +1319,18 @@ class Posthoc(plotting.Defaults):
             x1 = self.conditions.index(A)
             x2 = self.conditions.index(B)
 
-            distances.append(abs(x2-x1))
-        
+            distances.append(abs(x2 - x1))
+
         df["distances"] = distances
         return df.sort_values("distances", ascending=False)
 
     def run_posthoc(
-        self,
-        test: str="tukey",
-        ano: dict=None,
-        paired=False,
-        *args,
-        **kwargs):
-        
+            self,
+            test: str = "tukey",
+            ano: dict = None,
+            paired=False,
+            *args,
+            **kwargs):
         """run_posthoc
 
         Run the posthoc test. By default, we'll run a `tukey`-test. If the argument is something else, the :class:`pingouin.pairwise_tests()` is invoked.
@@ -1293,14 +1346,14 @@ class Posthoc(plotting.Defaults):
             If pingouin cannot by imported
         """
         self.test = test
-            
+
         # internalize data
         if "data" in list(kwargs.keys()):
             self.data = kwargs["data"]
 
         try:
             import pingouin as pg
-        except:
+        except BaseException:
             raise ImportError(f"Could not import 'pingouin'")
 
         # FDR-corrected post hocs
@@ -1309,7 +1362,6 @@ class Posthoc(plotting.Defaults):
         if "within" in list(kwargs.keys()):
             nonparam = True
             kwargs["parametric"] = False
-
 
         if paired:
             if "between" in list(kwargs.keys()):
@@ -1329,7 +1381,7 @@ class Posthoc(plotting.Defaults):
             self.posthoc = pg.pairwise_tests(
                 *args,
                 **kwargs)
-            
+
             if "p-corr" in list(self.posthoc.columns):
                 self.p_tag = "p-corr"
             else:
@@ -1340,29 +1392,29 @@ class Posthoc(plotting.Defaults):
             tagger = "within"
 
         if self.test == "inherit":
-            if len(ano)>0:
+            if len(ano) > 0:
                 if kwargs[tagger] in list(ano.keys()):
                     self.posthoc[self.p_tag] = ano[kwargs[tagger]]
 
         # internalize all kwargs
         self.__dict__.update(kwargs)
 
-        self.conditions = utils.get_unique_ids(self.data, id=getattr(self, tagger), sort=False)
+        self.conditions = utils.get_unique_ids(
+            self.data, id=getattr(self, tagger), sort=False)
 
     def plot_bars(
-        self,
-        axs: mpl.axes._axes.Axes=None,
-        alpha: float=0.05,
-        y_pos: float=0.95,
-        line_separate_factor: float=-0.065,
-        ast_frac: float=0.2,
-        ns_annot: bool=False,
-        ns_frac: bool=5,
-        leg_size: float=0.02,
-        color: str="black",
-        *args,
-        **kwargs):
-
+            self,
+            axs: mpl.axes._axes.Axes = None,
+            alpha: float = 0.05,
+            y_pos: float = 0.95,
+            line_separate_factor: float = -0.065,
+            ast_frac: float = 0.2,
+            ns_annot: bool = False,
+            ns_frac: bool = 5,
+            leg_size: float = 0.02,
+            color: str = "black",
+            *args,
+            **kwargs):
         """plot_bars
 
         Function that plots the significance bars given a matplotlib axis. Based on the sorted posthoc output, it'll draw the significance bars from top to bottom (longest significance bar up top).
@@ -1403,7 +1455,7 @@ class Posthoc(plotting.Defaults):
         # run posthoc if not present
         if not hasattr(self, "posthoc"):
             self.run_posthoc(*args, **kwargs)
-            
+
             # internalize all kwargs
             self.__dict__.update(kwargs)
 
@@ -1420,15 +1472,15 @@ class Posthoc(plotting.Defaults):
         for contr in range(self.posthoc_sorted.shape[0]):
             txt = None
             p_val = self.posthoc_sorted[p_meth].iloc[contr]
-            if p_val<self.alpha:
-                
+            if p_val < self.alpha:
+
                 if 0.01 < p_val < 0.05:
                     txt = "*"
                 elif 0.001 < p_val < 0.01:
                     txt = "**"
                 elif p_val < 0.001:
                     txt = "***"
-                    
+
                 style = None
                 f_size = self.font_size
                 dist = self.ast_frac
@@ -1438,27 +1490,28 @@ class Posthoc(plotting.Defaults):
                     txt = "ns"
                     style = "italic"
                     f_size = self.label_size
-                    dist = self.ast_frac*self.ns_frac
+                    dist = self.ast_frac * self.ns_frac
 
             # read indices from output dataframe and conditions
             if isinstance(txt, str):
                 A = self.posthoc_sorted["A"].iloc[contr]
                 B = self.posthoc_sorted["B"].iloc[contr]
-                
+
                 x1 = self.conditions.index(A)
                 x2 = self.conditions.index(B)
 
-                diff = self.minmax[1]-self.minmax[0]
-                y, h, col =  (diff*self.y_pos)+self.minmax[0], diff*self.leg_size, self.color
+                diff = self.minmax[1] - self.minmax[0]
+                y, h, col = (diff * self.y_pos) + \
+                    self.minmax[0], diff * self.leg_size, self.color
                 self.axs.plot(
                     [x1, x1, x2, x2],
-                    [y, y+h, y+h, y],
+                    [y, y + h, y + h, y],
                     lw=self.tick_width,
                     c=col
                 )
 
-                x_txt = (x1+x2)*.5
-                y_txt = y+(y*dist)
+                x_txt = (x1 + x2) * .5
+                y_txt = y + (y * dist)
                 # print(y,h)
                 self.axs.text(
                     x_txt,
@@ -1502,22 +1555,22 @@ class ANOVA(Posthoc):
     >>>     dv="dependent_variable",
     >>>     between="grouping_variable",
     >>>     posthoc_kw={
-    >>>         "ns_annot": True    
+    >>>         "ns_annot": True
     >>>     },
     >>>     axs=axs,
     >>> )
     """
 
     def __init__(
-        self,
-        alpha: float=0.05,
-        axs: mpl.axes._axes.Axes=None,
-        posthoc_kw: dict={},
-        plot_kw={},
-        bar_kw={},
-        *args,
-        **kwargs):
-        
+            self,
+            alpha: float = 0.05,
+            axs: mpl.axes._axes.Axes = None,
+            posthoc_kw: dict = {},
+            plot_kw={},
+            bar_kw={},
+            *args,
+            **kwargs):
+
         self.posthoc_kw = posthoc_kw
         self.bar_kw = bar_kw
         self.plot_kw = plot_kw
@@ -1531,11 +1584,11 @@ class ANOVA(Posthoc):
             *args,
             **kwargs
         )
-        
+
     def _get_results(
-        self,
-        df: pd.DataFrame,
-        alpha: float=0.05):
+            self,
+            df: pd.DataFrame,
+            alpha: float = 0.05):
 
         effects = df["Source"].to_list()
         p_vals = {}
@@ -1546,33 +1599,33 @@ class ANOVA(Posthoc):
                 p_vals[ef] = p_
 
         return p_vals
-    
+
     def run_anova(
-        self,
-        alpha: float=0.05,
-        axs: mpl.axes._axes.Axes=None,
-        parametric="auto",
-        posthoc_kw={},
-        plot_kw={},
-        bar_kw={},
-        *args,
-        **kwargs):
-        
+            self,
+            alpha: float = 0.05,
+            axs: mpl.axes._axes.Axes = None,
+            parametric="auto",
+            posthoc_kw={},
+            plot_kw={},
+            bar_kw={},
+            *args,
+            **kwargs):
+
         self.alpha = alpha
         try:
             import pingouin as pg
-        except:
+        except BaseException:
             raise ImportError(f"Could not import 'pingouin'")
-        
+
         # do stats
         if parametric == "auto":
             data, dv = kwargs["data"], kwargs["dv"]
 
             try:
                 data.reset_index(inplace=True)
-            except:
+            except BaseException:
                 pass
-            
+
             # test if all groups are equal
             if "between" in list(kwargs.keys()):
                 between = kwargs['between']
@@ -1606,7 +1659,7 @@ class ANOVA(Posthoc):
                 axs=axs,
                 **bar_kw
             )
-                
+
 
 class ANCOVA(Posthoc):
 
@@ -1632,22 +1685,22 @@ class ANCOVA(Posthoc):
     >>>     between="grouping_variable",
     >>>     covar="covariate",
     >>>     posthoc_kw={
-    >>>         "ns_annot": True    
+    >>>         "ns_annot": True
     >>>     },
     >>>     axs=axs,
     >>> )
     """
 
     def __init__(
-        self,
-        alpha: float=0.05,
-        axs: mpl.axes._axes.Axes=None,
-        posthoc_kw: dict={},
-        bar_kw: dict={},
-        plot_kw: dict={},
-        *args,
-        **kwargs):
-        
+            self,
+            alpha: float = 0.05,
+            axs: mpl.axes._axes.Axes = None,
+            posthoc_kw: dict = {},
+            bar_kw: dict = {},
+            plot_kw: dict = {},
+            *args,
+            **kwargs):
+
         self.posthoc_kw = posthoc_kw
         self.plot_kw = plot_kw
         self.bar_kw = bar_kw
@@ -1660,7 +1713,7 @@ class ANCOVA(Posthoc):
             plot_kw=self.plot_kw,
             *args,
             **kwargs)
-        
+
     def _get_results(self, df, alpha=0.05):
         effects = df["Source"].to_list()
         p_vals = {}
@@ -1671,23 +1724,23 @@ class ANCOVA(Posthoc):
                 p_vals[ef] = p_
 
         return p_vals
-    
+
     def run_ancova(
-        self,
-        alpha: float=0.05,
-        axs: mpl.axes._axes.Axes=None,
-        posthoc_kw={},
-        plot_kw={},
-        bar_kw={},
-        *args,
-        **kwargs):
+            self,
+            alpha: float = 0.05,
+            axs: mpl.axes._axes.Axes = None,
+            posthoc_kw={},
+            plot_kw={},
+            bar_kw={},
+            *args,
+            **kwargs):
 
         self.alpha = alpha
         try:
             import pingouin as pg
-        except:
+        except BaseException:
             raise ImportError(f"Could not import 'pingouin'")
-        
+
         # do stats
         self.ano = pg.ancova(
             *args,
@@ -1705,7 +1758,7 @@ class ANCOVA(Posthoc):
         for i in filter_kwargs:
             if i in list(kwargs.keys()):
                 kwargs.pop(i)
-                
+
         super().__init__(**plot_kw)
         self.run_posthoc(ano=self.results, **kwargs, **posthoc_kw)
 

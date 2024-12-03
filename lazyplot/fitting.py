@@ -21,8 +21,8 @@ from alive_progress import alive_bar
 class CurveFitter():
     """CurveFitter
 
-    Simple class to perform a quick curve fitting procedure on ``y_data``. 
-    You can either specify your own function with ``func``, or select a polynomial of order ``order`` (currently up until 3rd-order is included). 
+    Simple class to perform a quick curve fitting procedure on ``y_data``.
+    You can either specify your own function with ``func``, or select a polynomial of order ``order`` (currently up until 3rd-order is included).
     Internally uses ``lmfit.Model`` to perform the fitting, allowing for access to confidence intervals.
 
     Parameters
@@ -32,7 +32,7 @@ class CurveFitter():
     x: np.ndarray, optional
         Array describing the x-axis, by default None.
     func: function-object, optional
-        Use custom function describing the behavior of the fit, by default None. 
+        Use custom function describing the behavior of the fit, by default None.
         If ``None``, we'll assume either a linear or polynomial fit (up to 3rd order)
     order: str, int, optional
         Order of polynomial fit, by default 1 (linear).
@@ -74,15 +74,15 @@ class CurveFitter():
     """
 
     def __init__(
-        self,
-        y_data,
-        x=None,
-        func=None,
-        order=1,
-        verbose=True,
-        interpolate='linear',
-        fix_intercept=False,
-        sigma=1):
+            self,
+            y_data,
+            x=None,
+            func=None,
+            order=1,
+            verbose=True,
+            interpolate='linear',
+            fix_intercept=False,
+            sigma=1):
 
         self.y_data = y_data
         self.func = func
@@ -95,7 +95,7 @@ class CurveFitter():
 
         self.init_params()
         self.run()
-        
+
     def init_params(self):
         if self.func is None:
             self.guess = True
@@ -105,14 +105,16 @@ class CurveFitter():
                 elif self.order == 2:
                     self.pmodel = lmfit.models.QuadraticModel()
                 else:
-                    self.pmodel = lmfit.models.PolynomialModel(order=self.order)
+                    self.pmodel = lmfit.models.PolynomialModel(
+                        order=self.order)
             elif isinstance(self.order, str):
                 if self.order == 'gauss' or self.order == 'gaussian':
                     self.pmodel = lmfit.models.GaussianModel()
                 elif self.order == 'exp' or self.order == 'exponential':
                     self.pmodel = lmfit.models.ExponentialModel()
                 else:
-                    raise NotImplementedError(f"Model {self.order} is not implemented because I'm lazy..")
+                    raise NotImplementedError(
+                        f"Model {self.order} is not implemented because I'm lazy..")
         else:
             self.guess = False
             self.pmodel = lmfit.Model(self.func)
@@ -129,28 +131,30 @@ class CurveFitter():
         if self.fix_intercept:
             self.params['intercept'].value = 0
             self.params['intercept'].vary = False
-        
+
     def run(self):
         self.result = self.pmodel.fit(self.y_data, self.params, x=self.x)
 
         if self.verbose:
             print(self.result.fit_report())
 
-        # create predictions & confidence intervals that are compatible with LazyPlot
+        # create predictions & confidence intervals that are compatible with
+        # LazyPlot
         self.y_pred = self.result.best_fit
         self.x_pred_upsampled = np.linspace(self.x[0], self.x[-1], 1000)
         self.y_pred_upsampled = self.result.eval(x=self.x_pred_upsampled)
         self.ci = self.result.eval_uncertainty(sigma=self.sigma)
-        self.ci_upsampled = glm.resample_stim_vector(self.ci, len(self.x_pred_upsampled), interpolate=self.interpolate)
+        self.ci_upsampled = glm.resample_stim_vector(self.ci, len(
+            self.x_pred_upsampled), interpolate=self.interpolate)
 
     def first_order(x, a, b):
         return a * x + b
-    
+
     def second_order(x, a, b, c):
         return a * x + b * x**2 + c
-    
+
     def third_order(x, a, b, c, d):
-	    return (a * x) + (b * x**2) + (c * x**3) + d
+        return (a * x) + (b * x**2) + (c * x**3) + d
 
 
 class InitFitter():
@@ -163,7 +167,7 @@ class InitFitter():
         merge=False,
         *args,
         **kwargs
-        ):
+    ):
 
         self.func = func
         self.onsets = onsets
@@ -191,13 +195,13 @@ class InitFitter():
         self.onsets = self.concat_obj["onsets"]
 
     def _get_timepoints(self):
-        return list(np.arange(0, self.func.shape[0])*self.TR)
+        return list(np.arange(0, self.func.shape[0]) * self.TR)
 
     def prepare_onsets(self):
-        
+
         # store copy of original data
         self.orig_onsets = self.onsets.copy()
-        
+
         # put in dataframe
         self.old_index = []
         if isinstance(self.onsets, np.ndarray):
@@ -207,12 +211,12 @@ class InitFitter():
                 # check old index
                 try:
                     self.old_index = list(self.onsets.index.names)
-                except:
+                except BaseException:
                     pass
                 self.onsets.reset_index(inplace=True)
-            except:
+            except BaseException:
                 pass
-            
+
         # format dataframe with subject, run, and t
         try:
             self.task_ids = utils.get_unique_ids(self.onsets, id="task")
@@ -225,7 +229,7 @@ class InitFitter():
 
             self.final_elements = [1, None, 1, "stim"]
 
-        except:
+        except BaseException:
             self.task_ids = None
             self.final_index = [
                 "subject",
@@ -233,7 +237,7 @@ class InitFitter():
                 "event_type"
             ]
             self.final_elements = [1, 1, "stim"]
-            
+
         self.onset_index = [
             "subject",
             "run",
@@ -245,21 +249,21 @@ class InitFitter():
                 self.onsets[key] = val
 
         self.drop_cols = []
-        if len(self.old_index)>0:
+        if len(self.old_index) > 0:
             for ix in self.old_index:
                 if ix not in self.final_index:
                     self.drop_cols.append(ix)
 
-        if len(self.drop_cols)>0:
+        if len(self.drop_cols) > 0:
             self.onsets = self.onsets.drop(self.drop_cols, axis=1)
 
         self.onsets.set_index(self.final_index, inplace=True)
-    
+
     def prepare_data(self):
-        
+
         # store copy of original data
         self.orig_data = self.func.copy()
-        
+
         # put in dataframe
         self.time = self._get_timepoints()
         self.old_index = []
@@ -270,12 +274,12 @@ class InitFitter():
                 # check old index
                 try:
                     self.old_index = list(self.func.index.names)
-                except:
+                except BaseException:
                     pass
                 self.func = self.func.reset_index()
-            except:
+            except BaseException:
                 pass
-        
+
         # format dataframe with subject, run, and t
         try:
             self.task_ids = utils.get_unique_ids(self.func, id="task")
@@ -288,7 +292,7 @@ class InitFitter():
 
             self.final_elements = [1, None, 1, self.time]
 
-        except:
+        except BaseException:
             self.task_ids = None
             self.final_index = [
                 "subject",
@@ -302,12 +306,12 @@ class InitFitter():
                 self.func[key] = val
 
         self.drop_cols = []
-        if len(self.old_index)>0:
+        if len(self.old_index) > 0:
             for ix in self.old_index:
                 if ix not in self.final_index:
                     self.drop_cols.append(ix)
 
-        if len(self.drop_cols)>0:
+        if len(self.drop_cols) > 0:
             self.func = self.func.drop(self.drop_cols, axis=1)
 
         self.func.set_index(self.final_index, inplace=True)
@@ -318,7 +322,7 @@ class InitFitter():
         # check if time matches TR
         t = utils.get_unique_ids(df, id="t")
         tr = np.diff(t)[0]
-        tr_list = list(np.arange(0, df.shape[0])*tr)
+        tr_list = list(np.arange(0, df.shape[0]) * tr)
 
         # construct new dataframe
         new_func = pd.DataFrame(df.values, columns=list(df.columns))
@@ -327,20 +331,21 @@ class InitFitter():
         new_func.set_index(["subject", "run", "t"], inplace=True)
 
         return new_func
-    
+
     @classmethod
     def concat_onsets(
         self,
         onsets,
         func
-        ):
+    ):
 
         n_runs = utils.get_unique_ids(onsets, id="run")
         run_dfs = []
         for ix, ii in enumerate(n_runs):
-            df = utils.select_from_df(onsets, expression=f"run = {ii}").reset_index()
+            df = utils.select_from_df(
+                onsets, expression=f"run = {ii}").reset_index()
             ff = utils.select_from_df(func, expression=f"run = {ii}")
-            df["onset"] += (ix*ff.shape[0])
+            df["onset"] += (ix * ff.shape[0])
             df["run"] = 1
             run_dfs.append(df)
 
@@ -354,8 +359,8 @@ class InitFitter():
         self,
         func,
         onsets
-        ):
-        
+    ):
+
         sub_ids = utils.get_unique_ids(func, id="subject")
         sub_dfs = {}
         sub_dfs["func"] = []
@@ -365,11 +370,13 @@ class InitFitter():
         for sub in sub_ids:
 
             # concatenate functional
-            sub_func = utils.select_from_df(func, expression=f"subject = {sub}")
+            sub_func = utils.select_from_df(
+                func, expression=f"subject = {sub}")
             sub_dfs["func"].append(self.concat_func(sub_func))
 
             # concatenate onsets
-            sub_onsets = utils.select_from_df(onsets, expression=f"subject = {sub}")
+            sub_onsets = utils.select_from_df(
+                onsets, expression=f"subject = {sub}")
             sub_dfs["onsets"].append(self.concat_onsets(sub_onsets, sub_func))
 
         for key, val in sub_dfs.items():
@@ -383,7 +390,7 @@ class InitFitter():
         trg,
         name="full HRF",
         first="basissets"
-        ):
+    ):
 
         tm = trg.copy().reset_index()
         tm["covariate"] = name
@@ -395,13 +402,14 @@ class InitFitter():
             order = [tm, trg]
 
         return pd.concat(order)
-    
+
     def merge_basissets_with_full_hrf(self, **kwargs):
 
         for pars in ["avg_pars", "pars"]:
 
-            if hasattr(self, f"{pars}_basissets") and hasattr(self, f"{pars}_subjects"):
-                
+            if hasattr(self, f"{pars}_basissets") and hasattr(
+                    self, f"{pars}_subjects"):
+
                 df1 = getattr(self, f"{pars}_basissets")
                 df2 = getattr(self, f"{pars}_subjects")
                 df3 = self.merge_dfs(
@@ -415,7 +423,8 @@ class InitFitter():
             df1 = self.sub_basis.copy()
             df2 = self.tc_subjects.copy().reset_index()
             df2.rename(columns={"time": "t"}, inplace=True)
-            df2.set_index(["subject", "run", "event_type", "covariate", "t"], inplace=True)
+            df2.set_index(["subject", "run", "event_type",
+                          "covariate", "t"], inplace=True)
 
             df3 = self.merge_dfs(
                 df1,
@@ -429,7 +438,8 @@ class InitFitter():
             df1 = self.sub_basis.copy()
             df2 = self.tc_subjects.copy().reset_index()
             df2.rename(columns={"time": "t"}, inplace=True)
-            df2.set_index(["subject", "run", "event_type", "covariate", "t"], inplace=True)
+            df2.set_index(["subject", "run", "event_type",
+                          "covariate", "t"], inplace=True)
 
             df3 = self.merge_dfs(
                 df1,
@@ -443,22 +453,26 @@ class InitFitter():
         self,
         *args,
         **kwargs
-        ):
+    ):
 
         if not hasattr(self, "sub_basis"):
             self.get_basisset_timecourses()
 
-        utils.verbose(f"Deriving parameters from basis sets with 'HRFMetrics'", self.verbose)
+        utils.verbose(
+            f"Deriving parameters from basis sets with 'HRFMetrics'",
+            self.verbose)
         subj_ids = utils.get_unique_ids(self.sub_basis, id="subject")
 
-        self.avg_tcs_subjects = self.tc_subjects.groupby(["subject", "event_type", "time"]).mean()
+        self.avg_tcs_subjects = self.tc_subjects.groupby(
+            ["subject", "event_type", "time"]).mean()
 
         subjs = []
         subjs_avg_run = []
         for sub in subj_ids:
-            
+
             # get subject specific dataframe
-            sub_df = utils.select_from_df(self.sub_basis, expression=f"subject = {sub}")
+            sub_df = utils.select_from_df(
+                self.sub_basis, expression=f"subject = {sub}")
 
             # get basis sets
             basis_ids = utils.get_unique_ids(sub_df, id="covariate")
@@ -466,24 +480,27 @@ class InitFitter():
             basis_avg = []
             for bs in basis_ids:
 
-                basis_df = utils.select_from_df(sub_df, expression=f"covariate = {bs}")
+                basis_df = utils.select_from_df(
+                    sub_df, expression=f"covariate = {bs}")
                 ev_ids = utils.get_unique_ids(basis_df, id="event_type")
 
                 # loop through evs
                 evs = []
                 evs_avg = []
                 for ev in ev_ids:
-                    
+
                     # get event-specific dataframe
-                    ev_df = utils.select_from_df(basis_df, expression=f"event_type = {ev}")
+                    ev_df = utils.select_from_df(
+                        basis_df, expression=f"event_type = {ev}")
                     run_ids = utils.get_unique_ids(ev_df, id="run")
 
                     # loop through runs
                     runs = []
                     for run in run_ids:
-                        
+
                         # get run-specific dataframe
-                        run_df = utils.select_from_df(ev_df, expression=f"run = {run}")
+                        run_df = utils.select_from_df(
+                            ev_df, expression=f"run = {run}")
                         pars = HRFMetrics(
                             run_df,
                             TR=self.TR,
@@ -493,7 +510,7 @@ class InitFitter():
 
                         pars["event_type"], pars["run"] = ev, run
                         runs.append(pars)
-                    
+
                     # also get parameters of average across runs
                     avg_pars = HRFMetrics(
                         utils.multiselect_from_df(
@@ -539,13 +556,13 @@ class InitFitter():
         df_conc = pd.concat(subjs)
         df_avg = pd.concat(subjs_avg_run)
         avg_idx = ["subject", "event_type", "covariate"]
-        idx = avg_idx+["run"]
-        
+        idx = avg_idx + ["run"]
+
         add_idx = self.find_pars_index(df_conc)
         if isinstance(add_idx, str):
             idx += [add_idx]
             avg_idx += [add_idx]
-        
+
         self.pars_basissets = df_conc.set_index(idx)
         self.avg_pars_basissets = df_avg.set_index(avg_idx)
 
@@ -570,7 +587,7 @@ class InitFitter():
             '2nd_deriv_time_to_peak',
         ]
 
-        combined = default_indices+parameters
+        combined = default_indices + parameters
         df.reset_index(inplace=True)
         if "index" in list(df.columns):
             df.drop(["index"], axis=1, inplace=True)
@@ -581,48 +598,55 @@ class InitFitter():
             if i not in combined:
                 not_shared.append(i)
 
-        if len(not_shared)>0:
-            if len(not_shared)>1:
-                raise ValueError(f"Found multiple ({len(not_shared)}) column names in the dataframe, but I'm expecting only 1 to not match.. These column names are extra: {not_shared}")
+        if len(not_shared) > 0:
+            if len(not_shared) > 1:
+                raise ValueError(
+                    f"Found multiple ({len(not_shared)}) column names in the dataframe, but I'm expecting only 1 to not match.. These column names are extra: {not_shared}")
             else:
                 return not_shared[0]
         else:
             return []
-            
+
     def parameters_for_tc_subjects(
         self,
         *args,
         **kwargs
-        ):
+    ):
 
         if not hasattr(self, "tc_subjects"):
-            raise ValueError(f"{self} does not have 'tc_subjects' attribute, run fitter first")
+            raise ValueError(
+                f"{self} does not have 'tc_subjects' attribute, run fitter first")
 
-        utils.verbose(f"Deriving parameters from {self} with 'HRFMetrics'", self.verbose)
+        utils.verbose(
+            f"Deriving parameters from {self} with 'HRFMetrics'",
+            self.verbose)
         subj_ids = utils.get_unique_ids(self.tc_subjects, id="subject")
 
         subjs = []
         subjs_avg_run = []
         for sub in subj_ids:
-            
-            sub_df = utils.select_from_df(self.tc_subjects, expression=f"subject = {sub}")
+
+            sub_df = utils.select_from_df(
+                self.tc_subjects, expression=f"subject = {sub}")
             ev_ids = utils.get_unique_ids(sub_df, id="event_type")
 
             # loop through evs
             evs = []
             evs_avg = []
             for ev in ev_ids:
-                
+
                 # get event-specific dataframe
-                ev_df = utils.select_from_df(sub_df, expression=f"event_type = {ev}")
+                ev_df = utils.select_from_df(
+                    sub_df, expression=f"event_type = {ev}")
                 run_ids = utils.get_unique_ids(sub_df, id="run")
 
                 # loop through runs
                 runs = []
                 for run in run_ids:
-                    
+
                     # get run-specific dataframe
-                    run_df = utils.select_from_df(ev_df, expression=f"run = {run}")
+                    run_df = utils.select_from_df(
+                        ev_df, expression=f"run = {run}")
                     pars = HRFMetrics(
                         run_df,
                         TR=self.TR,
@@ -632,9 +656,10 @@ class InitFitter():
 
                     pars["event_type"], pars["run"] = ev, run
                     runs.append(pars)
-                
+
                 # also get parameters of average across runs
-                avg_df = ev_df.groupby(["subject", "event_type", "time"]).mean()
+                avg_df = ev_df.groupby(
+                    ["subject", "event_type", "time"]).mean()
                 avg_pars = HRFMetrics(
                     avg_df,
                     TR=self.TR,
@@ -663,13 +688,13 @@ class InitFitter():
         df_conc = pd.concat(subjs)
         df_avg = pd.concat(subjs_avg_run)
         avg_idx = ["subject", "event_type"]
-        idx = avg_idx+["run"]
+        idx = avg_idx + ["run"]
 
         add_idx = self.find_pars_index(df_conc)
         if isinstance(add_idx, str):
             idx += [add_idx]
             avg_idx += [add_idx]
-        
+
         self.pars_subjects = df_conc.set_index(idx)
         self.avg_pars_subjects = df_avg.set_index(avg_idx)
 
@@ -677,21 +702,25 @@ class InitFitter():
         self,
         *args,
         **kwargs
-        ):
+    ):
 
         if not hasattr(self, "tc_condition"):
-            raise ValueError(f"{self} does not have 'tc_condition' attribute, run fitter first")
+            raise ValueError(
+                f"{self} does not have 'tc_condition' attribute, run fitter first")
 
-        utils.verbose(f"Deriving condition-wise parameters from {self} with 'HRFMetrics'", self.verbose)
+        utils.verbose(
+            f"Deriving condition-wise parameters from {self} with 'HRFMetrics'",
+            self.verbose)
         ev_ids = utils.get_unique_ids(self.tc_condition, id="event_type")
 
         # loop through evs
         evs = []
         for ev in ev_ids:
-            
+
             # get event-specific dataframe
-            ev_df = utils.select_from_df(self.tc_condition, expression=f"event_type = {ev}")
-            
+            ev_df = utils.select_from_df(
+                self.tc_condition, expression=f"event_type = {ev}")
+
             ev_pars = HRFMetrics(
                 ev_df,
                 TR=self.TR,
@@ -705,13 +734,13 @@ class InitFitter():
         # concatenate
         df_conc = pd.concat(evs)
         df_conc["subject"] = "avg"
-        
+
         # add indices
         idx = ["subject", "event_type"]
         add_idx = self.find_pars_index(df_conc)
         if isinstance(add_idx, str):
             idx += [add_idx]
-        
+
         self.pars_condition = df_conc.set_index(idx)
 
 
@@ -757,7 +786,7 @@ class ParameterFitter(InitFitter):
         merge=False,
         *args,
         **kwargs
-        ):
+    ):
 
         self.func = func
         self.onsets = onsets
@@ -772,7 +801,8 @@ class ParameterFitter(InitFitter):
             merge=self.merge
         )
 
-        # self.func is overwritting by FitHRFParams class; so store original inputs otherwise looping goes awry
+        # self.func is overwritting by FitHRFParams class; so store original
+        # inputs otherwise looping goes awry
         self.orig_func = self.func.copy()
         self.orig_onsets = self.onsets.copy()
 
@@ -783,10 +813,10 @@ class ParameterFitter(InitFitter):
 
     @staticmethod
     def single_response_fitter(
-        data,
-        onsets,
-        TR=0.105,
-        **kwargs):
+            data,
+            onsets,
+            TR=0.105,
+            **kwargs):
 
         cl_fit = FitHRFparams(
             data,
@@ -798,7 +828,7 @@ class ParameterFitter(InitFitter):
         cl_fit.iterative_fit()
 
         return cl_fit
-    
+
     @staticmethod
     def _set_dict():
         ddict = {}
@@ -806,12 +836,12 @@ class ParameterFitter(InitFitter):
             ddict[el] = []
 
         return ddict
-    
+
     @staticmethod
     def _concat_dict(ddict):
         new_dict = {}
         for key, val in ddict.items():
-            if len(val)>0:
+            if len(val) > 0:
                 new_dict[key] = pd.concat(val)
 
         return new_dict
@@ -820,20 +850,21 @@ class ParameterFitter(InitFitter):
         self,
         debug=False,
         **kwargs
-        ):
+    ):
 
         self.ddict_sub = self._set_dict()
 
         # loop through subject
         for sub in self.sub_ids:
-            
+
             utils.verbose(f"Fitting '{sub}'", debug)
 
             # get subject specific onsets
-            self.sub_onsets = utils.select_from_df(self.orig_onsets, expression=f"subject = {sub}")
+            self.sub_onsets = utils.select_from_df(
+                self.orig_onsets, expression=f"subject = {sub}")
             self.ddict_run = self._set_dict()
             for run in self.run_ids:
-                
+
                 # subject and run specific data
                 utils.verbose(f" run-'{run}'", debug)
                 expr = (
@@ -841,12 +872,13 @@ class ParameterFitter(InitFitter):
                     "&",
                     f"run = {run}"
                 )
-                self.run_func = utils.select_from_df(self.orig_func, expression=expr)
-                
+                self.run_func = utils.select_from_df(
+                    self.orig_func, expression=expr)
+
                 # loop through events
                 self.ddict_ev = self._set_dict()
                 for ev in self.ev_ids:
-                    
+
                     utils.verbose(f"  ev-'{ev}'", debug)
 
                     # run/event-specific onsets
@@ -855,7 +887,8 @@ class ParameterFitter(InitFitter):
                         "&",
                         f"event_type = {ev}"
                     )
-                    self.ons = utils.select_from_df(self.sub_onsets, expression=expr)
+                    self.ons = utils.select_from_df(
+                        self.sub_onsets, expression=expr)
                     # print(f"  {self.run_func.shape}")
 
                     # do fit
@@ -873,13 +906,14 @@ class ParameterFitter(InitFitter):
                     pr["run"] = run
 
                     # finalize dataframe with proper formatting
-                    df = tmp.set_index(["run", "time"]).groupby(["time"]).mean().reset_index()
+                    df = tmp.set_index(["run", "time"]).groupby(
+                        ["time"]).mean().reset_index()
                     df["covariate"], df["event_type"] = "intercept", ev
                     pr["event_type"] = ev
 
                     try:
                         df = df.reset_index(drop=True)
-                    except:
+                    except BaseException:
                         pass
 
                     # append
@@ -906,14 +940,17 @@ class ParameterFitter(InitFitter):
         self.ddict_sub = self._concat_dict(self.ddict_sub)
 
         # set final outputs
-        self.tc_subjects = self.ddict_sub["profiles"].set_index(["subject", "run", "event_type", "covariate", "time"])
+        self.tc_subjects = self.ddict_sub["profiles"].set_index(
+            ["subject", "run", "event_type", "covariate", "time"])
 
-        self.grouper = self.tc_subjects.groupby(level=['event_type', 'covariate', 'time'])
+        self.grouper = self.tc_subjects.groupby(
+            level=['event_type', 'covariate', 'time'])
         self.tc_condition = self.grouper.mean()
         self.sem_condition = self.grouper.sem()
         self.std_condition = self.grouper.std()
 
-        self.ev_predictions = self.ddict_sub["predictions"].set_index(["subject", "run", "event_type", "t"])
+        self.ev_predictions = self.ddict_sub["predictions"].set_index(
+            ["subject", "run", "event_type", "t"])
 
 
 class NideconvFitter(InitFitter):
@@ -960,7 +997,7 @@ class NideconvFitter(InitFitter):
     >>> ribbon = [356,363]
     >>> window = 19
     >>> order = 3
-    >>> 
+    >>>
     >>> ## window 5 TR poly 2
     >>> data_obj = dataset.Dataset(
     >>>     func_file,
@@ -968,10 +1005,10 @@ class NideconvFitter(InitFitter):
     >>>     deleted_last_timepoints=50,
     >>>     tsv_file=exp_file,
     >>>     use_bids=True)
-    >>> 
+    >>>
     >>> df_func     = data_obj.fetch_fmri()
     >>> df_onsets   = data_obj.fetch_onsets()
-    >>> 
+    >>>
     >>> # pick out the voxels representing the GM-ribbon
     >>> df_ribbon = utils.select_from_df(df_func, expression='ribbon', indices=ribbon)
     >>> nd_fit = fitting.NideconvFitter(
@@ -998,24 +1035,24 @@ class NideconvFitter(InitFitter):
     """
 
     def __init__(
-        self,
-        func,
-        onsets,
-        TR=0.105,
-        confounds=None,
-        basis_sets="fourier",
-        fit_type="ols",
-        n_regressors=9,
-        add_intercept=False,
-        merge=False,
-        verbose=False,
-        lump_events=False,
-        interval=[0, 20],
-        osf=20,
-        fit=True,
-        covariates=None,
-        conf_intercept=True,
-        **kwargs):
+            self,
+            func,
+            onsets,
+            TR=0.105,
+            confounds=None,
+            basis_sets="fourier",
+            fit_type="ols",
+            n_regressors=9,
+            add_intercept=False,
+            merge=False,
+            verbose=False,
+            lump_events=False,
+            interval=[0, 20],
+            osf=20,
+            fit=True,
+            covariates=None,
+            conf_intercept=True,
+            **kwargs):
 
         self.func = func
         self.onsets = onsets
@@ -1027,7 +1064,7 @@ class NideconvFitter(InitFitter):
         self.verbose = verbose
         self.lump_events = lump_events
         self.TR = TR
-        self.fs = 1/self.TR
+        self.fs = 1 / self.TR
         self.interval = interval
         self.merge = merge
         self.osf = osf
@@ -1037,7 +1074,7 @@ class NideconvFitter(InitFitter):
 
         # check if interval is multiple of TR
         if isinstance(self.interval[-1], str):
-            self.interval[-1] = int(self.interval[-1])*self.TR
+            self.interval[-1] = int(self.interval[-1]) * self.TR
 
         # format arrays as dataframe
         super().__init__(
@@ -1052,7 +1089,7 @@ class NideconvFitter(InitFitter):
             self.used_onsets = self.melt_events()
         else:
             self.used_onsets = self.onsets.copy()
-        
+
         # get n regressors
         self.derive_n_regressors()
 
@@ -1094,9 +1131,10 @@ class NideconvFitter(InitFitter):
     def melt_events(self):
         self.lumped_onsets = self.onsets.copy().reset_index()
         self.lumped_onsets['event_type'] = 'stim'
-        self.lumped_onsets = self.lumped_onsets.set_index(['subject', 'run', 'event_type'])
+        self.lumped_onsets = self.lumped_onsets.set_index(
+            ['subject', 'run', 'event_type'])
         return self.lumped_onsets
-    
+
     def derive_n_regressors(self):
 
         self.allowed_basis_sets = [
@@ -1111,7 +1149,8 @@ class NideconvFitter(InitFitter):
 
         self.n_regressors
         if self.basis_sets not in self.allowed_basis_sets:
-            raise ValueError(f"Unrecognized basis set '{self.basis_sets}'. Must be one of {self.allowed_basis_sets}")
+            raise ValueError(
+                f"Unrecognized basis set '{self.basis_sets}'. Must be one of {self.allowed_basis_sets}")
         else:
             if self.basis_sets == "canonical_hrf":
                 self.n_regressors = 1
@@ -1122,16 +1161,18 @@ class NideconvFitter(InitFitter):
             else:
                 # set 1 regressor per TR
                 if isinstance(self.n_regressors, str):
-                    
-                    self.tmp_regressors = round(((self.interval[1]+abs(self.interval[0])))/self.TR)
-                    
-                    if len(self.n_regressors)>2:
+
+                    self.tmp_regressors = round(
+                        ((self.interval[1] + abs(self.interval[0]))) / self.TR)
+
+                    if len(self.n_regressors) > 2:
                         # assume operation on TR
                         els = self.n_regressors.split(" ")
 
                         if len(els) != 3:
-                            raise TypeError(f"Format of this input must be 'tr <operation> <value>' (WITH SPACES), not '{self.n_regressors}'. Example: 'tr x 2' will use 2 regressors per TR")
-                        
+                            raise TypeError(
+                                f"Format of this input must be 'tr <operation> <value>' (WITH SPACES), not '{self.n_regressors}'. Example: 'tr x 2' will use 2 regressors per TR")
+
                         op = utils.str2operator(els[1])
                         val = float(els[-1])
 
@@ -1182,17 +1223,19 @@ class NideconvFitter(InitFitter):
         subjs = utils.get_unique_ids(self.tc_subjects, id="subject")
         sub_df = []
         for sub in subjs:
-            
+
             # get subject specific dataframes
-            sub_tmp = utils.select_from_df(self.tc_subjects, expression=f"subject = {sub}")
+            sub_tmp = utils.select_from_df(
+                self.tc_subjects, expression=f"subject = {sub}")
             run_ids = utils.get_unique_ids(sub_tmp, id="run")
 
             # loop through runs
             run_df = []
             for run in run_ids:
-                    
+
                 # get run-specific dataframe
-                run_tmp = utils.select_from_df(sub_tmp, expression=f"run = {run}")
+                run_tmp = utils.select_from_df(
+                    sub_tmp, expression=f"run = {run}")
 
                 # call the interpolate function
                 run_interp = self.interpolate_fir_condition(run_tmp)
@@ -1212,7 +1255,8 @@ class NideconvFitter(InitFitter):
 
         # final indexing
         sub_df = pd.concat(sub_df)
-        sub_df.set_index(["subject", "run", "event_type", "covariate", "time"], inplace=True)
+        sub_df.set_index(["subject", "run", "event_type",
+                         "covariate", "time"], inplace=True)
         return sub_df
 
     def interpolate_fir_condition(self, obj):
@@ -1224,16 +1268,19 @@ class NideconvFitter(InitFitter):
             ev_df = utils.select_from_df(obj, expression=f"event_type = {ev}")
             interp = []
             for i in range(ev_df.shape[-1]):
-                
+
                 # find plateaus
                 tc = ev_df.values[:, i].T
                 diff = np.diff(tc)
                 gradient = np.sign(diff)
                 idx = np.where(gradient != 0)[-1]
 
-                # correct so that you take point at the middle of plateau; append 0 and first original index
+                # correct so that you take point at the middle of plateau;
+                # append 0 and first original index
                 new_idx = ((idx[1:] + idx[:-1]) / 2)
-                new_idx = np.append(np.array((0, idx[0]//2)), new_idx).astype(int)
+                new_idx = np.append(
+                    np.array(
+                        (0, idx[0] // 2)), new_idx).astype(int)
 
                 # pull out new values
                 new_vals = ev_df.values[new_idx, i]
@@ -1250,7 +1297,8 @@ class NideconvFitter(InitFitter):
 
             # format dataframe in the same way as self.tc_condition
             df = pd.DataFrame(interp)
-            df["time"], df["event_type"], df["covariate"] = new_t, ev, utils.get_unique_ids(ev_df, id="covariate")[0]
+            df["time"], df["event_type"], df["covariate"] = new_t, ev, utils.get_unique_ids(
+                ev_df, id="covariate")[0]
 
             # append
             evs_interp.append(df)
@@ -1258,7 +1306,7 @@ class NideconvFitter(InitFitter):
         # final indexing
         evs_interp = pd.concat(evs_interp)
         evs_interp.set_index(["event_type", "covariate", "time"], inplace=True)
-        
+
         return evs_interp
 
     def format_fitters(self):
@@ -1275,8 +1323,8 @@ class NideconvFitter(InitFitter):
         fitter,
         index=True,
         icpt=False,
-        ):
-        
+    ):
+
         betas = fitter.betas
         basis = fitter.get_basis_functions()
         regr = utils.get_unique_ids(betas, id="regressor")
@@ -1297,30 +1345,38 @@ class NideconvFitter(InitFitter):
 
             basis_curves = []
             for reg in regr:
-                
-                # if intercept was fitted, we need to extract the beta/basis set for that too
+
+                # if intercept was fitted, we need to extract the beta/basis
+                # set for that too
                 if icpt:
 
                     # basis sets
                     reg_basis = ev_basis.loc[:, ["confounds", ev]]
-                    b1 = pd.DataFrame(reg_basis.loc[:, ev].loc[:, "intercept"].loc[:, reg])
-                    b2 = pd.DataFrame(reg_basis.loc[:, "confounds"].loc[:, "intercept"])
+                    b1 = pd.DataFrame(
+                        reg_basis.loc[:, ev].loc[:, "intercept"].loc[:, reg])
+                    b2 = pd.DataFrame(
+                        reg_basis.loc[:, "confounds"].loc[:, "intercept"])
                     reg1 = pd.concat([b2, b1], axis=1)
 
                     # betas
-                    b1 = utils.select_from_df(betas, expression=f"event type = confounds")
-                    b2 = utils.select_from_df(ev_beta, expression=f"regressor = {reg}")
+                    b1 = utils.select_from_df(
+                        betas, expression=f"event type = confounds")
+                    b2 = utils.select_from_df(
+                        ev_beta, expression=f"regressor = {reg}")
                     bet1 = pd.concat([b1, b2])
 
                 else:
 
-                    reg1 = pd.DataFrame(ev_basis.loc[:, ev].loc[:, "intercept"].loc[:, reg])
-                    bet1 = utils.select_from_df(ev_beta, expression=f"regressor = {reg}")
+                    reg1 = pd.DataFrame(
+                        ev_basis.loc[:, ev].loc[:, "intercept"].loc[:, reg])
+                    bet1 = utils.select_from_df(
+                        ev_beta, expression=f"regressor = {reg}")
 
                 # dot product
                 tmp = reg1.values.dot(bet1.values)
 
-                tmp = pd.DataFrame(tmp, columns=bet1.columns, index=ev_basis.index)
+                tmp = pd.DataFrame(
+                    tmp, columns=bet1.columns, index=ev_basis.index)
                 tmp.reset_index(inplace=True)
                 tmp.rename(
                     columns={
@@ -1343,7 +1399,7 @@ class NideconvFitter(InitFitter):
         return ev_df
 
     def get_basisset_timecourses(self):
-        
+
         # also get the predictions
         if self.fit_type == "ols":
             if not hasattr(self, "fitters"):
@@ -1353,8 +1409,9 @@ class NideconvFitter(InitFitter):
         sub_ids = utils.get_unique_ids(self.fitters, id="subject")
         sub_basis = []
         for sub in sub_ids:
-            
-            sub_fitters = utils.select_from_df(self.fitters, expression=f"subject = {sub}")
+
+            sub_fitters = utils.select_from_df(
+                self.fitters, expression=f"subject = {sub}")
 
             # loop through runs
             self.sub_basis = []
@@ -1362,7 +1419,8 @@ class NideconvFitter(InitFitter):
             for run in run_ids:
 
                 # full model predictions
-                run_fitter = utils.select_from_df(self.fitters, expression=f"run = {run}").iloc[0][0]
+                run_fitter = utils.select_from_df(
+                    self.fitters, expression=f"run = {run}").iloc[0][0]
                 curves = self.get_curves_from_fitter(
                     run_fitter,
                     index=False,
@@ -1381,10 +1439,11 @@ class NideconvFitter(InitFitter):
 
         # event-specific events
         self.sub_basis = pd.concat(sub_basis, ignore_index=True)
-        self.sub_basis.set_index(["subject", "event_type", "run", "covariate", "t"], inplace=True)
+        self.sub_basis.set_index(
+            ["subject", "event_type", "run", "covariate", "t"], inplace=True)
 
     def get_predictions_per_event(self):
-        
+
         # also get the predictions
         if self.fit_type == "ols":
             if not hasattr(self, "fitters"):
@@ -1396,8 +1455,9 @@ class NideconvFitter(InitFitter):
         sub_pred_full = []
 
         for sub in sub_ids:
-            
-            sub_fitters = utils.select_from_df(self.fitters, expression=f"subject = {sub}")
+
+            sub_fitters = utils.select_from_df(
+                self.fitters, expression=f"subject = {sub}")
 
             # loop through runs
             self.predictions = []
@@ -1406,9 +1466,10 @@ class NideconvFitter(InitFitter):
             for run in run_ids:
 
                 # full model predictions
-                run_fitter = utils.select_from_df(self.fitters, expression=f"run = {run}").iloc[0][0]
+                run_fitter = utils.select_from_df(
+                    self.fitters, expression=f"run = {run}").iloc[0][0]
                 preds = run_fitter.predict_from_design_matrix()
-                
+
                 # overwrite colums
                 preds.columns = self.tc_condition.columns
 
@@ -1418,9 +1479,10 @@ class NideconvFitter(InitFitter):
                 self.predictions.append(preds)
 
                 # event-specific predictions
-                ev_pred = self.get_event_predictions_from_fitter(run_fitter, intercept=self.conf_icpt)
+                ev_pred = self.get_event_predictions_from_fitter(
+                    run_fitter, intercept=self.conf_icpt)
                 ev_pred["run"] = run
-                
+
                 self.sub_predictions.append(ev_pred)
 
             # concatenate and index
@@ -1433,8 +1495,9 @@ class NideconvFitter(InitFitter):
 
         # event-specific events
         self.ev_predictions = pd.concat(sub_pred, ignore_index=True)
-        self.ev_predictions.set_index(["subject", "event_type", "run", "t"], inplace=True)
-        
+        self.ev_predictions.set_index(
+            ["subject", "event_type", "run", "t"], inplace=True)
+
         # full model
         self.sub_pred_full = pd.concat(sub_pred_full, ignore_index=True)
         self.sub_pred_full.set_index(["subject", "run", "time"], inplace=True)
@@ -1443,8 +1506,10 @@ class NideconvFitter(InitFitter):
 
         if not isinstance(self.covariates, str):
             self.covariates = "intercept"
-        
-        utils.verbose(f"Fetching subject/condition-wise time courses from {self.model}", self.verbose)
+
+        utils.verbose(
+            f"Fetching subject/condition-wise time courses from {self.model}",
+            self.verbose)
 
         # get the condition-wise timecourses
         if self.fit_type == "ols":
@@ -1454,12 +1519,14 @@ class NideconvFitter(InitFitter):
             # full timecourses of subjects
             self.tc_subjects = self.model.get_timecourses()
         else:
-            self.tc_condition = self.tc_subjects.groupby(level=['event type', 'covariate', 'time']).mean()
+            self.tc_condition = self.tc_subjects.groupby(
+                level=['event type', 'covariate', 'time']).mean()
             self.fitters = self.sub_df.copy()
 
         # get some more info
-        self.obj_grouped = self.tc_subjects.groupby(level=["subject", "event type", "covariate", "time"])
-        
+        self.obj_grouped = self.tc_subjects.groupby(
+            level=["subject", "event type", "covariate", "time"])
+
         # get the standard error of mean & standard deviation
         self.tc_sem = self.obj_grouped.sem()
         self.tc_std = self.obj_grouped.std()
@@ -1469,36 +1536,42 @@ class NideconvFitter(InitFitter):
         self.tc_sem = self.change_name_set_index(self.tc_sem)
         self.tc_std = self.change_name_set_index(self.tc_std)
         self.tc_mean = self.change_name_set_index(self.tc_mean)
-        
+
         self.grouper = ["event_type", "covariate", "time"]
         self.sem_condition = self.tc_sem.groupby(level=self.grouper).mean()
         self.std_condition = self.tc_std.groupby(level=self.grouper).mean()
-            
-        # rename 'event type' to 'event_type' so it's compatible with utils.select_from_df
-        self.tc_condition = self.change_name_set_index(self.tc_condition, index=['event_type', 'covariate', 'time'])
+
+        # rename 'event type' to 'event_type' so it's compatible with
+        # utils.select_from_df
+        self.tc_condition = self.change_name_set_index(
+            self.tc_condition, index=['event_type', 'covariate', 'time'])
 
         # check run ID
         self.tc_subjects = self.check_for_run_index(self.tc_subjects)
-        self.tc_subjects = self.change_name_set_index(self.tc_subjects, index=['subject', 'run', 'event_type', 'covariate', 'time'])
+        self.tc_subjects = self.change_name_set_index(
+            self.tc_subjects, index=[
+                'subject', 'run', 'event_type', 'covariate', 'time'])
 
         if "task" in list(self.tc_subjects.columns):
             self.tc_subjects.drop(["task"], inplace=True, axis=1)
 
         # get time axis
-        self.time = self.tc_condition.groupby(['time']).mean().reset_index()['time'].values
+        self.time = self.tc_condition.groupby(
+            ['time']).mean().reset_index()['time'].values
 
         if self.basis_sets == "fir":
 
             # interpolate FIR @middle of plateaus
-            self.tc_condition_interp = self.interpolate_fir_condition(self.tc_condition)
+            self.tc_condition_interp = self.interpolate_fir_condition(
+                self.tc_condition)
             self.tc_subjects_interp = self.interpolate_fir_subjects()
 
         # get r2
         try:
             self.rsq_ = self.model.get_rsq()
-        except:
+        except BaseException:
             pass
-            
+
         # get predictions
         if self.fit_type == "ols":
 
@@ -1527,8 +1600,9 @@ class NideconvFitter(InitFitter):
 
         # return
         return tmp
-        
-    def change_name_set_index(self, df, index=["subject", "event_type", "covariate", "time"]):
+
+    def change_name_set_index(
+            self, df, index=["subject", "event_type", "covariate", "time"]):
 
         # reset index
         tmp = df.reset_index()
@@ -1545,7 +1619,7 @@ class NideconvFitter(InitFitter):
 
         # return
         return tmp
-    
+
     def define_model(self, **kwargs):
 
         self.model = nd.GroupResponseFitter(
@@ -1558,16 +1632,18 @@ class NideconvFitter(InitFitter):
             concatenate_runs=None,
             **kwargs
         )
-    
+
     def add_event(self, *args, **kwargs):
         self.model.add_event(*args, **kwargs)
 
     def define_events(self):
-        
-        utils.verbose(f"Selected '{self.basis_sets}'-basis sets (with {self.n_regressors} regressors)", self.verbose)
+
+        utils.verbose(
+            f"Selected '{self.basis_sets}'-basis sets (with {self.n_regressors} regressors)",
+            self.verbose)
 
         # define events
-        self.cond = utils.get_unique_ids(self.used_onsets , id="event_type")
+        self.cond = utils.get_unique_ids(self.used_onsets, id="event_type")
         self.run_ids = utils.get_unique_ids(self.used_onsets, id="run")
 
         # add events to model
@@ -1592,15 +1668,15 @@ class NideconvFitter(InitFitter):
                     interval=self.interval,
                     add_intercept=icpt,
                     covariates=cov)
-                
+
         else:
-            
+
             utils.verbose(f"Setting up models ridge-regression", self.verbose)
 
             # get subjects
             try:
                 self.sub_ids = utils.get_unique_ids(self.func, id="subject")
-            except:
+            except BaseException:
                 self.sub_ids = [1]
 
             self.do_fit = True
@@ -1610,34 +1686,39 @@ class NideconvFitter(InitFitter):
             for sub in self.sub_ids:
 
                 try:
-                    self.run_ids = [int(i) for i in utils.get_unique_ids(self.func, id="run")]
+                    self.run_ids = [
+                        int(i) for i in utils.get_unique_ids(
+                            self.func, id="run")]
                     self.run_df = []
                     self.run_pred_ev_df = []
                     self.run_prof_ev_df = []
                     set_indices = ["subject", "run"]
                     set_ev_idc = ["event_type", "run", "t"]
-                    set_prof_idc = ["subject", "run", "event type", "covariate", "time"]
-                except:
+                    set_prof_idc = [
+                        "subject", "run", "event type", "covariate", "time"]
+                except BaseException:
                     self.run_ids = [None]
                     self.run_df = None
                     self.run_pred_ev_df = None
                     self.run_prof_ev_df = None
                     set_indices = ["subject"]
                     set_ev_idc = ["event_type", "t"]
-                    set_prof_idc = ["subject", "event type", "covariate", "time"]
+                    set_prof_idc = [
+                        "subject", "event type", "covariate", "time"]
 
                 # loop through runs, if available
                 for run in self.run_ids:
-                    
+
                     # loop trough voxels (ridge only works for 1d data)
                     self.vox_df = []
                     self.ev_predictions = []
                     self.vox_prof = []
                     for ix, col in enumerate(list(self.func.columns)):
-                        
+
                         # select single voxel timecourse from main DataFrame
                         if isinstance(run, int):
-                            self.vox_signal = pd.DataFrame(utils.select_from_df(self.func[col], expression=f"run = {run}")[col])
+                            self.vox_signal = pd.DataFrame(utils.select_from_df(
+                                self.func[col], expression=f"run = {run}")[col])
                         else:
                             self.vox_signal = pd.DataFrame(self.func[col])
 
@@ -1647,28 +1728,32 @@ class NideconvFitter(InitFitter):
                         else:
                             cov = self.covariates
 
-                        self.rf = self.make_response_fitter(self.vox_signal, run=run, cov=cov)
+                        self.rf = self.make_response_fitter(
+                            self.vox_signal, run=run, cov=cov)
 
                         # fit immediately; makes life easier
                         if self.do_fit:
                             self.rf.fit(type="ridge")
 
                             # HRF profiles
-                            self.vox_prof.append(self.rf.get_timecourses().reset_index())
+                            self.vox_prof.append(
+                                self.rf.get_timecourses().reset_index())
 
                             # timecourse predictions
-                            self.ev_pred = self.get_event_predictions_from_fitter(self.rf, intercept=self.conf_icpt)
+                            self.ev_pred = self.get_event_predictions_from_fitter(
+                                self.rf, intercept=self.conf_icpt)
                             self.ev_predictions.append(self.ev_pred)
 
                         self.rf_df = pd.DataFrame({col: self.rf}, index=[0])
                         self.vox_df.append(self.rf_df)
-                    
+
                     self.vox_df = pd.concat(self.vox_df, axis=1)
 
-                    if len(self.ev_predictions)>0:
-                        self.ev_predictions = pd.concat(self.ev_predictions, axis=1)
+                    if len(self.ev_predictions) > 0:
+                        self.ev_predictions = pd.concat(
+                            self.ev_predictions, axis=1)
 
-                    if len(self.vox_prof)>0:
+                    if len(self.vox_prof) > 0:
                         self.vox_prof = pd.concat(self.vox_prof, axis=1)
 
                     if isinstance(run, int):
@@ -1686,7 +1771,7 @@ class NideconvFitter(InitFitter):
                     else:
                         self.vox_df["subject"] = sub
                         self.sub_df.append(self.vox_df)
-                        
+
                         if isinstance(self.ev_predictions, pd.DataFrame):
                             self.sub_ev_df.append(self.ev_predictions)
 
@@ -1710,11 +1795,11 @@ class NideconvFitter(InitFitter):
 
             self.sub_df = pd.concat(self.sub_df).set_index(set_indices)
 
-            if len(self.sub_ev_df)>0:
+            if len(self.sub_ev_df) > 0:
                 self.sub_ev_df = pd.concat(self.sub_ev_df)
                 self.sub_ev_df.set_index(set_ev_idc, inplace=True)
 
-            if len(self.tc_subjects)>0:
+            if len(self.tc_subjects) > 0:
                 self.tc_subjects = pd.concat(self.tc_subjects)
                 self.tc_subjects.set_index(set_prof_idc, inplace=True)
 
@@ -1740,45 +1825,48 @@ class NideconvFitter(InitFitter):
             )
 
         return model
-    
+
     def make_onsets_for_response_fitter(self, i, run=None):
         select_from_onsets = self.used_onsets.copy()
         if isinstance(run, int):
-            select_from_onsets = utils.select_from_df(select_from_onsets, expression=f"run = {run}")
+            select_from_onsets = utils.select_from_df(
+                select_from_onsets, expression=f"run = {run}")
             drop_idcs = ["subject", "run"]
         else:
             drop_idcs = ["subject"]
-        
-        return select_from_onsets.reset_index().drop(drop_idcs, axis=1).set_index('event_type').loc[i].onset
+
+        return select_from_onsets.reset_index().drop(
+            drop_idcs, axis=1).set_index('event_type').loc[i].onset
 
     def fit(self):
 
         # fitting
-        utils.verbose(f"Fitting with '{self.fit_type}' minimization", self.verbose)
+        utils.verbose(
+            f"Fitting with '{self.fit_type}' minimization",
+            self.verbose)
         if self.fit_type.lower() == "ols":
             self.model.fit(type=self.fit_type)
-        
+
         utils.verbose("Fitting completed", self.verbose)
 
     def plot_average_per_event(
-        self,
-        add_offset: bool=True,
-        axs=None,
-        title: str="Average HRF across events",
-        save_as: str=None,
-        error_type: str="sem",
-        ttp: bool=False,
-        ttp_lines: bool=False,
-        ttp_labels: list=None,
-        events: list=None,
-        fwhm: bool=False,
-        fwhm_lines: bool=False,
-        fwhm_labels: list=None,
-        inset_ttp: list=[0.75, 0.65, 0.3],
-        inset_fwhm: list=[0.75, 0.65, 0.3],
-        reduction_factor: float=1.3,
-        **kwargs):
-
+            self,
+            add_offset: bool = True,
+            axs=None,
+            title: str = "Average HRF across events",
+            save_as: str = None,
+            error_type: str = "sem",
+            ttp: bool = False,
+            ttp_lines: bool = False,
+            ttp_labels: list = None,
+            events: list = None,
+            fwhm: bool = False,
+            fwhm_lines: bool = False,
+            fwhm_labels: list = None,
+            inset_ttp: list = [0.75, 0.65, 0.3],
+            inset_fwhm: list = [0.75, 0.65, 0.3],
+            reduction_factor: float = 1.3,
+            **kwargs):
         """plot_average_per_event
 
         Plot the average across runs and voxels for each event in your data. Allows the option to have time-to-peak or full-width half max (FWHM) plots as insets. This makes the most sense if you have multiple events, otherwise you have 1 bar..
@@ -1806,7 +1894,7 @@ class NideconvFitter(InitFitter):
         fwhm: bool, optional
             Plot the full-width half-max (FWHM) on the inset axis, by default False
         fwhm_lines: bool, optional
-            Plot lines on the original axis with HRFs to indicate the maximum amplitude, by default False        
+            Plot lines on the original axis with HRFs to indicate the maximum amplitude, by default False
         fwhm_labels: list, optional
             Which labels to use for the inset axis; this can be different than your event names (e.g., if you want to round numbers), by default None
         inset_ttp: list, optional
@@ -1831,7 +1919,7 @@ class NideconvFitter(InitFitter):
         >>> # plot TTP with regular events + box that highlights stimulus onset
         >>> fig,axs = plt.subplots(figsize=(8,8))
         >>> nd_fit.plot_average_per_event(
-        >>>     xkcd=plot_xkcd, 
+        >>>     xkcd=plot_xkcd,
         >>>     x_label="time (s)",
         >>>     y_label="magnitude (%)",
         >>>     add_hline='default',
@@ -1840,11 +1928,11 @@ class NideconvFitter(InitFitter):
         >>>     ticks=[0,3,6],
         >>>     ttp_lines=True,
         >>>     y_label2="size (°)",
-        >>>     x_label2="time-to-peak (s)", 
+        >>>     x_label2="time-to-peak (s)",
         >>>     title="regular events",
         >>>     ttp_labels=[f"{round(float(ii),2)}°" for ii in nd_fit.cond],
-        >>>     add_labels=True,   
-        >>>     fancy=True,                     
+        >>>     add_labels=True,
+        >>>     fancy=True,
         >>>     cmap='inferno')
         >>> # plot simulus onset
         >>> axs.axvspan(0,1, ymax=0.1, color="#cccccc")
@@ -1862,11 +1950,11 @@ class NideconvFitter(InitFitter):
         >>>     events=nd_fit.cond[::-1],
         >>>     add_labels=True,
         >>>     x_label2="size (°)",
-        >>>     y_label2="FWHM (s)",  
+        >>>     y_label2="FWHM (s)",
         >>>     fancy=True,
         >>>     cmap='inferno')
         """
-        
+
         self.__dict__.update(kwargs)
 
         if axs is None:
@@ -1878,10 +1966,13 @@ class NideconvFitter(InitFitter):
             self.timecourses_condition()
 
         # average across runs
-        self.tc_df = utils.select_from_df(self.tc_condition, expression=f"covariate = {self.covariates}")
+        self.tc_df = utils.select_from_df(
+            self.tc_condition,
+            expression=f"covariate = {self.covariates}")
 
         # average across runs
-        self.avg_across_runs = self.tc_df.groupby(["event_type", "time"]).mean()
+        self.avg_across_runs = self.tc_df.groupby(
+            ["event_type", "time"]).mean()
 
         if not isinstance(events, (list, np.ndarray)):
             events = self.cond
@@ -1890,26 +1981,32 @@ class NideconvFitter(InitFitter):
             utils.verbose(f"Flipping events to {events}", self.verbose)
             self.avg_across_runs = pd.concat(
                 [utils.select_from_df(
-                self.avg_across_runs,
-                expression=f"event_type = {ii}")
-            for ii in events])
+                    self.avg_across_runs,
+                    expression=f"event_type = {ii}")
+                    for ii in events])
 
             # get list of switched indices
             self.event_indices = [list(events).index(ii) for ii in self.cond]
-        
+
         # average across voxels
         self.avg_across_runs_voxels = self.avg_across_runs.mean(axis=1)
 
-        # parse into list so it's compatible with LazyPlot (requires an array of lists)
-        self.event_avg = self.avg_across_runs_voxels.groupby("event_type").apply(np.hstack).to_list()
-        self.event_sem = self.avg_across_runs.sem(axis=1).groupby("event_type").apply(np.hstack).to_list()
-        self.event_std = self.avg_across_runs.std(axis=1).groupby("event_type").apply(np.hstack).to_list()
+        # parse into list so it's compatible with LazyPlot (requires an array
+        # of lists)
+        self.event_avg = self.avg_across_runs_voxels.groupby(
+            "event_type").apply(np.hstack).to_list()
+        self.event_sem = self.avg_across_runs.sem(
+            axis=1).groupby("event_type").apply(
+            np.hstack).to_list()
+        self.event_std = self.avg_across_runs.std(
+            axis=1).groupby("event_type").apply(
+            np.hstack).to_list()
 
         # reorder base on indices again
         if isinstance(self.event_indices, list):
             for tt, gg in zip(
                 ["avg", "sem", "std"],
-                [self.event_avg, self.event_sem, self.event_std]):
+                    [self.event_avg, self.event_sem, self.event_std]):
                 reordered = [gg[i] for i in self.event_indices]
                 setattr(self, f"event_{tt}", reordered)
 
@@ -1928,7 +2025,7 @@ class NideconvFitter(InitFitter):
             self.use_error = self.event_std.copy()
         else:
             self.use_error = None
-        
+
         # plot
         plotter = plotting.LazyPlot(
             self.event_avg,
@@ -1942,8 +2039,8 @@ class NideconvFitter(InitFitter):
         if hasattr(self, "font_size"):
             self.old_font_size = plotter.font_size
             self.old_label_size = plotter.label_size
-            self.font_size = plotter.font_size/reduction_factor
-            self.label_size = plotter.label_size/reduction_factor
+            self.font_size = plotter.font_size / reduction_factor
+            self.label_size = plotter.label_size / reduction_factor
 
         if ttp:
 
@@ -1955,7 +2052,7 @@ class NideconvFitter(InitFitter):
 
             # scale height by nr of events
             if len(inset_ttp) < 4:
-                inset_ttp.append(len(ttp_labels)*0.05)
+                inset_ttp.append(len(ttp_labels) * 0.05)
 
             left, bottom, width, height = inset_ttp
             ax2 = axs.inset_axes([left, bottom, width, height])
@@ -1980,8 +2077,8 @@ class NideconvFitter(InitFitter):
 
             # scale height by nr of events
             if len(inset_fwhm) < 4:
-                inset_fwhm.insert(2, len(fwhm_labels)*0.05)
-                
+                inset_fwhm.insert(2, len(fwhm_labels) * 0.05)
+
             left, bottom, width, height = inset_fwhm
             ax2 = axs.inset_axes([left, bottom, width, height])
             self.plot_fwhm(
@@ -2003,18 +2100,18 @@ class NideconvFitter(InitFitter):
             self.label_size = self.old_label_size
 
     def plot_ttp(
-        self,
-        df=None,
-        axs=None,
-        hrf_axs=None,
-        ttp_lines=False,
-        ttp_labels=None,
-        figsize=(8, 8),
-        ttp_ori='h',
-        split="event_type",
-        lines_only=False,
-        par_kw={},
-        **kwargs):
+            self,
+            df=None,
+            axs=None,
+            hrf_axs=None,
+            ttp_lines=False,
+            ttp_labels=None,
+            figsize=(8, 8),
+            ttp_ori='h',
+            split="event_type",
+            lines_only=False,
+            par_kw={},
+            **kwargs):
 
         if not isinstance(axs, mpl.axes._axes.Axes):
             _, axs = plt.subplots(figsize=figsize)
@@ -2051,20 +2148,21 @@ class NideconvFitter(InitFitter):
         if ttp_lines:
             # heights need to be adjusted for by axis length
             if not isinstance(hrf_axs, mpl.axes._axes.Axes):
-                raise ValueError(f"Need an axes-object containing HRF profiles to draw lines on")
-            
+                raise ValueError(
+                    f"Need an axes-object containing HRF profiles to draw lines on")
+
             ylim = hrf_axs.get_ylim()
             tot = sum(list(np.abs(ylim)))
-            start = (0-ylim[0])/tot
+            start = (0 - ylim[0]) / tot
 
             for ix, ii in enumerate(self.df_pars["time_to_peak"].values):
                 hrf_axs.axvline(
                     ii,
                     ymin=start,
-                    ymax=self.df_pars["magnitude"].values[ix]/tot+start,
+                    ymax=self.df_pars["magnitude"].values[ix] / tot + start,
                     color=colors[ix],
                     linewidth=0.5)
-        
+
         if not lines_only:
             self.ttp_plot = plotting.LazyBar(
                 data=self.df_pars,
@@ -2076,19 +2174,19 @@ class NideconvFitter(InitFitter):
                 # error=None,
                 **kwargs
             )
-        
+
     def plot_fwhm(
-        self,
-        df,
-        axs=None,
-        hrf_axs=None,
-        fwhm_lines=False,
-        fwhm_labels=None,
-        split="event_type",
-        figsize=(8, 8),
-        fwhm_ori='v',
-        par_kw={},
-        **kwargs):
+            self,
+            df,
+            axs=None,
+            hrf_axs=None,
+            fwhm_lines=False,
+            fwhm_labels=None,
+            split="event_type",
+            figsize=(8, 8),
+            fwhm_ori='v',
+            par_kw={},
+            **kwargs):
 
         if axs is None:
             fig, axs = plt.subplots(figsize=figsize)
@@ -2124,12 +2222,13 @@ class NideconvFitter(InitFitter):
             xlim = hrf_axs.get_xlim()
             tot = sum(list(np.abs(xlim)))
             for ix, ii in enumerate(self.df_pars["fwhm"].values):
-                start = (self.df_pars["half_rise_time"].values[ix]-xlim[0])/tot
+                start = (
+                    self.df_pars["half_rise_time"].values[ix] - xlim[0]) / tot
                 half_m = self.df_pars["half_max"].values[ix]
                 hrf_axs.axhline(
                     half_m,
                     xmin=start,
-                    xmax=start+ii/tot,
+                    xmax=start + ii / tot,
                     color=colors[ix],
                     linewidth=0.5)
 
@@ -2145,21 +2244,20 @@ class NideconvFitter(InitFitter):
             **kwargs)
 
     def plot_average_per_voxel(
-        self,
-        add_offset: bool=True,
-        axs=None,
-        n_cols: int=4,
-        fig_kwargs: dict={},
-        figsize: tuple=None,
-        make_figure: bool=True,
-        labels: list=None,
-        save_as: str=None,
-        sharey: bool=False,
-        skip_x: list=None,
-        skip_y: list=None,
-        title: list=None,
-        **kwargs):
-
+            self,
+            add_offset: bool = True,
+            axs=None,
+            n_cols: int = 4,
+            fig_kwargs: dict = {},
+            figsize: tuple = None,
+            make_figure: bool = True,
+            labels: list = None,
+            save_as: str = None,
+            sharey: bool = False,
+            skip_x: list = None,
+            skip_y: list = None,
+            title: list = None,
+            **kwargs):
         """plot_average_per_voxel
 
         Plot the average across runs for each voxel in your dataset. Generally, this plot is used to plot HRFs across depth. If you have multiple events, we'll create a grid of `n_cols` wide (from which the rows are derived), with the HRFs for each event in the subplot. The legend will be put in the first subplot. If you only have 1 event, you can say `n_cols=None` to put the average across events for all voxels in 1 plot
@@ -2202,19 +2300,21 @@ class NideconvFitter(InitFitter):
 
         cols = list(self.tc_condition.columns)
         cols_id = np.arange(0, len(cols))
-        if n_cols != None:
+        if n_cols is not None:
 
             if isinstance(axs, (list, np.ndarray)):
                 if len(axs) != len(cols):
-                    raise ValueError(f"For this option {len(cols)} axes are required, {len(axs)} were specified")
+                    raise ValueError(
+                        f"For this option {len(cols)} axes are required, {len(axs)} were specified")
             else:
                 # initiate figure
                 if len(cols) > 10:
-                    raise Exception(f"{len(cols)} were requested. Maximum number of plots is set to 30")
+                    raise Exception(
+                        f"{len(cols)} were requested. Maximum number of plots is set to 30")
 
                 n_rows = int(np.ceil(len(cols) / n_cols))
                 if not isinstance(figsize, tuple):
-                    figsize = (24, 5*n_rows)
+                    figsize = (24, 5 * n_rows)
 
                 fig = plt.figure(figsize=figsize, constrained_layout=True)
                 gs = fig.add_gridspec(n_rows, n_cols, **fig_kwargs)
@@ -2232,7 +2332,7 @@ class NideconvFitter(InitFitter):
             for idc, stim in enumerate(self.cond):
                 col_data = self.tc_condition[col][stim].values
                 err_data = self.sem_condition[col][stim].values
-                
+
                 if add_offset:
                     if col_data[0] > 0:
                         col_data -= col_data[0]
@@ -2243,19 +2343,28 @@ class NideconvFitter(InitFitter):
                 self.error_in_voxels.append(err_data[np.newaxis, :])
 
             # this one is in case we want the voxels in 1 figure
-            self.all_voxels_in_event.append(np.concatenate(self.voxel_in_events, axis=0)[np.newaxis, :])
-            self.all_error_in_voxels.append(np.concatenate(self.error_in_voxels, axis=0)[np.newaxis, :])
+            self.all_voxels_in_event.append(
+                np.concatenate(
+                    self.voxel_in_events, axis=0)[
+                    np.newaxis, :])
+            self.all_error_in_voxels.append(
+                np.concatenate(
+                    self.error_in_voxels, axis=0)[
+                    np.newaxis, :])
 
-        self.arr_voxels_in_event = np.concatenate(self.all_voxels_in_event, axis=0)
-        self.arr_error_in_event = np.concatenate(self.all_error_in_voxels, axis=0)
+        self.arr_voxels_in_event = np.concatenate(
+            self.all_voxels_in_event, axis=0)
+        self.arr_error_in_event = np.concatenate(
+            self.all_error_in_voxels, axis=0)
 
-        # try to find min/max across voxels. Use error if there were more than 1 run
+        # try to find min/max across voxels. Use error if there were more than
+        # 1 run
         top = self.arr_voxels_in_event
         bottom = self.arr_voxels_in_event
         if len(self.run_ids) > 1:
             top += self.arr_error_in_event
             bottom -= self.arr_error_in_event
-        
+
         if make_figure:
             if n_cols is None:
                 if labels:
@@ -2263,9 +2372,11 @@ class NideconvFitter(InitFitter):
                 else:
                     labels = None
 
-                vox_data = [self.arr_voxels_in_event[ii, 0, :] for ii in range(self.arr_voxels_in_event.shape[0])]
-                vox_error = [self.arr_error_in_event[ii, 0, :] for ii in range(self.arr_voxels_in_event.shape[0])]
-                
+                vox_data = [self.arr_voxels_in_event[ii, 0, :]
+                            for ii in range(self.arr_voxels_in_event.shape[0])]
+                vox_error = [self.arr_error_in_event[ii, 0, :]
+                             for ii in range(self.arr_voxels_in_event.shape[0])]
+
                 if isinstance(axs, mpl.axes._axes.Axes):
                     self.pl = plotting.LazyPlot(
                         vox_data,
@@ -2298,18 +2409,20 @@ class NideconvFitter(InitFitter):
                     else:
                         label = None
 
-                    vox_data = [self.arr_voxels_in_event[ix, ii, :] for ii in range(len(self.cond))]
-                    vox_error = [self.arr_error_in_event[ix, ii, :] for ii in range(len(self.cond))]
-                    
+                    vox_data = [self.arr_voxels_in_event[ix, ii, :]
+                                for ii in range(len(self.cond))]
+                    vox_error = [self.arr_error_in_event[ix, ii, :]
+                                 for ii in range(len(self.cond))]
+
                     if sharey:
                         ylim = [np.nanmin(bottom), np.nanmax(top)]
                     else:
                         ylim = None
-                    
+
                     if isinstance(title, (str, list)):
                         if isinstance(title, str):
                             title = [title for _ in cols]
-                        
+
                         add_title = title[ix]
                     else:
                         add_title = col
@@ -2327,22 +2440,24 @@ class NideconvFitter(InitFitter):
 
                     if not new_axs:
                         if ix in cols_id[::n_cols]:
-                            ax.set_ylabel("Magnitude (%change)", fontsize=self.font_size)
-                        
-                        if ix in np.arange(n_rows*n_cols)[-n_cols:]:
+                            ax.set_ylabel(
+                                "Magnitude (%change)", fontsize=self.font_size)
+
+                        if ix in np.arange(n_rows * n_cols)[-n_cols:]:
                             ax.set_xlabel("Time (s)", fontsize=self.font_size)
                     else:
                         if not isinstance(skip_x, list):
                             skip_x = [False for _ in cols]
-                        
+
                         if not isinstance(skip_y, list):
                             skip_y = [False for _ in cols]
 
                         if not skip_x[ix]:
                             ax.set_xlabel("Time (s)", fontsize=self.font_size)
-                        
+
                         if not skip_y[ix]:
-                            ax.set_ylabel("Magnitude (%change)", fontsize=self.font_size)
+                            ax.set_ylabel(
+                                "Magnitude (%change)", fontsize=self.font_size)
 
                 plt.tight_layout()
 
@@ -2352,19 +2467,17 @@ class NideconvFitter(InitFitter):
                 dpi=300,
                 bbox_inches='tight')
 
-
     def plot_hrf_across_depth(
-        self,
-        axs=None,
-        figsize: tuple=(8, 8),
-        cmap: str='viridis',
-        color: Union[str, tuple]=None,
-        ci_color: Union[str, tuple]="#cccccc",
-        ci_alpha: float=0.6,
-        save_as: str=None,
-        invert: bool=False,
-        **kwargs):
-
+            self,
+            axs=None,
+            figsize: tuple = (8, 8),
+            cmap: str = 'viridis',
+            color: Union[str, tuple] = None,
+            ci_color: Union[str, tuple] = "#cccccc",
+            ci_alpha: float = 0.6,
+            save_as: str = None,
+            invert: bool = False,
+            **kwargs):
         """plot_hrf_across_depth
 
         Plot the magnitude of the HRF across depth as points with a seaborn regplot through it. The points can be colored with `color` according to the HRF from :func:`linescanning.fitting.NideconvFitter.plot_average_across_voxels`, or they can be given 1 uniform color. The linear fit can be colored using `ci_color`, for which the default is light gray.
@@ -2406,29 +2519,30 @@ class NideconvFitter(InitFitter):
         >>> # make a combined plot of HRFs and magnitude
         >>> fig = plt.figure(figsize=(16, 8))
         >>> gs = fig.add_gridspec(1, 2)
-        >>> 
+        >>>
         >>> ax = fig.add_subplot(gs[0])
         >>> lumped.plot_average_per_voxel(
-        >>>     n_cols=None, 
-        >>>     axs=ax, 
+        >>>     n_cols=None,
+        >>>     axs=ax,
         >>>     labels=True,
         >>>     x_label="time (s)",
         >>>     y_label="magnitude",
         >>>     set_xlim_zero=False)
         >>> ax.set_title("HRF across depth (collapsed stimulus events)", fontsize=lumped.pl.font_size)
-        >>> 
+        >>>
         >>> ax = fig.add_subplot(gs[1])
         >>> lumped.plot_hrf_across_depth(
-        >>>     axs=ax, 
+        >>>     axs=ax,
         >>>     order=1,
         >>>     x_label="depth [%]")
-        >>> ax.set_title("Maximum value HRF across depth", fontsize=lumped.pl.font_size)        
+        >>> ax.set_title("Maximum value HRF across depth", fontsize=lumped.pl.font_size)
         """
-        
+
         if not hasattr(self, "all_voxels_in_event"):
             self.plot_timecourses(make_figure=False)
 
-        self.max_vals = np.array([np.amax(self.all_voxels_in_event[ii]) for ii in range(len(self.all_voxels_in_event))])
+        self.max_vals = np.array([np.amax(self.all_voxels_in_event[ii])
+                                 for ii in range(len(self.all_voxels_in_event))])
 
         if not axs:
             fig, axs = plt.subplots(figsize=figsize)
@@ -2453,7 +2567,12 @@ class NideconvFitter(InitFitter):
             **kwargs)
 
         for ix, mark in enumerate(self.max_vals):
-            axs.plot(self.depths[ix], mark, 'o', color=color_list[ix], alpha=ci_alpha)
+            axs.plot(
+                self.depths[ix],
+                mark,
+                'o',
+                color=color_list[ix],
+                alpha=ci_alpha)
 
         for pos, tag in zip([(0.02, 0.02), (0.85, 0.02)], ["pial", "wm"]):
             axs.annotate(
@@ -2467,20 +2586,20 @@ class NideconvFitter(InitFitter):
             fig.savefig(save_as, dpi=300, bbox_inches='tight')
 
     def plot_areas_per_event(
-        self,
-        colors=None,
-        save_as=None,
-        add_offset=True,
-        error_type="sem",
-        axs=None,
-        events=None,
-        **kwargs):
+            self,
+            colors=None,
+            save_as=None,
+            add_offset=True,
+            error_type="sem",
+            axs=None,
+            events=None,
+            **kwargs):
 
         if not hasattr(self, "tc_condition"):
             self.timecourses_condition()
 
         n_cols = len(list(self.cond))
-        figsize=(n_cols*6, 6)
+        figsize = (n_cols * 6, 6)
 
         if not axs:
             fig = plt.figure(figsize=figsize)
@@ -2492,15 +2611,15 @@ class NideconvFitter(InitFitter):
             err = self.sem_condition.copy()
         else:
             err = self.std_condition.copy()
-            
+
         if not isinstance(events, list) and not isinstance(events, np.ndarray):
             events = self.cond
         else:
             if self.verbose:
                 print(f"Flipping events to {events}")
-        
+
         for ix, event in enumerate(events):
-            
+
             # add axis
             if not axs:
                 ax = fig.add_subplot(gs[ix])
@@ -2514,16 +2633,26 @@ class NideconvFitter(InitFitter):
                     elif key == "y_label":
                         kwargs[key] = None
 
-            event_df = utils.select_from_df(self.tc_condition, expression=f"event_type = {event}")
-            error_df = utils.select_from_df(err, expression=f"event_type = {event}")
+            event_df = utils.select_from_df(
+                self.tc_condition, expression=f"event_type = {event}")
+            error_df = utils.select_from_df(
+                err, expression=f"event_type = {event}")
 
             self.data_for_plot = []
             self.error_for_plot = []
             for ii, dd in enumerate(list(self.tc_condition.columns)):
 
                 # get the timecourse
-                col_data = np.squeeze(utils.select_from_df(event_df, expression='ribbon', indices=[ii]).values)
-                col_error = np.squeeze(utils.select_from_df(error_df, expression='ribbon', indices=[ii]).values)
+                col_data = np.squeeze(
+                    utils.select_from_df(
+                        event_df,
+                        expression='ribbon',
+                        indices=[ii]).values)
+                col_error = np.squeeze(
+                    utils.select_from_df(
+                        error_df,
+                        expression='ribbon',
+                        indices=[ii]).values)
 
                 # shift to zero
                 if add_offset:
@@ -2531,10 +2660,10 @@ class NideconvFitter(InitFitter):
                         col_data -= col_data[0]
                     else:
                         col_data += abs(col_data[0])
-                
+
                 self.data_for_plot.append(col_data)
                 self.error_for_plot.append(col_error)
-            
+
             if not isinstance(error_type, str):
                 self.error_for_plot = None
 
@@ -2553,11 +2682,10 @@ class NideconvFitter(InitFitter):
 class CVDeconv(InitFitter):
 
     def __init__(
-        self,
-        func,
-        onsets,
-        TR=0.105):
-
+            self,
+            func,
+            onsets,
+            TR=0.105):
         """CVDeconv
 
         Wrapper class around :class:`nideconv.NideconvFitter` to run deconvolution in a cross-validated r2-framework. Inputs are similar to :class:`nideconv.NideconvFitter`. The basic gist of the class is to find all possible run-specific combinations, average those, and run deconvolution. This is repeated until all combinations have been used, resulting in a final dataframe containing the r2-values for each subject.
@@ -2605,13 +2733,14 @@ class CVDeconv(InitFitter):
 
         self.run_ids = utils.get_unique_ids(self.func, id="run")
         if len(self.run_ids) <= 2:
-            raise ValueError(f"Crossvalidating is somewhat pointless with with fewer than 3 runs..")
+            raise ValueError(
+                f"Crossvalidating is somewhat pointless with with fewer than 3 runs..")
 
         # get all possible combination of runs
         return utils.unique_combinations(self.run_ids, l=split)
 
     def single_fitter(self, func, onsets, **kwargs):
-        
+
         if not "fit" in list(kwargs.keys()):
             kwargs["fit"] = True
 
@@ -2630,9 +2759,10 @@ class CVDeconv(InitFitter):
 
     # def out_of_set_prediction(self):
     def predict_out_of_set(self, src, trg):
-        
+
         if isinstance(src, list):
-            self.betas = pd.DataFrame(pd.concat([src.fitters.iloc[i].betas for i in range(src.fitters.shape[0])], axis=1).mean(axis=1))
+            self.betas = pd.DataFrame(pd.concat([src.fitters.iloc[i].betas for i in range(
+                src.fitters.shape[0])], axis=1).mean(axis=1))
             ref_obj = src[0]
         else:
             ref_obj = src
@@ -2640,40 +2770,45 @@ class CVDeconv(InitFitter):
 
         if isinstance(trg, (float, int, str)):
             trg = [trg]
-            
+
         cv_r2 = []
         sub_df = []
         sub_ids = utils.get_unique_ids(ref_obj.func, id="subject")
         for sub in sub_ids:
 
-            sub_fitters = utils.select_from_df(src.fitters, expression=f"subject = {sub}")
+            sub_fitters = utils.select_from_df(
+                src.fitters, expression=f"subject = {sub}")
 
             if isinstance(src, list):
-                self.betas = pd.DataFrame(pd.concat([sub_fitters.iloc[i][0].betas for i in range(sub_fitters.shape[0])], axis=1).mean(axis=1))
+                self.betas = pd.DataFrame(pd.concat([sub_fitters.iloc[i][0].betas for i in range(
+                    sub_fitters.shape[0])], axis=1).mean(axis=1))
             else:
                 self.betas = sub_fitters.iloc[0][0].betas
 
             run_r2 = []
             for run in trg:
-                
+
                 # find design matrix of unfitted run
                 expr = (f"subject = {sub}", "&", f"run = {run}")
-                X = utils.select_from_df(self.full_fitters, expression=expr).iloc[0][0].X
+                X = utils.select_from_df(
+                    self.full_fitters, expression=expr).iloc[0][0].X
                 prediction = X.dot(self.betas)
 
                 # get r2
-                run_f = utils.select_from_df(self.full_model.func, expression=expr)
+                run_f = utils.select_from_df(
+                    self.full_model.func, expression=expr)
 
                 r2 = []
                 for i in range(run_f.shape[-1]):
-                    r2.append(metrics.r2_score(run_f.values[:, i], prediction.values[:, i]))
+                    r2.append(metrics.r2_score(
+                        run_f.values[:, i], prediction.values[:, i]))
 
                 run_r2.append(np.array(r2))
 
             # average over unfitted runs
             run_r2 = np.array(run_r2).mean(axis=0)
             sub_df.append(np.array(run_r2))
-            
+
         sub_r2 = np.array(sub_df)
         cv_r2 = pd.DataFrame(sub_r2, columns=list(self.func.columns))
         cv_r2["subject"] = sub_ids
@@ -2681,18 +2816,18 @@ class CVDeconv(InitFitter):
         return cv_r2
 
     def crossvalidate(self, split=2, **kwargs):
-        
+
         # for later reference of design matrices
         self.full_model = self.single_fitter(
             self.func,
             self.onsets,
             fit=False,
-            **kwargs # all other parameters for NideconvFitter
+            **kwargs  # all other parameters for NideconvFitter
         )
 
         # get fitters
         self.full_fitters = self.full_model.model._get_response_fitters()
-        
+
         self.combos = self.return_combinations(split=split)
 
         # loop through them
@@ -2701,13 +2836,15 @@ class CVDeconv(InitFitter):
         for ix, combo in enumerate(self.combos):
             unfitted_runs = [i for i in self.run_ids if i not in combo]
 
-            self.fold_f = pd.concat([utils.select_from_df(self.func, expression=f"run = {i}") for i in combo])
-            self.fold_o = pd.concat([utils.select_from_df(self.onsets, expression=f"run = {i}") for i in combo])
-            
+            self.fold_f = pd.concat([utils.select_from_df(
+                self.func, expression=f"run = {i}") for i in combo])
+            self.fold_o = pd.concat([utils.select_from_df(
+                self.onsets, expression=f"run = {i}") for i in combo])
+
             fit_ = self.single_fitter(
                 self.fold_f,
                 self.fold_o,
-                **kwargs # all other parameters for NideconvFitter
+                **kwargs  # all other parameters for NideconvFitter
             )
 
             self.fitters.append(fit_)
@@ -2722,11 +2859,11 @@ class CVDeconv(InitFitter):
 
 
 def fwhm_lines(
-    fwhm_list,
-    axs,
-    cmap="viridis",
-    color=None,
-    **kwargs):
+        fwhm_list,
+        axs,
+        cmap="viridis",
+        color=None,
+        **kwargs):
 
     if not isinstance(fwhm_list, list):
         fwhm_list = [fwhm_list]
@@ -2740,11 +2877,11 @@ def fwhm_lines(
     xlim = axs.get_xlim()
     tot = sum(list(np.abs(xlim)))
     for ix, ii in enumerate(fwhm_list):
-        start = (ii.t0_-xlim[0])/tot
+        start = (ii.t0_ - xlim[0]) / tot
         axs.axhline(
             ii.half_max,
             xmin=start,
-            xmax=start+ii.fwhm/tot,
+            xmax=start + ii.fwhm / tot,
             color=colors[ix],
             linewidth=0.5,
             **kwargs)
@@ -2756,8 +2893,7 @@ class HRFMetrics():
         self,
         hrf,
         **kwargs
-        ):
-
+    ):
         """HRFMetrics
 
         Main class for extracting various parameters from a given profiles. Optimized for the hemodynamic response function (HRF) but is agnostic to the type of input. It will therefore try to extract parameters from any shape of profile. Input can be a `pd.DataFrame` or `numpy.array`. Internally, a DataFrame will be created to facilitate usage across various operations. By default, parameters will be derived from the largest peak in the profile. This can be positive or negative. If you want to force the parameters to reflect a positive response, use the `force_pos` flag. Conversely, if you want to enfore negative values, use `force_neg`. This can be set for each column in the dataframe using lists.
@@ -2802,7 +2938,7 @@ class HRFMetrics():
         col_name: str, optional
             If a 2D-dataframe is supplied, an extra index is added. This flag sets the name of that index. Default = "vox". This can be for instance "roi", if you're dealing with ROIs
         peak: int, optional
-            Define which peak you want to use as reference. This flag requires an integer value from 1 to N. :function:`scipy.signal.find_peaks` is then used to extract peaks from the curve. By default, it will look for the largest peak, whether that's positive or negative. 
+            Define which peak you want to use as reference. This flag requires an integer value from 1 to N. :function:`scipy.signal.find_peaks` is then used to extract peaks from the curve. By default, it will look for the largest peak, whether that's positive or negative.
 
         Example
         ----------
@@ -2816,7 +2952,7 @@ class HRFMetrics():
 
     def return_metrics(self):
         return self.metrics.reset_index(drop=True)
-    
+
     @staticmethod
     def _check_negative(hrf, force_pos=False, force_neg=False):
         # check if positive or negative is largest
@@ -2827,26 +2963,26 @@ class HRFMetrics():
 
         if force_pos:
             negative = False
-        
+
         if force_neg:
             negative = True
         return negative
-    
+
     def _get_metrics(
         self,
         hrf,
-        TR: float=None,
-        force_pos: Union[list, bool]=False,
-        force_neg: Union[list, bool]=False,
-        plot: bool=False,
-        nan_policy: bool=True,
-        debug: bool=False,
-        progress: bool=False,
-        thr_var: Union[int, float]=0,
-        shift: Union[int, float]=0,
-        vox_as_index: bool=False,
-        col_name: str="vox",
-        incl: Union[str, list]=[
+        TR: float = None,
+        force_pos: Union[list, bool] = False,
+        force_neg: Union[list, bool] = False,
+        plot: bool = False,
+        nan_policy: bool = True,
+        debug: bool = False,
+        progress: bool = False,
+        thr_var: Union[int, float] = 0,
+        shift: Union[int, float] = 0,
+        vox_as_index: bool = False,
+        col_name: str = "vox",
+        incl: Union[str, list] = [
             "magnitude",
             "magnitude_ix",
             "fwhm",
@@ -2864,13 +3000,14 @@ class HRFMetrics():
             "2nd_deriv_time_to_peak",
         ],
         peak=None
-        ):
+    ):
 
         # force into list for iterability
         if isinstance(incl, str):
             incl = [incl]
 
-        # set shift to None because this doesn't deal with 2D arrays; just get the format right
+        # set shift to None because this doesn't deal with 2D arrays; just get
+        # the format right
         hrf = self._verify_input(
             hrf,
             TR=TR,
@@ -2880,13 +3017,16 @@ class HRFMetrics():
         orig_cols = list(hrf.columns)
 
         # find columns abs(var)>0
-        filtered_variance = (hrf.var(axis=0)>thr_var).values
+        filtered_variance = (hrf.var(axis=0) > thr_var).values
         filtered_df = hrf.iloc[:, filtered_variance]
         cols = list(filtered_df.columns)
-        utils.verbose(f" {filtered_df.shape[1]}/{hrf.shape[1]}\tvertices survived variance threshold of {thr_var}", debug)
+        utils.verbose(
+            f" {filtered_df.shape[1]}/{hrf.shape[1]}\tvertices survived variance threshold of {thr_var}",
+            debug)
         if len(cols) == 0:
-            raise ValueError(f"Variance threshold of {thr_var} is too strict; no vertices survived")
-        
+            raise ValueError(
+                f"Variance threshold of {thr_var} is too strict; no vertices survived")
+
         if not isinstance(force_neg, list):
             force_neg = [force_neg for _ in cols]
 
@@ -2898,7 +3038,9 @@ class HRFMetrics():
         col_fwhm = []
 
         # initialize empty dataframe
-        metrics = pd.DataFrame(np.zeros((len(orig_cols), len(incl))), columns=incl)
+        metrics = pd.DataFrame(
+            np.zeros(
+                (len(orig_cols), len(incl))), columns=incl)
 
         # separate loop for fancy progress bar
         if progress:
@@ -2917,7 +3059,7 @@ class HRFMetrics():
 
                     # progress
                     bar()
-                
+
                     col_metrics.append(pars)
                     col_fwhm.append(fwhm_)
         else:
@@ -2932,17 +3074,17 @@ class HRFMetrics():
                     shift=shift,
                     peak=peak
                 )
-            
+
                 col_metrics.append(pars)
                 col_fwhm.append(fwhm_)
 
         if len(col_metrics) > 0:
             col_metrics = pd.concat(col_metrics)
-        
+
         # insert into empty dataframe
         metrics.iloc[filtered_variance, :] = col_metrics.values.copy()
 
-        if len(orig_cols)>1:
+        if len(orig_cols) > 1:
             if vox_as_index:
                 set_as = np.arange(0, len(orig_cols), dtype=int)
             else:
@@ -2955,37 +3097,39 @@ class HRFMetrics():
             metrics["magnitude_ix"] = metrics["magnitude_ix"].astype(int)
 
         return metrics, final_hrf
-    
+
     @staticmethod
     def _get_time(hrf):
         try:
             tmp_df = hrf.reset_index()
-        except:
+        except BaseException:
             tmp_df = hrf.copy()
 
         try:
             return tmp_df["time"].values, "time"
-        except:
+        except BaseException:
             try:
                 return tmp_df["t"].values, "t"
-            except:
-                raise ValueError("Could not find time dimension. Dataframe should contain 't' or 'time' column..")
-    
+            except BaseException:
+                raise ValueError(
+                    "Could not find time dimension. Dataframe should contain 't' or 'time' column..")
+
     @classmethod
     def _verify_input(
         self,
         hrf,
         TR=None,
         shift=None
-        ):
+    ):
         if isinstance(hrf, np.ndarray):
             if hrf.ndim > 1:
                 hrf = hrf.squeeze()
-            
+
             if not isinstance(TR, (int, float)):
-                raise ValueError(f"Please specify repetition time of this acquisition to construct time axis")
-            
-            time_axis = list(np.arange(0, hrf.shape[0])*TR)
+                raise ValueError(
+                    f"Please specify repetition time of this acquisition to construct time axis")
+
+            time_axis = list(np.arange(0, hrf.shape[0]) * TR)
             hrf = pd.DataFrame({"voxel": hrf})
             hrf["time"] = time_axis
             hrf = hrf.set_index(["time"])
@@ -3000,20 +3144,20 @@ class HRFMetrics():
             else:
                 bsl = hrf.values[0]
 
-            if bsl>0:
+            if bsl > 0:
                 hrf -= bsl
-            elif bsl<0:
+            elif bsl < 0:
                 hrf += abs(bsl)
 
         return hrf
 
     @classmethod
     def plot_profile_for_debugging(
-        self,
-        hrf,
-        axs=None,
-        figsize=(5, 5),
-        **kwargs):
+            self,
+            hrf,
+            axs=None,
+            figsize=(5, 5),
+            **kwargs):
 
         if not isinstance(axs, mpl.axes._axes.Axes):
             _, axs = plt.subplots(figsize=figsize)
@@ -3038,7 +3182,7 @@ class HRFMetrics():
         force_neg=False,
         nan_policy=False,
         peak=None
-        ):
+    ):
 
         # fetch time stamps
         time, time_col = self._get_time(hrf)
@@ -3052,11 +3196,12 @@ class HRFMetrics():
         )
 
         negative = False
-        if mag["amplitude"]<0:
+        if mag["amplitude"] < 0:
             negative = True
 
         # limit search to where index of highest amplitude
-        diff = np.diff(hrf.values.squeeze()[:mag["t_ix"]])/np.diff(time[:mag["t_ix"]])
+        diff = np.diff(hrf.values.squeeze()[
+                       :mag["t_ix"]]) / np.diff(time[:mag["t_ix"]])
 
         # find minimum/maximum depending on whether HRF is negative or not
         try:
@@ -3067,7 +3212,7 @@ class HRFMetrics():
                     val = np.array([np.amax(diff[:mag["t_ix"]])])
             else:
                 val = np.array([np.amax(diff[:mag["t_ix"]])])
-            
+
             final_val = val[0]
             val_ix = utils.find_nearest(diff[:mag["t_ix"]], final_val)[0]
             val_t = time[val_ix]
@@ -3075,10 +3220,10 @@ class HRFMetrics():
         except Exception as e:  # noqa: F821
             if not nan_policy:
                 self.plot_profile_for_debugging(hrf)
-                raise ValueError(f"Could not extract rise-slope from this profile: {e}") # noqa: F821
+                raise ValueError(f"Could not extract rise-slope from this profile: {e}")  # noqa: F821
             else:
                 val_t = final_val = np.nan
-        
+
         return final_val, val_t, np.nan
 
     @classmethod
@@ -3091,7 +3236,7 @@ class HRFMetrics():
         window=[0.2, 0.8],
         reference="mag",
         peak=None
-        ):
+    ):
 
         # fetch time stamps
         time, time_col = self._get_time(hrf)
@@ -3111,11 +3256,12 @@ class HRFMetrics():
                 if nan_policy:
                     slope_val = fwhm_t0 = np.nan
                 else:
-                    raise TypeError(f"Could not extract fwhm from profile, so rise slope could not be determined")
+                    raise TypeError(
+                        f"Could not extract fwhm from profile, so rise slope could not be determined")
             else:
                 fwhm_t0 = fwhm_obj["obj"].t0_
-                t0 = fwhm_t0*window[0]
-                t1 = fwhm_t0*window[1]
+                t0 = fwhm_t0 * window[0]
+                t1 = fwhm_t0 * window[1]
 
         else:
             # use Siero/Tian method (fit between 20-80% of max)
@@ -3127,7 +3273,7 @@ class HRFMetrics():
             )
 
             negative = False
-            if mag["amplitude"]<0:
+            if mag["amplitude"] < 0:
                 negative = True
                 ffunc = np.amin
             else:
@@ -3135,7 +3281,8 @@ class HRFMetrics():
 
             rf = hrf.values.squeeze()
             mag_ix = mag["t_ix"]
-            idcs = sorted([utils.find_nearest(rf[:mag_ix], ffunc(rf)*i)[0] for i in window])
+            idcs = sorted(
+                [utils.find_nearest(rf[:mag_ix], ffunc(rf) * i)[0] for i in window])
             t0 = time[idcs[0]]
             t1 = time[idcs[1]]
 
@@ -3150,10 +3297,10 @@ class HRFMetrics():
                     f"{time_col} < {t1}"
                 )
             )
-        except:
+        except BaseException:
             if not nan_policy:
                 self.plot_profile_for_debugging(hrf)
-                raise ValueError(f"Could not extract rise-slope from this profile: {e}") # noqa: F821
+                raise ValueError(f"Could not extract rise-slope from this profile: {e}")  # noqa: F821
             else:
                 slope_val = np.nan
 
@@ -3174,15 +3321,16 @@ class HRFMetrics():
             except Exception as e:
                 if not nan_policy:
                     self.plot_profile_for_debugging(hrf)
-                    raise ValueError(f"Could not extract rise-slope from this profile: {e}") # noqa: F821
+                    raise ValueError(f"Could not extract rise-slope from this profile: {e}")  # noqa: F821
                 else:
                     slope_val = np.nan
 
-            if cv != None:
+            if cv is not None:
                 # extrapolate function to get intercept with 0
                 y = np.full_like(rf, np.nan)
                 y[idcs[0]:idcs[1]] = cv.y_pred
-                a, b = cv.params.get("slope").value, cv.params.get("intercept").value
+                a, b = cv.params.get("slope").value, cv.params.get(
+                    "intercept").value
                 x = np.arange(0, len(t_))
                 y_hat = cv.result.eval(x=time)
                 y_hat[mag_ix:] = np.nan
@@ -3201,7 +3349,7 @@ class HRFMetrics():
                 except Exception as e:
                     if not nan_policy:
                         self.plot_profile_for_debugging(hrf)
-                        raise ValueError(f"Could not extract onset-time from this profile: {e}") # noqa: F821
+                        raise ValueError(f"Could not extract onset-time from this profile: {e}")  # noqa: F821
                     else:
                         intsc = np.nan
 
@@ -3214,32 +3362,33 @@ class HRFMetrics():
         force_pos=False,
         force_neg=False,
         peak=None,
-        ):
+    ):
 
         # fetch time stamps
         time, time_col = self._get_time(hrf)
 
         # use scipy.signal.find_peaks to find n'th peak
         if isinstance(peak, int):
-            
-            ref = hrf.values.squeeze()
-            pos = list(signal.find_peaks(ref, prominence=0.05*ref.max())[0])
-            neg = list(signal.find_peaks(-ref, prominence=0.05*ref.max())[0])
-            ppeaks = sorted(pos+neg)
 
-            if len(ppeaks) > peak-1:
-                mag_ix = ppeaks[peak-1]
+            ref = hrf.values.squeeze()
+            pos = list(signal.find_peaks(ref, prominence=0.05 * ref.max())[0])
+            neg = list(signal.find_peaks(-ref, prominence=0.05 * ref.max())[0])
+            ppeaks = sorted(pos + neg)
+
+            if len(ppeaks) > peak - 1:
+                mag_ix = ppeaks[peak - 1]
                 ddict = {
                     "amplitude": hrf.values.squeeze()[mag_ix],
                     "t": time[mag_ix],
                     "t_ix": mag_ix
                 }
-                
+
             else:
-                raise ValueError(f"Peak #{peak} was requested, but only {len(ppeaks)} peak(s) were found..")
+                raise ValueError(
+                    f"Peak #{peak} was requested, but only {len(ppeaks)} peak(s) were found..")
 
         else:
-            
+
             # check negative:
             negative = self._check_negative(
                 hrf,
@@ -3262,15 +3411,15 @@ class HRFMetrics():
                 "t": time[mag_ix],
                 "t_ix": mag_ix
             }
-            
+
         return ddict
-    
+
     @classmethod
     def _get_derivatives(
         self,
         hrf,
         **kwargs
-        ):
+    ):
 
         # fetch time stamps
         time, time_col = self._get_time(hrf)
@@ -3282,12 +3431,15 @@ class HRFMetrics():
         )
 
         # get derivatives
-        first_derivative = np.gradient(hrf.values.squeeze(), time)[..., np.newaxis]
-        second_derivative = np.gradient(first_derivative.squeeze(), time)[..., np.newaxis]
+        first_derivative = np.gradient(
+            hrf.values.squeeze(), time)[..., np.newaxis]
+        second_derivative = np.gradient(
+            first_derivative.squeeze(), time)[..., np.newaxis]
 
         # deriv
         ddict = {}
-        for key, val in zip(["1st_deriv", "2nd_deriv"], [first_derivative, second_derivative]):
+        for key, val in zip(["1st_deriv", "2nd_deriv"], [
+                            first_derivative, second_derivative]):
             df = pd.DataFrame(val)
             df["t"] = time
             df.set_index(["t"], inplace=True)
@@ -3295,7 +3447,7 @@ class HRFMetrics():
 
             for i, e in res.items():
                 ddict[f"{key}_{i}"] = e
-            
+
         return ddict
 
     @classmethod
@@ -3306,7 +3458,7 @@ class HRFMetrics():
         force_neg=False,
         nan_policy=False,
         peak=None
-        ):
+    ):
 
         # get time
         time, time_col = self._get_time(hrf)
@@ -3332,26 +3484,27 @@ class HRFMetrics():
             )
 
             HAS_ZEROS_BEFORE_PEAK = True
-        except:
+        except BaseException:
             HAS_ZEROS_BEFORE_PEAK = False
-        
+
         if HAS_ZEROS_BEFORE_PEAK:
-            # if we found multiple coordinates, we have some bump/dip before peak
-            coords = [int(i[0][0]) for i in coords]
-            coords.sort()
+            # if we found multiple coordinates, we have some bump/dip before
+            # peak
+            coords = sorted([int(i[0][0]) for i in coords])
 
             if len(coords) > 1:
                 first_cross = coords[-1]
             else:
                 # assume single zero point before peak
                 first_cross = coords[0]
-            
+
         else:
             # if no zeros before peak, take start of curve as starting curve
             first_cross = 0
 
         # print(f"1st crossing = {first_cross}")
-        # find the next zero crossing after "first_cross" that is after peak index
+        # find the next zero crossing after "first_cross" that is after peak
+        # index
         zeros = np.zeros_like(hrf)
         xx = np.arange(0, zeros.shape[0])
 
@@ -3363,18 +3516,19 @@ class HRFMetrics():
             )
 
             FAILED = False
-        except:
+        except BaseException:
             FAILED = True
 
         # if there's no zero-crossings, take end of interval
         third_cross = None
         if FAILED:
-            second_cross = hrf.shape[0]-1
+            second_cross = hrf.shape[0] - 1
         else:
 
             # filter coordinates for elements BEFORE peak
-            coord_list = [int(i[0][0]) for i in coords if int(i[0][0])>mag["t_ix"]]
-            if len(coord_list)>0:
+            coord_list = [int(i[0][0])
+                          for i in coords if int(i[0][0]) > mag["t_ix"]]
+            if len(coord_list) > 0:
 
                 # sort
                 coord_list.sort()
@@ -3382,24 +3536,25 @@ class HRFMetrics():
                 second_cross = coord_list[0]
 
                 # take last element as undershoot
-                if len(coord_list)<2:
-                    third_cross = hrf.shape[0]-1
+                if len(coord_list) < 2:
+                    third_cross = hrf.shape[0] - 1
             else:
-                second_cross = hrf.shape[0]-1
+                second_cross = hrf.shape[0] - 1
 
             # if multple coords after peak we might have negative undershoot
-            if len(coord_list)>1:
-                # check if sample are not too close to one another;AUC needs at least 2 samples
+            if len(coord_list) > 1:
+                # check if sample are not too close to one another;AUC needs at
+                # least 2 samples
                 ix = 1
                 third_cross = coord_list[ix]
                 # print(coord_list)
                 # print(third_cross)
-                while (third_cross-second_cross)<2:
+                while (third_cross - second_cross) < 2:
                     ix += 1
-                    if ix<len(coord_list):
+                    if ix < len(coord_list):
                         third_cross = coord_list[ix]
                     else:
-                        third_cross = hrf.shape[0]-1
+                        third_cross = hrf.shape[0] - 1
 
         # print(f"2nd crossing = {second_cross}")
         # print(f"3rd crossing = {third_cross}")
@@ -3408,14 +3563,14 @@ class HRFMetrics():
         xx = np.arange(0, zeros.shape[0])
 
         try:
-            ab_area = metrics.auc(xx, hrf.iloc[first_cross:second_cross])*dx
-        except:
+            ab_area = metrics.auc(xx, hrf.iloc[first_cross:second_cross]) * dx
+        except BaseException:
             if not nan_policy:
                 self.plot_profile_for_debugging(hrf)
                 raise ValueError()
             else:
                 ab_area = np.nan
-        
+
         # check for under-/overshoot
         ac_area = np.nan
         if isinstance(third_cross, int):
@@ -3423,14 +3578,15 @@ class HRFMetrics():
             zeros = np.zeros_like(hrf.iloc[second_cross:third_cross])
             xx = np.arange(0, zeros.shape[0])
             try:
-                ac_area = abs(metrics.auc(xx, hrf.iloc[second_cross:third_cross]))*dx
-            except:
+                ac_area = abs(metrics.auc(xx,
+                                          hrf.iloc[second_cross:third_cross])) * dx
+            except BaseException:
                 if not nan_policy:
                     self.plot_profile_for_debugging(hrf, add_hline=0)
                     raise ValueError()
                 else:
                     ac_area = np.nan
-            
+
         return {
             "pos_area": ab_area,
             "undershoot": ac_area
@@ -3445,7 +3601,7 @@ class HRFMetrics():
         nan_policy=False,
         add_fct=0.5,
         peak=None
-        ):
+    ):
 
         # fetch time stamps
         time, time_col = self._get_time(hrf)
@@ -3459,16 +3615,17 @@ class HRFMetrics():
         )
 
         negative = False
-        if mag["amplitude"]<0:
+        if mag["amplitude"] < 0:
             negative = True
 
         # check time stamps
         if time.shape[0] != hrf.values.shape[0]:
-            raise ValueError(f"Shape of time dimension ({time.shape[0]}) does not match dimension of HRF ({hrf.values.shape[0]})")
+            raise ValueError(
+                f"Shape of time dimension ({time.shape[0]}) does not match dimension of HRF ({hrf.values.shape[0]})")
 
         # define index period around magnitude; add 20% to avoid FWHM errors
-        end_ix = mag["t_ix"]+mag["t_ix"]
-        end_ix += int(end_ix*add_fct)
+        end_ix = mag["t_ix"] + mag["t_ix"]
+        end_ix += int(end_ix * add_fct)
 
         try:
             # get fwhm around max amplitude
@@ -3477,7 +3634,7 @@ class HRFMetrics():
                 hrf.values,
                 negative=negative
             )
-            
+
             fwhm_dict = {
                 "fwhm": fwhm_val.fwhm,
                 "half_rise": fwhm_val.t0_,
@@ -3488,7 +3645,7 @@ class HRFMetrics():
         except Exception as e:
             if not nan_policy:
                 self.plot_profile_for_debugging(hrf)
-                raise ValueError(f"Could not extract FWHM from this profile: {e}") # noqa: F821
+                raise ValueError(f"Could not extract FWHM from this profile: {e}")  # noqa: F821
             else:
                 fwhm_dict = {
                     "fwhm": np.nan,
@@ -3496,22 +3653,22 @@ class HRFMetrics():
                     "half_max": np.nan,
                     "obj": np.nan
                 }
-        
+
         return fwhm_dict
-    
+
     @classmethod
     def _get_single_hrf_metrics(
-        self,
-        hrf,
-        TR=None,
-        force_pos=False,
-        force_neg=False,
-        plot=False,
-        nan_policy=False,
-        debug=False,
-        shift=None,
-        peak=None,
-        **kwargs):
+            self,
+            hrf,
+            TR=None,
+            force_pos=False,
+            force_neg=False,
+            plot=False,
+            nan_policy=False,
+            debug=False,
+            shift=None,
+            peak=None,
+            **kwargs):
 
         # verify input type
         hrf = self._verify_input(hrf, TR=TR, shift=shift)
@@ -3558,7 +3715,7 @@ class HRFMetrics():
         # positive area + undershoot
         if not isinstance(peak, int):
             peak = 1
-            
+
         deriv = self._get_derivatives(
             hrf,
             force_pos=force_pos,
@@ -3566,7 +3723,7 @@ class HRFMetrics():
             peak=peak
         )
 
-        ddict =  {
+        ddict = {
             "magnitude": [mag["amplitude"]],
             "magnitude_ix": [mag["t_ix"]],
             "fwhm": [fwhm_obj["fwhm"]],
@@ -3596,8 +3753,7 @@ class FWHM():
         hrf,
         negative=False,
         resample=500,
-        ):
-
+    ):
         """FWHM
 
         Class to extract the full-width at half-max of a given profile. The profile can either have a positive or negative peak, in which case the `negative`-flag should be set accordingly. The final output is stored in the `fwhm` attribute of the class.
@@ -3613,17 +3769,19 @@ class FWHM():
         resample: int, optional
             Resample the input to a higher grid so that the intersection between the profile and half-max can be drawn more accurately
         """
-                
+
         self.x = x
         self.hrf = hrf
         self.resample = resample
         self.negative = negative
-        
-        if x.shape[0]<self.resample:
-            
+
+        if x.shape[0] < self.resample:
+
             # print(f"resample vectors of shape {x.shape} to {self.resample}")
-            self.use_x = glm.resample_stim_vector(self.x, self.resample, interpolate="linear")
-            self.use_rf = glm.resample_stim_vector(self.hrf, self.resample, interpolate="linear")
+            self.use_x = glm.resample_stim_vector(
+                self.x, self.resample, interpolate="linear")
+            self.use_rf = glm.resample_stim_vector(
+                self.hrf, self.resample, interpolate="linear")
 
         else:
             self.use_x = x.copy()
@@ -3633,18 +3791,18 @@ class FWHM():
 
         if len(self.hmx) < 2:
             raise ValueError(f"Could not find two points close to half max..")
-        
+
         self.ts = [i.squeeze()[0] for i in self.hmx]
         self.ts.sort()
 
         self.t0_ = self.ts[0]
         self.t1_ = self.ts[1]
-        self.fwhm = abs(self.t1_-self.t0_)
-        
+        self.fwhm = abs(self.t1_ - self.t0_)
+
         if self.negative:
-            self.half_max = min(self.use_rf)/2
+            self.half_max = min(self.use_rf) / 2
         else:
-            self.half_max = max(self.use_rf)/2
+            self.half_max = max(self.use_rf) / 2
 
         self.half_max = self.half_max[0]
 
@@ -3652,11 +3810,11 @@ class FWHM():
     #     return x[i] + (x[i+1] - x[i]) * ((half - y[i]) / (y[i+1] - y[i]))
 
     def half_max_x(self, x, y):
-        
+
         if not self.negative:
-            half = max(y)/2.0
+            half = max(y) / 2.0
         else:
-            half = min(y)/2.0
+            half = min(y) / 2.0
 
         return utils.find_intersection(x, y, np.full_like(y, half))
 
@@ -3668,11 +3826,10 @@ class FWHM():
 
 
 def error_function(
-    parameters,
-    args,
-    data,
-    objective_function):
-
+        parameters,
+        args,
+        data,
+        objective_function):
     """
     Parameters
     ----------
@@ -3691,23 +3848,28 @@ def error_function(
     error : float
         The residual sum of squared errors between the prediction and data.
     """
-    return np.nan_to_num(np.sum((data - objective_function(parameters, **args))**2), nan=1e12)
-    #return 1-np.nan_to_num(pearsonr(data,np.nan_to_num(objective_function(*list(parameters), **args)[0]))[0])
+    return np.nan_to_num(
+        np.sum((data - objective_function(parameters, **args))**2), nan=1e12)
+    # return
+    # 1-np.nan_to_num(pearsonr(data,np.nan_to_num(objective_function(*list(parameters),
+    # **args)[0]))[0])
 
 
 def double_gamma_with_d(a1, a2, b1, b2, c, d1, d2, x=None, negative=False):
-    
+
     # correct for negative onsets
-    if x[0]<0:
-        x-=x[0]
+    if x[0] < 0:
+        x -= x[0]
 
     if not negative:
-        y = (x/(d1))**a1 * np.exp(-(x-d1)/b1) - c*(x/(d2))**a2 * np.exp(-(x-d2)/b2)
+        y = (x / (d1))**a1 * np.exp(-(x - d1) / b1) - \
+            c * (x / (d2))**a2 * np.exp(-(x - d2) / b2)
     else:
-        y = (x/(d1))**a1 * -np.exp(-(x-d1)/b1) - c*(x/(d2))**a2 * -np.exp(-(x-d2)/b2)
+        y = (x / (d1))**a1 * -np.exp(-(x - d1) / b1) - \
+            c * (x / (d2))**a2 * -np.exp(-(x - d2) / b2)
 
     y[x < 0] = 0
-    
+
     return y
 
 
@@ -3720,12 +3882,13 @@ def make_prediction(
     cov_as_ampl=None,
     negative=False,
     interval=[0, 25]
-    ):
+):
 
     # this correction is needed to get the HRF in the correct time domain
-    dt = 1/(osf/TR)
+    dt = 1 / (osf / TR)
 
-    time_points = np.linspace(*interval, np.rint(float(interval[-1])/dt).astype(int))
+    time_points = np.linspace(*interval,
+                              np.rint(float(interval[-1]) / dt).astype(int))
     hrf = [double_gamma_with_d(
         *parameters,
         x=time_points,
@@ -3747,25 +3910,25 @@ def make_prediction(
         time=time_points,
         # make_figure=True
     )
-    
+
     ev_conv_rs = glm.resample_stim_vector(ev_conv, scan_length)
     key = list(ev_conv_rs.keys())[0]
-    
+
     return ev_conv_rs[key].squeeze()
-    
+
 
 def iterative_search(
-    data,
-    onsets,
-    starting_params=[6, 12, 0.9, 0.9, 0.35, 5.4, 10.8],
-    bounds=None,
-    constraints=None,
-    cov_as_ampl=None,
-    TR=1.32,
-    osf=100,
-    interval=[0, 25],
-    xtol=1e-4,
-    ftol=1e-4):
+        data,
+        onsets,
+        starting_params=[6, 12, 0.9, 0.9, 0.35, 5.4, 10.8],
+        bounds=None,
+        constraints=None,
+        cov_as_ampl=None,
+        TR=1.32,
+        osf=100,
+        interval=[0, 25],
+        xtol=1e-4,
+        ftol=1e-4):
     """iterative_search
 
     Iterative search function to find the best set of parameters that describe the HRF across a full timeseries. During the optimization, each parameter is adjusted and a new prediction is formed until the variance explained of this prediction is maximized.
@@ -3814,7 +3977,7 @@ def iterative_search(
         "osf": osf,
         "interval": interval
     }
-    
+
     # run for both negative and positive; return parameters of best r2
 
     res = {}
@@ -3844,18 +4007,18 @@ def iterative_search(
 
     r2_pos = res["pos"]["r2"]
     r2_neg = res["neg"]["r2"]
-    if r2_pos>r2_neg:
+    if r2_pos > r2_neg:
         return res["pos"]["pars"], "pos"
     else:
         return res["neg"]["pars"], "neg"
-    
+
     # return starting_params, "pos"
-    
+
 
 class FitHRFparams():
     """FitHRFparams
 
-    Similar to Marco's pRF modeling, we can also estimate the best set of parameters that describe the HRF. This has slightly more degrees of freedom compared to using basis sets, but is not as unconstrained as FIR. 
+    Similar to Marco's pRF modeling, we can also estimate the best set of parameters that describe the HRF. This has slightly more degrees of freedom compared to using basis sets, but is not as unconstrained as FIR.
 
     Parameters
     ----------
@@ -3884,26 +4047,26 @@ class FitHRFparams():
     interval: list, optional
         Interval used to define the full HRF profile, by default [0,30]
     read_index: bool, optional
-        Copy the index from the input dataframe, by default False    
+        Copy the index from the input dataframe, by default False
     """
 
     def __init__(
-        self,
-        data,
-        onsets,
-        verbose=False,
-        TR=1.32,
-        osf=100,
-        starting_params=[6, 12, 0.9, 0.9, 0.35, 5.4, 10.8],
-        n_jobs=1,
-        bounds=None,
-        resample_to_shape=None,
-        xtol=1e-4,
-        ftol=1e-4,
-        cov_as_ampl=None,
-        interval=[0, 30],
-        read_index=False,
-        **kwargs):
+            self,
+            data,
+            onsets,
+            verbose=False,
+            TR=1.32,
+            osf=100,
+            starting_params=[6, 12, 0.9, 0.9, 0.35, 5.4, 10.8],
+            n_jobs=1,
+            bounds=None,
+            resample_to_shape=None,
+            xtol=1e-4,
+            ftol=1e-4,
+            cov_as_ampl=None,
+            interval=[0, 30],
+            read_index=False,
+            **kwargs):
 
         self.data = data
         self.onsets = onsets
@@ -3937,13 +4100,13 @@ class FitHRFparams():
         # set number of jobs if None is specified (default = 1)
         if not isinstance(self.n_jobs, int):
             self.n_jobs = self.data.shape[0]
-        
+
     def iterative_fit(self):
 
         # data = (voxels,time)
         if self.data.ndim < 2:
             self.data = self.data[np.newaxis, ...]
-    
+
         self.tmp_results = Parallel(self.n_jobs, verbose=self.verbose)(
             delayed(iterative_search)(
                 self.data[i, :],
@@ -3957,10 +4120,11 @@ class FitHRFparams():
             ) for i in range(self.data.shape[0])
         )
 
-
         # parse into array
-        self.iterative_search_params = np.array([self.tmp_results[i][0] for i in range(self.data.shape[0])])
-        self.prof_sign = [self.tmp_results[i][1] for i in range(self.data.shape[0])]
+        self.iterative_search_params = np.array(
+            [self.tmp_results[i][0] for i in range(self.data.shape[0])])
+        self.prof_sign = [self.tmp_results[i][1]
+                          for i in range(self.data.shape[0])]
 
         # self.iterative_search_params = np.array(self.starting_params)[np.newaxis,...]
         # self.prof_sign = None
@@ -3985,18 +4149,20 @@ class FitHRFparams():
             force_neg=self.force_neg,
             force_pos=self.force_pos
         ).return_metrics()
-        
+
     def profiles_from_parameters(
-        self,
-        resample_to_shape=None,
-        negative=None,
-        read_index=False):
+            self,
+            resample_to_shape=None,
+            negative=None,
+            read_index=False):
 
-        assert hasattr(self, "iterative_search_params"), "No parameters found, please run iterative_fit()"
+        assert hasattr(
+            self, "iterative_search_params"), "No parameters found, please run iterative_fit()"
 
-        dt = 1/self.osf
-        time_points = np.linspace(*self.interval, np.rint(float(self.interval[-1])/dt).astype(int))
-    
+        dt = 1 / self.osf
+        time_points = np.linspace(
+            *self.interval, np.rint(float(self.interval[-1]) / dt).astype(int))
+
         hrfs = []
         preds = []
         pars = []
@@ -4018,7 +4184,7 @@ class FitHRFparams():
                 cov_as_ampl=self.cov_as_ampl,
                 interval=self.interval,
                 negative=neg
-                )
+            )
 
             # resample to specified length
             if isinstance(resample_to_shape, int):
@@ -4036,7 +4202,8 @@ class FitHRFparams():
         self.hrf_profiles = pd.DataFrame(hrf_profiles.T)
         self.hrf_profiles["time"] = time_points
         self.predictions = pd.DataFrame(predictions.T)
-        self.predictions["t"] = list(np.arange(0, self.data.shape[1])*self.TR)
+        self.predictions["t"] = list(
+            np.arange(0, self.data.shape[1]) * self.TR)
 
         # read indices from onset dataframe
         self.prof_indices = ["time"]
@@ -4046,28 +4213,28 @@ class FitHRFparams():
         for el in ["subject", "run", "event_type"]:
             try:
                 el_in_df = utils.get_unique_ids(self.onsets, id=el)
-            except:
+            except BaseException:
                 el_in_df = None
-        
+
             if isinstance(el_in_df, list):
                 self.custom_indices.append(el)
 
                 for df in [self.hrf_profiles, self.predictions]:
                     df[el] = el_in_df[0]
 
-        if len(self.custom_indices)>0:
-            self.prof_indices = self.custom_indices+self.prof_indices
-            self.pred_indices = self.custom_indices+self.pred_indices
+        if len(self.custom_indices) > 0:
+            self.prof_indices = self.custom_indices + self.prof_indices
+            self.pred_indices = self.custom_indices + self.pred_indices
 
         self.hrf_profiles = self.hrf_profiles.set_index(self.prof_indices)
         self.predictions = self.predictions.set_index(self.pred_indices)
-    
+
 
 class Epoch(InitFitter):
 
     """Epoch
 
-    Class to extract timepoints within a certain interval given onset times for all subjects, tasks, and runs in a dataframe. 
+    Class to extract timepoints within a certain interval given onset times for all subjects, tasks, and runs in a dataframe.
 
     Parameters
     ----------
@@ -4102,8 +4269,8 @@ class Epoch(InitFitter):
         TR=0.105,
         interval=[-2, 14],
         merge=False
-        ):
-        
+    ):
+
         self.func = func
         self.onsets = onsets
         self.TR = TR
@@ -4126,7 +4293,7 @@ class Epoch(InitFitter):
         d_,
         bsl=20,
         verbose=False
-        ):
+    ):
 
         if isinstance(d_, pd.DataFrame):
             d_vals = d_.values
@@ -4135,22 +4302,24 @@ class Epoch(InitFitter):
             d_vals = d_.copy()
             return_df = False
 
-        if d_vals.ndim<2:
+        if d_vals.ndim < 2:
             d_vals = d_vals[..., np.newaxis]
-        
+
         shift_cols = []
         for col in range(d_vals.shape[-1]):
-            
+
             col_vals = d_vals[:, col]
             m_ = col_vals[:bsl].mean()
             if m_ < 0:
-                utils.verbose(f"Shifting profile UP with {round(abs(m_),2)}", verbose)
-                d_shift = col_vals+abs(m_)
+                utils.verbose(
+                    f"Shifting profile UP with {round(abs(m_),2)}", verbose)
+                d_shift = col_vals + abs(m_)
             else:
-                utils.verbose(f"Shifting profile DOWN with {round(m_,2)}", verbose)
-                d_shift = col_vals-m_
+                utils.verbose(
+                    f"Shifting profile DOWN with {round(m_,2)}", verbose)
+                d_shift = col_vals - m_
 
-            if d_shift.ndim<2:
+            if d_shift.ndim < 2:
                 d_shift = d_shift[..., np.newaxis]
 
             shift_cols.append(d_shift)
@@ -4167,9 +4336,9 @@ class Epoch(InitFitter):
         timepoints = np.linspace(
             interval[0],
             interval[1],
-            int(total_length * (1/TR) * 1),
+            int(total_length * (1 / TR) * 1),
             endpoint=False)
-        
+
         return timepoints
 
     def epoch_events(
@@ -4177,7 +4346,7 @@ class Epoch(InitFitter):
         df_func,
         df_onsets,
         index=False,
-        ):
+    ):
 
         ev_epochs = []
 
@@ -4189,36 +4358,41 @@ class Epoch(InitFitter):
         for ev in info["event_type"]:
 
             epochs = []
-            ev_onsets = utils.select_from_df(df_onsets, expression=f"event_type = {ev}")
+            ev_onsets = utils.select_from_df(
+                df_onsets, expression=f"event_type = {ev}")
             for i, t in enumerate(ev_onsets.onset.values):
-                
+
                 if ev not in ["response", "blink"]:
                     # find closest ID to interval
-                    t_start = t-abs(self.interval[0])
-                    ix_start = int(t_start/self.TR)
+                    t_start = t - abs(self.interval[0])
+                    ix_start = int(t_start / self.TR)
 
-                    samples = self.interval[1]+abs(self.interval[0])
-                    n_sampl = int(samples/self.TR)
-                    ix_end = ix_start+n_sampl
+                    samples = self.interval[1] + abs(self.interval[0])
+                    n_sampl = int(samples / self.TR)
+                    ix_end = ix_start + n_sampl
 
                     # extract from data
-                    stim_epoch = df_func.iloc[ix_start:ix_end, :].values #[...,np.newaxis]
+                    # [...,np.newaxis]
+                    stim_epoch = df_func.iloc[ix_start:ix_end, :].values
                     time = self._get_epoch_timepoints(self.interval, self.TR)
 
                     df_stim_epoch = pd.DataFrame(stim_epoch)
 
                     if len(time) != len(stim_epoch):
-                        print(f"WARNING: could not extract full epoch around event; onset={round(t,2)}s, t_start={round(t_start,2)}s with {n_sampl} samples ({samples}s). Epoch has {len(stim_epoch)} samples")
+                        print(
+                            f"WARNING: could not extract full epoch around event; onset={round(t,2)}s, t_start={round(t_start,2)}s with {n_sampl} samples ({samples}s). Epoch has {len(stim_epoch)} samples")
 
-                    df_stim_epoch["t"], df_stim_epoch["epoch"], df_stim_epoch["event_type"] = time[:len(stim_epoch)], i, ev
+                    df_stim_epoch["t"], df_stim_epoch["epoch"], df_stim_epoch["event_type"] = time[:len(
+                        stim_epoch)], i, ev
                     epochs.append(df_stim_epoch)
-            
-            # concatenate into 3d array (time,ev,stimulus_nr), average, and store in dataframe
+
+            # concatenate into 3d array (time,ev,stimulus_nr), average, and
+            # store in dataframe
             ev_epoch = pd.concat(epochs)
 
             # format dataframe
             ev_epoch["subject"], ev_epoch["run"] = info["subject"][0], info["run"][0]
-            
+
             ev_epochs.append(ev_epoch)
 
         # concatenate into dataframe
@@ -4235,14 +4409,14 @@ class Epoch(InitFitter):
         df_func,
         df_onsets,
         index=False,
-        ):
+    ):
 
         # loop through runs
         self.run_ids = utils.get_unique_ids(df_func, id="run")
         # print(f"task-{task}\t| runs = {run_ids}")
         run_df = []
         for run in self.run_ids:
-            
+
             expr = f"run = {run}"
             run_func = utils.select_from_df(df_func, expression=expr)
             run_stims = utils.select_from_df(df_onsets, expression=expr)
@@ -4259,12 +4433,12 @@ class Epoch(InitFitter):
         run_df = pd.concat(run_df)
 
         return run_df
-    
+
     def epoch_tasks(
         self,
         df_func,
         df_onsets
-        ):
+    ):
 
         # read task IDs
         self.task_ids = utils.get_unique_ids(df_func, id="task")
@@ -4288,15 +4462,15 @@ class Epoch(InitFitter):
             task_df.append(df)
 
         return pd.concat(task_df)
-    
+
     def epoch_subjects(
         self,
         df_func,
         df_onsets
-        ):
+    ):
 
         self.sub_ids = utils.get_unique_ids(self.func, id="subject")
-        
+
         # loop through subject IDs
         sub_df = []
         for sub in self.sub_ids:
@@ -4308,12 +4482,18 @@ class Epoch(InitFitter):
 
             try:
                 self.task_ids = utils.get_unique_ids(self.sub_func, id="task")
-            except:
+            except BaseException:
                 self.task_ids = None
 
             if isinstance(self.task_ids, list):
                 sub_epoch = self.epoch_tasks(self.sub_func, self.sub_stims)
-                self.idx = ["subject", "task", "run", "event_type", "epoch", "t"]
+                self.idx = [
+                    "subject",
+                    "task",
+                    "run",
+                    "event_type",
+                    "epoch",
+                    "t"]
             else:
                 sub_epoch = self.epoch_runs(self.sub_func, self.sub_stims)
                 self.idx = ["subject", "run", "event_type", "epoch", "t"]
@@ -4324,7 +4504,7 @@ class Epoch(InitFitter):
         sub_df = pd.concat(sub_df)
 
         return sub_df
-    
+
     def epoch_input(self):
 
         # run Epoching
@@ -4341,7 +4521,7 @@ class GLM(InitFitter):
 
     """GLM
 
-    Class to run a GLM for all subjects, tasks, and runs in a dataframe. 
+    Class to run a GLM for all subjects, tasks, and runs in a dataframe.
 
     Parameters
     ----------
@@ -4367,8 +4547,8 @@ class GLM(InitFitter):
         TR=0.105,
         merge=False,
         **kwargs
-        ):
-        
+    ):
+
         self.func = func
         self.onsets = onsets
         self.TR = TR
@@ -4393,7 +4573,7 @@ class GLM(InitFitter):
         dispersion=False,
         add_intercept=True,
         **kwargs
-        ):
+    ):
 
         copes = []
         if not dispersion and not derivative:
@@ -4408,13 +4588,13 @@ class GLM(InitFitter):
                 else:
                     fc = 1
 
-                n_cols = len(evs)*fc
+                n_cols = len(evs) * fc
                 arr = np.zeros((n_cols))
-                arr[start:start+fc] = 1
+                arr[start:start + fc] = 1
                 copes.append(arr)
 
                 start += fc
-            
+
         copes = np.array(copes)
         if add_intercept:
             icpt = np.zeros((len(evs), 1))
@@ -4428,7 +4608,7 @@ class GLM(InitFitter):
         func,
         onsets,
         **kwargs
-        ):
+    ):
 
         defaults = {
             "add_intercept": True,
@@ -4464,12 +4644,12 @@ class GLM(InitFitter):
 
         fm = self.format_output(fitter)
         return fm
-    
+
     @classmethod
     def format_fm(self, glm_obj):
 
         # full model predictions = dot product of design matrix & betas
-        pred_fm = glm_obj.results["x_conv"]@glm_obj.results["betas"]
+        pred_fm = glm_obj.results["x_conv"] @ glm_obj.results["betas"]
 
         # input will be dataframe, per definition, so copy indices
         return pd.DataFrame(pred_fm, index=glm_obj.orig.index)
@@ -4483,12 +4663,13 @@ class GLM(InitFitter):
 
         for ix, ev in enumerate(evs):
 
-            beta_idx = [ix for ix, ii in enumerate(dm_columns) if ev in ii or "regressor" in ii or "intercept" in ii]
+            beta_idx = [ix for ix, ii in enumerate(
+                dm_columns) if ev in ii or "regressor" in ii or "intercept" in ii]
 
             # get betas for all voxels
             betas = glm_obj.results["betas"][beta_idx]
             event = glm_obj.results["x_conv"][:, beta_idx]
-            ev_preds = event@betas
+            ev_preds = event @ betas
 
             df_ev = pd.DataFrame(ev_preds, index=glm_obj.orig.index)
             idx = list(df_ev.index.names)
@@ -4507,10 +4688,10 @@ class GLM(InitFitter):
         for i in ["subject", "task", "run"]:
             try:
                 IDs = utils.get_unique_ids(glm_obj.orig, id=i)
-            except:
+            except BaseException:
                 IDs = []
 
-            if len(IDs)>0:
+            if len(IDs) > 0:
                 idx[i] = IDs[0]
 
         df_r2 = pd.DataFrame(glm_obj.results["r2"][np.newaxis, ...])
@@ -4519,17 +4700,17 @@ class GLM(InitFitter):
 
         df_r2.set_index(list(idx.keys()), inplace=True)
         return df_r2
-    
+
     @classmethod
     def format_tstats(self, glm_obj):
         idx = {}
         for i in ["subject", "task", "run"]:
             try:
                 IDs = utils.get_unique_ids(glm_obj.orig, id=i)
-            except:
+            except BaseException:
                 IDs = []
 
-            if len(IDs)>0:
+            if len(IDs) > 0:
                 idx[i] = IDs[0]
 
         evs = utils.get_unique_ids(glm_obj.onsets, id="event_type")
@@ -4549,10 +4730,10 @@ class GLM(InitFitter):
         for i in ["subject", "task", "run"]:
             try:
                 IDs = utils.get_unique_ids(glm_obj.orig, id=i)
-            except:
+            except BaseException:
                 IDs = []
 
-            if len(IDs)>0:
+            if len(IDs) > 0:
                 idx[i] = IDs[0]
 
         evs = utils.get_unique_ids(glm_obj.onsets, id="event_type")
@@ -4565,16 +4746,16 @@ class GLM(InitFitter):
         ix_list.insert(-1, "event_type")
         df_t.set_index(ix_list, inplace=True)
         return df_t
-    
+
     @classmethod
     def format_output(self, glm_obj):
-        
+
         # full model
         df_fm = self.format_fm(glm_obj)
 
         # sort out ev-predictions
         df_em = self.format_ev(glm_obj)
-        
+
         # format r2
         df_r2 = self.format_r2(glm_obj)
 
@@ -4597,14 +4778,14 @@ class GLM(InitFitter):
         df_func,
         df_onsets,
         **kwargs
-        ):
+    ):
 
         # loop through runs
         self.run_ids = utils.get_unique_ids(df_func, id="run")
         # print(f"task-{task}\t| runs = {run_ids}")
         run_df = []
         for run in self.run_ids:
-            
+
             expr = f"run = {run}"
             run_func = utils.select_from_df(df_func, expression=expr)
             run_stims = utils.select_from_df(df_onsets, expression=expr)
@@ -4619,14 +4800,14 @@ class GLM(InitFitter):
             run_df.append(df)
 
         return run_df
-    
+
     @classmethod
     def glm_tasks(
         self,
         df_func,
         df_onsets,
         **kwargs
-        ):
+    ):
 
         # read task IDs
         self.task_ids = utils.get_unique_ids(df_func, id="task")
@@ -4647,7 +4828,7 @@ class GLM(InitFitter):
             )
 
             task_df += df
-        
+
         return task_df
 
     @classmethod
@@ -4656,10 +4837,10 @@ class GLM(InitFitter):
         df_func,
         df_onsets,
         **kwargs
-        ):
+    ):
 
         self.sub_ids = utils.get_unique_ids(df_func, id="subject")
-        
+
         # loop through subject IDs
         sub_df = []
         for sub in self.sub_ids:
@@ -4671,7 +4852,7 @@ class GLM(InitFitter):
 
             try:
                 self.task_ids = utils.get_unique_ids(self.sub_func, id="task")
-            except:
+            except BaseException:
                 self.task_ids = None
 
             if isinstance(self.task_ids, list):
@@ -4694,7 +4875,7 @@ class GLM(InitFitter):
 
         # sub_df = pd.concat(sub_df)
         return sub_df
-    
+
     def glm_input(self, **kwargs):
 
         # run glm
@@ -4717,33 +4898,33 @@ class GLM(InitFitter):
             for i in self.df_glm:
                 self.glm_output[conc].append(i[conc])
 
-            if len(self.glm_output[conc])>0:
+            if len(self.glm_output[conc]) > 0:
                 self.glm_output[conc] = pd.concat(self.glm_output[conc])
 
     def get_result(self):
         return self.glm_output
-    
+
     def find_max_r2(self, df=None):
         if not isinstance(df, pd.DataFrame):
             df = self.glm_output["r2"]
 
         max_r2 = np.amax(df.values)
-        max_idx = np.where(df.values==max_r2)[-1][0]
+        max_idx = np.where(df.values == max_r2)[-1][0]
         return max_r2, max_idx
-    
+
     def find_r2(self, vox_nr, df=None):
 
         if not isinstance(df, pd.DataFrame):
             df = self.glm_output["r2"]
 
         r2 = df.iloc[:, vox_nr].values
-        if len(r2)>0:
+        if len(r2) > 0:
             r2 = r2.mean()
         else:
             r2 = r2[0]
 
         return r2
-    
+
     def plot_ev_predictions(
         self,
         data=None,
@@ -4759,7 +4940,7 @@ class GLM(InitFitter):
         full_color="k",
         r2_dec=4,
         **kwargs
-        ):
+    ):
 
         # get data
         preds = self.glm_output["ev_model"]
@@ -4773,14 +4954,14 @@ class GLM(InitFitter):
         expr = []
         if isinstance(subject, str):
             expr.append(f"subject = {subject}")
-        
+
         if isinstance(task, str):
             expr.append(f"task = {task}")
 
         if isinstance(run, (int, str)):
             expr.append(f"run = {run}")
 
-        if len(expr)>0:
+        if len(expr) > 0:
             preds = utils.multiselect_from_df(preds, expression=expr)
             r2 = utils.multiselect_from_df(r2, expression=expr)
             data = utils.multiselect_from_df(data, expression=expr)
@@ -4797,7 +4978,7 @@ class GLM(InitFitter):
             r2_val, vox_nr = self.find_max_r2(df=r2)
         else:
             r2_val = self.find_r2(vox_nr, df=r2)
-    
+
         signals = [data.iloc[:, vox_nr].values]
         labels = ['input signal']
         if not full_only:
@@ -4822,7 +5003,7 @@ class GLM(InitFitter):
                     add_colors = list(cmap.squeeze())
                 else:
                     add_colors = cmap
-            
+
             colors = [*colors, *add_colors]
         else:
             full = True

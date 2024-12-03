@@ -19,7 +19,7 @@ class Defaults():
     pad_title: int
         Set the distance between the title and the plot. Default = 20
     title_size: int
-        Set the font size of titles. Default = 22; you can set it equal to font_size (or any other size) by specifying "font_size". 
+        Set the font size of titles. Default = 22; you can set it equal to font_size (or any other size) by specifying "font_size".
     font_size: int
         Set the font size of axis labels/titles. Default = 18
     label_size: int
@@ -53,7 +53,7 @@ class Defaults():
     xlim_left: float
         Set the x-limiter at the left of the plot. Default = None
     xlim_right: float
-        Set the x-limiter at the right of the plot. Default = None        
+        Set the x-limiter at the right of the plot. Default = None
     set_xlim_zero: bool
         Set the distance between plot and y-axis to 0. Default = False
     legend_handletext: float
@@ -74,17 +74,17 @@ class Defaults():
         >>> }
 
     color: str, list, optional
-        String (if 1 timeseries) or list (with the length of `ts`) of colors, by default None. If nothing is specified, we'll use `cmap` to create a color palette         
+        String (if 1 timeseries) or list (with the length of `ts`) of colors, by default None. If nothing is specified, we'll use `cmap` to create a color palette
     save_as: str, list, optional
         Save the plot, by default None. If you want to use figures in Inkscape, save them as PDFs to retain high resolution; specify a list of strings to save the plot with multiple extensions
     y_lim: list, optional
         List for `self._set_ylim`
     x_lim: list, optional
-        List for `self_.set_xlim`       
+        List for `self_.set_xlim`
     x_dec: int, optional
         Enforce `x_ticks` to have `x_dec` decimal accuracy. Default is whatever the data dictates
     y_dec: int, optional
-        Enforce `y_ticks` to have `y_dec` decimal accuracy. Default is whatever the data dictates      
+        Enforce `y_ticks` to have `y_dec` decimal accuracy. Default is whatever the data dictates
     add_hline: dict, optional
         Dictionary for a horizontal line through the plot, by default None. Collects the following items:
 
@@ -97,13 +97,13 @@ class Defaults():
 
         You can get the settings above by specifying *add_hline='default'*. Now also accepts *add_hline='mean'* for single inputs
     add_vline: dict, optional
-        Dictionary for a vertical line through the plot, by default None. Same keys as `add_hline`       
+        Dictionary for a vertical line through the plot, by default None. Same keys as `add_hline`
     dpi: int, optional
         Save figures with DPI-value. Default is 300
     figure_background_color: str, optional
         Background of images. Default is "white"
     bbox_inches: str, optional
-        Bounding box settings. Default is "tight"    
+        Bounding box settings. Default is "tight"
     """
 
     def __init__(self, **kwargs):
@@ -193,10 +193,10 @@ class Defaults():
         for i in ["label", "lim", "ticks", "ticklabels", "dec"]:
             for ii in ["x", "y", "z"]:
                 setattr(self, f"{ii}_{i}", None)
-        
+
         # update kwargs
         self.__dict__.update(kwargs)
-        
+
         # set default font
         if self.xkcd:
             self.fontname = "Humor Sans"
@@ -254,7 +254,7 @@ class Defaults():
         if isinstance(self.title_size, str):
             if hasattr(self, self.title_size):
                 self.title_size = getattr(self, self.title_size)
-                
+
         if isinstance(title, (str, dict)):
             default_dict = {
                 'color': 'k',
@@ -266,8 +266,9 @@ class Defaults():
             elif isinstance(title, dict):
                 title_dict = title.copy()
             else:
-                raise ValueError(f"title input must be a string or dictionary, not {type(title)}: '{title}'")
-            
+                raise ValueError(
+                    f"title input must be a string or dictionary, not {type(title)}: '{title}'")
+
             # add default keys if they're missing in dictionary
             for key in list(default_dict.keys()):
                 if key not in list(title_dict.keys()):
@@ -275,13 +276,13 @@ class Defaults():
 
             ax.set_title(
                 title_dict["title"],
-                color=title_dict["color"] ,
+                color=title_dict["color"],
                 fontweight=title_dict["fontweight"],
                 fontname=self.fontname,
                 fontsize=self.title_size,
                 pad=self.pad_title,
                 **kwargs)
-    
+
     def _set_bar_lim(self, ax, lim):
         if isinstance(lim, list):
             if self.sns_ori == 'h':
@@ -289,7 +290,8 @@ class Defaults():
             elif self.sns_ori == "v":
                 fc = self._set_ylim
             else:
-                raise ValueError(f"sns_ori must be 'v' or 'h', not '{self.sns_ori}'")
+                raise ValueError(
+                    f"sns_ori must be 'v' or 'h', not '{self.sns_ori}'")
 
             # set
             fc(ax, lim)
@@ -301,7 +303,8 @@ class Defaults():
             elif self.sns_ori == "v":
                 fc = "y"
             else:
-                raise ValueError(f"sns_ori must be 'v' or 'h', not '{self.sns_ori}'")
+                raise ValueError(
+                    f"sns_ori must be 'v' or 'h', not '{self.sns_ori}'")
 
             # set
             self._set_ticks(ax, ticks, axis=fc)
@@ -334,7 +337,7 @@ class Defaults():
 
     @staticmethod
     def _set_ticklabels(ax, ticks, axis="x", **kwargs):
-        
+
         if hasattr(ax, f"set_{axis}ticklabels"):
             if axis == "x":
                 ffunc = ax.set_xticklabels
@@ -342,7 +345,7 @@ class Defaults():
                 ffunc = ax.set_yticklabels
             else:
                 ffunc = ax.set_zticklabels
-                
+
             if isinstance(ticks, (pd.Series, pd.DataFrame)):
                 ticks = ticks.values
 
@@ -359,7 +362,7 @@ class Defaults():
             ax.set_ylim(lim)
         elif isinstance(lim, (int, float)):
             ax.set_ylim(top=lim)
-            
+
     @staticmethod
     def _set_xlim(ax, lim):
         """set x-limit"""
@@ -396,12 +399,12 @@ class Defaults():
                 ffunc.set_major_formatter(FormatStrFormatter(f"%.{dec}f"))
 
     def _set_shaded_error(
-        self,
-        x: np.ndarray=None,
-        tc: np.ndarray=None,
-        ax: mpl.axes._axes.Axes=None,
-        yerr: np.ndarray=None,
-        **kwargs):
+            self,
+            x: np.ndarray = None,
+            tc: np.ndarray = None,
+            ax: mpl.axes._axes.Axes = None,
+            yerr: np.ndarray = None,
+            **kwargs):
 
         if isinstance(yerr, (int, float, list, np.ndarray)):
             if np.isscalar(yerr) or len(yerr) == len(tc):
@@ -412,7 +415,7 @@ class Defaults():
                 ymax = tc + yerr
             elif len(yerr) == 2:
                 ymin, ymax = yerr
-            
+
             ax.fill_between(
                 x,
                 ymax,
@@ -420,30 +423,32 @@ class Defaults():
                 **kwargs)
 
     def _draw_errorbar(
-        self,
-        x: np.ndarray=None,
-        y: np.ndarray=None,
-        ax: mpl.axes._axes.Axes=None,
-        yerr: np.ndarray=None,
-        xerr: np.ndarray=None,
-        **kwargs):
+            self,
+            x: np.ndarray = None,
+            y: np.ndarray = None,
+            ax: mpl.axes._axes.Axes = None,
+            yerr: np.ndarray = None,
+            xerr: np.ndarray = None,
+            **kwargs):
 
         # set bunch of defaults
-        if not "linewidth" in list(kwargs.keys()) and not "lw" in list(kwargs.keys()):
+        if not "linewidth" in list(
+                kwargs.keys()) and not "lw" in list(kwargs.keys()):
             kwargs["lw"] = self.line_width
-        
+
         if not "color" in list(kwargs.keys()):
             kwargs["ecolor"] = "k"
 
         if not "zorder" in list(kwargs.keys()):
             kwargs["zorder"] = 0
 
-        if not "linestyle" in list(kwargs.keys()) and not "ls" in list(kwargs.keys()):
+        if not "linestyle" in list(
+                kwargs.keys()) and not "ls" in list(kwargs.keys()):
             kwargs["ls"] = "None"
-        
+
         if isinstance(x, (pd.Series, pd.DataFrame)):
             x = x.values
-        
+
         if isinstance(y, (pd.Series, pd.DataFrame)):
             y = y.values
 
@@ -459,12 +464,13 @@ class Defaults():
             yerr=yerr,
             xerr=xerr,
             **kwargs)
-        
+
     def _set_legend_labels(self, ax, labels=None):
         if isinstance(labels, (list, np.ndarray)):
-            if not "font_size" in list(self.legend_kwargs.keys()) and not "fontsize" in list(self.legend_kwargs.keys()):
+            if not "font_size" in list(self.legend_kwargs.keys(
+            )) and not "fontsize" in list(self.legend_kwargs.keys()):
                 self.legend_kwargs["fontsize"] = self.label_size
-                
+
             ax.legend(
                 frameon=False,
                 handletextpad=self.legend_handletext,
@@ -487,24 +493,24 @@ class Defaults():
         if isinstance(save_as, (list, str)):
             if isinstance(save_as, str):
                 save_as = [save_as]
-            
+
             for ii in save_as:
                 self._save_as(ii)
-    
+
     def _return_element(self, ddict, el, ix=0):
         if isinstance(ddict[el], list):
             return ddict[el][ix]
         else:
             return ddict[el]
-        
+
     def _add_line(
         self,
         ax=None,
         **kwargs
-        ):
+    ):
 
         for ii in ["hline", "vline"]:
-            
+
             line_kw = {}
             test_attr = getattr(self, f"add_{ii}")
             if isinstance(test_attr, (float, int, dict, str, list)):
@@ -543,7 +549,8 @@ class Defaults():
 
                     # enforce list so we only need to call functions once
                     if not "pos" in list(test_attr.keys()):
-                        raise ValueError(f"Need the 'pos' key to denote position..")
+                        raise ValueError(
+                            f"Need the 'pos' key to denote position..")
                     else:
                         if isinstance(test_attr['pos'], (int, float)):
                             test_attr['pos'] = [test_attr['pos']]
@@ -551,22 +558,25 @@ class Defaults():
                     # loop through elements
                     if isinstance(test_attr['pos'], (list, np.ndarray)):
                         for ix, line in enumerate(test_attr['pos']):
-                            
+
                             # define function
                             if ii == "hline":
                                 ffunc = ax.axhline
-                                kwargs_list = ["color", "lw", "ls", "xmin", "xmax"]
+                                kwargs_list = [
+                                    "color", "lw", "ls", "xmin", "xmax"]
                             else:
                                 ffunc = ax.axvline
-                                kwargs_list = ["color", "lw", "ls", "ymin", "ymax"]
+                                kwargs_list = [
+                                    "color", "lw", "ls", "ymin", "ymax"]
 
                             # update kwargs
                             for key, val in zip(
                                 ["color", "lw", "ls", "min", "max"],
                                 kwargs_list
-                                ):
+                            ):
 
-                                line_kw[val] = self._return_element(test_attr, key, ix=ix)
+                                line_kw[val] = self._return_element(
+                                    test_attr, key, ix=ix)
 
                             # run func
                             ffunc(line, **line_kw, **kwargs)
@@ -600,7 +610,7 @@ class LazyPRF(Defaults):
     line_width: float, optional
         Width of the outer border of the visual field if `cmap` is not *viridis* or *magma* (these color maps are quite default, and do not require an extra border like :func:`lazyplot.utils.make_binary_cm`-objects do). Default is 0.5.
     cross_width: float, optional
-        Width of the cross denoting the x/y axis. Default is 0.5, but can be increased if `cmap` is not *viridis* or *magma* to enhance visibility 
+        Width of the cross denoting the x/y axis. Default is 0.5, but can be increased if `cmap` is not *viridis* or *magma* to enhance visibility
     z_lines: int, optional
         Set the order of the vertical/horizontal lines. Default is **on top** of the pRF (1)
     z_prf: int, optional
@@ -614,25 +624,25 @@ class LazyPRF(Defaults):
     """
 
     def __init__(
-        self,
-        prf,
-        vf_extent,
-        cmap='RdBu_r',
-        cross_color="white",
-        alpha=None,
-        shrink_factor=1,
-        axis_off=True,
-        figsize=(8, 8),
-        full_axis=False,
-        vf_only=False,
-        cross_width=0.5,
-        concentric=None,
-        z_lines=1,
-        z_prf=0,
-        edge_color=None,
-        imshow_kw={},
-        **kwargs):
-        
+            self,
+            prf,
+            vf_extent,
+            cmap='RdBu_r',
+            cross_color="white",
+            alpha=None,
+            shrink_factor=1,
+            axis_off=True,
+            figsize=(8, 8),
+            full_axis=False,
+            vf_only=False,
+            cross_width=0.5,
+            concentric=None,
+            z_lines=1,
+            z_prf=0,
+            edge_color=None,
+            imshow_kw={},
+            **kwargs):
+
         self.prf = prf
         self.vf_extent = vf_extent
         self.cmap = cmap
@@ -671,7 +681,7 @@ class LazyPRF(Defaults):
         if self.prf.ndim >= 3:
             self.prf = np.squeeze(self.prf, axis=0)
 
-        if self.alpha == None:
+        if self.alpha is None:
             self.alpha = 1
 
         # add cross-hair
@@ -683,7 +693,7 @@ class LazyPRF(Defaults):
             }
 
             setattr(self, f"add_{ii}", self.line_kw)
-        
+
         self._add_line(
             self.axs,
             zorder=self.z_lines
@@ -701,9 +711,9 @@ class LazyPRF(Defaults):
         else:
             vmin = -plot_obj.max()
             vmax = plot_obj.max()
-                    
+
         if len(self.vf_extent) < 4:
-            self.use_extent = self.vf_extent+self.vf_extent
+            self.use_extent = self.vf_extent + self.vf_extent
         else:
             self.use_extent = self.vf_extent
 
@@ -716,16 +726,17 @@ class LazyPRF(Defaults):
             vmin=vmin,
             vmax=vmax,
             **self.imshow_kw)
-        
-        # In case of a white background, the circle for the visual field is cut off, so we need to make an adjustment:
+
+        # In case of a white background, the circle for the visual field is cut
+        # off, so we need to make an adjustment:
         if self.cmap != 'magma' and self.cmap != 'viridis':
-            radius = self.use_extent[-1]*self.shrink_factor
+            radius = self.use_extent[-1] * self.shrink_factor
         else:
             radius = self.use_extent[-1]
 
         # set title
         self._set_title(self.axs, self.title)
-        
+
         # set patch
         self.patch = patches.Circle(
             (0, 0),
@@ -743,12 +754,13 @@ class LazyPRF(Defaults):
         else:
             # set tick params
             self._set_tick_params(self.axs)
-        
+
             # set spine widths
             self._set_spine_width(self.axs)
-            
+
             if self.full_axis:
-                self.use_ticks = np.arange(self.vf_extent[0], self.vf_extent[1]+1, 1)
+                self.use_ticks = np.arange(
+                    self.vf_extent[0], self.vf_extent[1] + 1, 1)
             else:
                 self.use_ticks = self.vf_extent
 
@@ -760,8 +772,8 @@ class LazyPRF(Defaults):
             ]
             for x in ["x", "y"]:
                 for ff, el in zip(
-                    loop_funcs,
-                    ["ticks", "ticklabels", "dec"]):
+                        loop_funcs,
+                        ["ticks", "ticklabels", "dec"]):
 
                     add_to_ax = getattr(self, f"{x}_{el}")
                     getattr(self, ff)(self.axs, add_to_ax, axis=x)
@@ -793,7 +805,7 @@ class LazyLine(Defaults):
     markersize: str, list, optional
         Specify marker sizes during plotting. A single option will be applied to all elements in ``ts``. A separate list for each element of ``ts`` is also accepted. If one array in ``ts`` should not have markers, use `None`. E.g., if ``len(ts) == 3``, and we want only the first timecourse to have markers use: ``markers=['.',None,None]``
     markerfc: str, list, optional
-        Specify marker facecolor during plotting. A single option will be applied to all elements in ``ts``. A separate list for each element of ``ts`` is also accepted     
+        Specify marker facecolor during plotting. A single option will be applied to all elements in ``ts``. A separate list for each element of ``ts`` is also accepted
     markerec: str, list, optional
         Specify marker edgecolor during plotting. A single option will be applied to all elements in ``ts``. A separate list for each element of ``ts`` is also accepted
     plot_kw: dict, optional
@@ -841,21 +853,21 @@ class LazyLine(Defaults):
     """
 
     def __init__(
-        self,
-        ts,
-        xx=None,
-        error=None,
-        error_alpha=0.3,
-        figsize=(14, 4),
-        cmap='viridis',
-        labels=None,
-        markers=None,
-        markersize=None,
-        markerfc=None,
-        markerec=None,
-        plot_alpha=None,
-        plot_kw={},
-        **kwargs):
+            self,
+            ts,
+            xx=None,
+            error=None,
+            error_alpha=0.3,
+            figsize=(14, 4),
+            cmap='viridis',
+            labels=None,
+            markers=None,
+            markersize=None,
+            markerfc=None,
+            markerec=None,
+            plot_alpha=None,
+            plot_kw={},
+            **kwargs):
 
         self.array = ts
         self.xx = xx
@@ -898,32 +910,36 @@ class LazyLine(Defaults):
                 self.color = sns.color_palette(self.cmap, 1)[0]
             else:
                 self.color = [self.color]
-        
+
         # check if alpha's match nr of elements in array
         if isinstance(self.array, list):
 
             if not isinstance(self.plot_alpha, list):
-                if self.plot_alpha == None:
+                if self.plot_alpha is None:
                     self.plot_alpha = [1 for _ in range(len(self.array))]
                 elif isinstance(self.plot_alpha, (int, float)):
-                    self.plot_alpha = [self.plot_alpha for _ in range(len(self.array))]
+                    self.plot_alpha = [
+                        self.plot_alpha for _ in range(len(self.array))]
                 else:
                     self.plot_alpha = [self.plot_alpha]
                     if len(self.plot_alpha) != len(self.array):
-                        raise ValueError(f"Alpha list ({len(self.plot_alpha)}) does not match length of data list ({len(self.array)})")
+                        raise ValueError(
+                            f"Alpha list ({len(self.plot_alpha)}) does not match length of data list ({len(self.array)})")
 
             if isinstance(self.color, str):
                 self.color = [self.color for _ in range(len(self.array))]
 
             if not isinstance(self.markers, list):
-                if self.markers == None:
+                if self.markers is None:
                     self.markers = [None for _ in range(len(self.array))]
                 else:
-                    self.markers = [self.markers for _ in range(len(self.array))]
+                    self.markers = [
+                        self.markers for _ in range(len(self.array))]
 
             if len(self.markers) != len(self.array):
-                raise ValueError(f"Marker list ({len(self.markers)}) does not match length of data list ({len(self.array)})")
-            
+                raise ValueError(
+                    f"Marker list ({len(self.markers)}) does not match length of data list ({len(self.array)})")
+
             self.fix_error = True
             if not isinstance(self.error, (int, float, np.ndarray, list)):
                 self.fix_error = False
@@ -949,16 +965,18 @@ class LazyLine(Defaults):
                 self.error = self.tmp_error.copy()
 
                 if len(self.error) != len(self.array):
-                    raise ValueError(f"Error list ({len(self.error)}) does not match length of data list ({len(self.array)})")
+                    raise ValueError(
+                        f"Error list ({len(self.error)}) does not match length of data list ({len(self.array)})")
 
             if not isinstance(self.markersize, list):
-                if self.markersize == None:
+                if self.markersize is None:
                     self.markersize = [None for ii in range(len(self.array))]
                 else:
                     self.markersize = [self.markersize]
 
                 if len(self.markersize) != len(self.array):
-                    raise ValueError(f"Markersize list ({len(self.markersize)}) does not match length of data list ({len(self.array)})")
+                    raise ValueError(
+                        f"Markersize list ({len(self.markersize)}) does not match length of data list ({len(self.array)})")
 
             # decide on color scheme
             if not isinstance(self.color, list):
@@ -966,10 +984,11 @@ class LazyLine(Defaults):
             else:
                 self.color_list = self.color
                 if len(self.color_list) != len(self.array):
-                    raise ValueError(f"Length color list ({len(self.color_list)}) does not match length of data list ({len(self.array)})")
-                        
+                    raise ValueError(
+                        f"Length color list ({len(self.color_list)}) does not match length of data list ({len(self.array)})")
+
             for idx, el in enumerate(self.array):
-                
+
                 # squeeze dimensions
                 if el.ndim > 1:
                     el = el.squeeze()
@@ -977,7 +996,8 @@ class LazyLine(Defaults):
                 # decide on line-width
                 if isinstance(self.line_width, list):
                     if len(self.line_width) != len(self.array):
-                        raise ValueError(f"Length of line width lenghts {len(self.line_width)} does not match length of data list ({len(self.array)}")
+                        raise ValueError(
+                            f"Length of line width lenghts {len(self.line_width)} does not match length of data list ({len(self.array)}")
 
                     use_width = self.line_width[idx]
                 elif isinstance(self.line_width, (int, float)):
@@ -988,7 +1008,8 @@ class LazyLine(Defaults):
                 # decide on line-style
                 if isinstance(self.line_style, list):
                     if len(self.line_style) != len(self.array):
-                        raise ValueError(f"Length of line width lenghts {len(self.line_style)} does not match length of data list ({len(self.array)}")
+                        raise ValueError(
+                            f"Length of line width lenghts {len(self.line_style)} does not match length of data list ({len(self.array)}")
 
                     use_style = self.line_style[idx]
                 elif isinstance(self.line_style, str):
@@ -997,7 +1018,8 @@ class LazyLine(Defaults):
                     use_style = "solid"
 
                 # decide on x-axis
-                if not isinstance(self.xx, (np.ndarray, list, range, pd.DataFrame, pd.Series)):
+                if not isinstance(self.xx, (np.ndarray, list,
+                                  range, pd.DataFrame, pd.Series)):
                     self.t_ = np.arange(0, len(el))
                 else:
                     # range has no copy attribute
@@ -1012,13 +1034,14 @@ class LazyLine(Defaults):
                         else:
                             self.t_ = self.xx
                     elif isinstance(self.xx, np.ndarray):
-                        if self.xx.ndim>1:
+                        if self.xx.ndim > 1:
                             self.xx = self.xx.squeeze()
 
                         self.t_ = self.xx.copy()
                     else:
-                        raise TypeError(f"Could not derive time axis from input type {type(self.xx)}")
-                
+                        raise TypeError(
+                            f"Could not derive time axis from input type {type(self.xx)}")
+
                 if isinstance(self.labels, (list, np.ndarray)):
                     lbl = self.labels[idx]
                 else:
@@ -1068,10 +1091,10 @@ class LazyLine(Defaults):
 
         # set title
         self._set_title(self.axs, self.title)
-        
+
         # set tick params
         self._set_tick_params(self.axs)
-    
+
         # set spine widths
         self._set_spine_width(self.axs)
 
@@ -1093,7 +1116,7 @@ class LazyLine(Defaults):
         if not self.y_lim:
             if isinstance(self.ylim_bottom, (float, int)):
                 self.axs.set_ylim(bottom=self.ylim_bottom)
-            
+
             if self.ylim_top:
                 self.axs.set_ylim(top=self.ylim_top)
         else:
@@ -1110,11 +1133,11 @@ class LazyLine(Defaults):
             for ff, el in zip(
                 loop_funcs,
                 ["ticks", "ticklabels", "dec", "label"]
-                ):
+            ):
 
                 add_to_ax = getattr(self, f"{x}_{el}")
                 getattr(self, ff)(self.axs, add_to_ax, axis=x)
-                
+
         # draw horizontal/vertical lines with ax?line
         self._add_line(ax=self.axs)
 
@@ -1149,7 +1172,7 @@ class LazyCorr(Defaults):
         Run a regression between ``x`` and ``y``. The result is stored in ``self.regression_result``
     scatter_kwargs: dict, optional
         Additional options passed on to the ``scatter`` function from matplotlib. Set colorbar to nothing by passing:
-        
+
         >>> scatter_kwargs={"cbar": False}
 
     result_to_plot: bool, optional
@@ -1163,12 +1186,12 @@ class LazyCorr(Defaults):
     ----------
     >>> from lazyplot import plotting
     >>> import matplotlib.pyplot as plt
-    
+
     >>> # vanilla version; here, the regression fit has the same color as the dots.
     >>> fig,axs = plt.subplots(figsize=(7,7))
     >>> plotting.LazyCorr(
-    >>>     x_data, 
-    >>>     y_data, 
+    >>>     x_data,
+    >>>     y_data,
     >>>     axs=axs,
     >>>     x_label="add xlabel",
     >>>     y_label="add ylabel")
@@ -1181,12 +1204,12 @@ class LazyCorr(Defaults):
     >>> # create color map between red and blue; return as list
     >>> colors = utils.make_between_cm(["r","b], as_list=True, N=len(y_data))
     >>> for ix,val in enumerate(y_data):
-    >>>     axs.plot(x_data[ix], val, 'o', color=colors[ix], alpha=0.6)   
+    >>>     axs.plot(x_data[ix], val, 'o', color=colors[ix], alpha=0.6)
     >>> #
-    >>> #add the regression fit 
+    >>> #add the regression fit
     >>> plotting.LazyCorr(
-    >>>     x_data, 
-    >>>     y_data, 
+    >>>     x_data,
+    >>>     y_data,
     >>>     axs=axs,
     >>>     add_points=False, # turn off points; we've already plotted them
     >>>     x_label="add xlabel",
@@ -1198,29 +1221,29 @@ class LazyCorr(Defaults):
     """
 
     def __init__(
-        self,
-        data: pd.DataFrame=None,
-        x: Union[str, np.ndarray]=None,
-        y: Union[str, np.ndarray]=None,
-        color: str="#cccccc",
-        figsize: tuple=(7, 7),
-        points: bool=True,
-        label: str=None,
-        scatter_kwargs: dict={},
-        stat_kwargs: dict={},
-        color_by: Union[list, np.ndarray]=None,
-        regression: bool=False,
-        correlation: bool=False,
-        reg_kwargs: dict={},
-        error_kwargs: dict={},
-        result_to_plot: bool=False,
-        result_loc: tuple=(0.55, 0.1),
-        result_ec: tuple=(1., 0.5, 0.5),
-        result_fc: tuple=(1., 0.8, 0.8),
-        result_dec: int=2,
-        verbose=False,
-        *args,
-        **kwargs):
+            self,
+            data: pd.DataFrame = None,
+            x: Union[str, np.ndarray] = None,
+            y: Union[str, np.ndarray] = None,
+            color: str = "#cccccc",
+            figsize: tuple = (7, 7),
+            points: bool = True,
+            label: str = None,
+            scatter_kwargs: dict = {},
+            stat_kwargs: dict = {},
+            color_by: Union[list, np.ndarray] = None,
+            regression: bool = False,
+            correlation: bool = False,
+            reg_kwargs: dict = {},
+            error_kwargs: dict = {},
+            result_to_plot: bool = False,
+            result_loc: tuple = (0.55, 0.1),
+            result_ec: tuple = (1., 0.5, 0.5),
+            result_fc: tuple = (1., 0.8, 0.8),
+            result_dec: int = 2,
+            verbose=False,
+            *args,
+            **kwargs):
 
         # init default plotter class
         super().__init__(**kwargs)
@@ -1303,12 +1326,14 @@ class LazyCorr(Defaults):
         else:
             col_txt = ""
 
-        if len(res['method'])>0:
+        if len(res['method']) > 0:
             meth_txt = f" ({res['method']})"
         else:
             meth_txt = ""
 
-        utils.verbose(f"Test={res['test']}{meth_txt}{col_txt} | {res['metric']}={round(res['value'],self.result_dec)},\tp={round(res['p'],self.result_dec)}", True)
+        utils.verbose(
+            f"Test={res['test']}{meth_txt}{col_txt} | {res['metric']}={round(res['value'],self.result_dec)},\tp={round(res['p'],self.result_dec)}",
+            True)
 
         if return_result:
             return res
@@ -1319,17 +1344,18 @@ class LazyCorr(Defaults):
         self.axs.text(
             *self.result_loc,
             f"{res['metric']}={round(res['value'],self.result_dec)}, p={round(res['p'],self.result_dec)}",
-            size=self.font_size*0.8,
+            size=self.font_size * 0.8,
             bbox=dict(boxstyle="round", ec=self.result_ec, fc=self.result_fc),
             transform=self.axs.transAxes
         )
 
     def _run_regression(self):
-        
+
         try:
             import pingouin as pg
-        except:
-            raise ImportError("Could not import pingouin, so this functionality is not available")
+        except BaseException:
+            raise ImportError(
+                "Could not import pingouin, so this functionality is not available")
 
         self.regression_result = pg.linear_regression(
             self.x,
@@ -1342,14 +1368,15 @@ class LazyCorr(Defaults):
 
         try:
             import pingouin as pg
-        except:
-            raise ImportError("Could not import pingouin, so this functionality is not available")
-        
+        except BaseException:
+            raise ImportError(
+                "Could not import pingouin, so this functionality is not available")
+
         # convert to dataframe
         self.data = pd.DataFrame({"x": self.x, "y": self.y})
         self.x = "x"
         self.y = "y"
-    
+
         self.correlation_result = pg.pairwise_corr(
             self.data,
             columns=["x", "y"],
@@ -1363,13 +1390,13 @@ class LazyCorr(Defaults):
 
         # sort out stuff if input is data
         if isinstance(self.data, pd.DataFrame):
-            
+
             # can reset index on dataframe without index, to try-except
             try:
                 self.data = self.data.reset_index()
-            except:
+            except BaseException:
                 pass
-            
+
             self.x_col = self.x
             self.y_col = self.y
             self.x = self.data[self.x].values
@@ -1391,8 +1418,10 @@ class LazyCorr(Defaults):
             # enforce float
             e = e.astype(float)
 
-        # c-arguments clashes with "color" argument if you pass it to sns.regplot in "scatter_kws"; hence this solution
-        if isinstance(self.color_by, (list, np.ndarray, pd.DataFrame, pd.Series)):
+        # c-arguments clashes with "color" argument if you pass it to
+        # sns.regplot in "scatter_kws"; hence this solution
+        if isinstance(self.color_by, (list, np.ndarray,
+                      pd.DataFrame, pd.Series)):
 
             # get array
             if isinstance(self.color_by, (pd.DataFrame, pd.Series)):
@@ -1419,7 +1448,7 @@ class LazyCorr(Defaults):
                         self.scatter_kwargs["label"],
                         fontsize=self.font_size,
                         fontname=self.fontname)
-                
+
                 # sort out ticks
                 self._set_tick_params(self.cbar.ax)
                 self._set_spine_width(self.cbar.ax)
@@ -1445,7 +1474,8 @@ class LazyCorr(Defaults):
             **self.error_kwargs
         )
 
-        self.kde_color = utils.make_between_cm(self.color, self.color, as_list=True)
+        self.kde_color = utils.make_between_cm(
+            self.color, self.color, as_list=True)
         self.reg_ = sns.regplot(
             x=self.x,
             y=self.y,
@@ -1471,8 +1501,8 @@ class LazyCorr(Defaults):
         ]
         for x in ["x", "y"]:
             for ff, el in zip(
-                loop_funcs,
-                ["ticks", "ticklabels", "dec", "label"]):
+                    loop_funcs,
+                    ["ticks", "ticklabels", "dec", "label"]):
 
                 add_to_ax = getattr(self, f"{x}_{el}")
                 getattr(self, ff)(self.axs, add_to_ax, axis=x)
@@ -1495,10 +1525,10 @@ class LazyBar():
     data: pd.DataFrame, optional
         Input dataframe, by default None
     x: str, list, np.ndarray, optional
-        Variable for the x-axis, by default None. Can be a column name from `data`, or a list/np.ndarray with labels for input `y`. 
+        Variable for the x-axis, by default None. Can be a column name from `data`, or a list/np.ndarray with labels for input `y`.
     y: str, list, np.ndarray, optional
         Variable for the y-axis, by default None. Can be a column name from `data`, or a list/np.ndarray. If `x` is not specified, indices from 0 to `y.shape` will be used to construct the input dataframe.
-    labels: list, np.ndarray, optional 
+    labels: list, np.ndarray, optional
         custom labels that can be used when `x` denotes a column name in dataframe `data`. The replacing labels should have the same length as the labels that are being overwritten.
     axs: <AxesSubplot:>, optional
         Subplot axis to put the plot on, by default None
@@ -1545,7 +1575,7 @@ class LazyBar():
     >>>     palette=[con_color,mdd_color],
     >>>     add_points=True,
     >>>     points_color="k",
-    >>>     trim_bottom=True,   
+    >>>     trim_bottom=True,
     >>>     sns_offset=4,
     >>>     y_label2="white matter T1 (ms)",
     >>>     lim=[800,1600],
@@ -1556,38 +1586,38 @@ class LazyBar():
     ----------
     see documentation of :class:`lazyplot.plotting.Defaults()` for formatting options
     """
-    
+
     def __init__(
-        self,
-        data: pd.DataFrame=None,
-        x: Union[str, np.ndarray]=None,
-        y: Union[str, np.ndarray]=None,
-        labels: list=None,
-        palette: Union[list, sns.palettes._ColorPalette]=None,
-        cmap: str="inferno",
-        hue: str=None,
-        figsize=(4, 7),
-        add_labels: bool=False,
-        lim: list=None,
-        ticks: list=None,
-        add_points: bool=False,
-        points_color: Union[str, tuple]=None,
-        points_palette: Union[list, sns.palettes._ColorPalette]=None,
-        points_cmap: str="viridis",
-        points_legend: bool=False,
-        points_alpha: float=1,
-        error: str="se",
-        fancy: bool=False,
-        fancy_rounding: float=0.15,
-        fancy_pad: float=-0.004,
-        fancy_aspect: float=None,
-        fancy_denom: int=4,
-        bar_legend: bool=False,
-        lbl_legend: list=None,
-        strip_kw: dict={},
-        connect: bool=False,
-        connect_kw: dict={},
-        **kwargs):
+            self,
+            data: pd.DataFrame = None,
+            x: Union[str, np.ndarray] = None,
+            y: Union[str, np.ndarray] = None,
+            labels: list = None,
+            palette: Union[list, sns.palettes._ColorPalette] = None,
+            cmap: str = "inferno",
+            hue: str = None,
+            figsize=(4, 7),
+            add_labels: bool = False,
+            lim: list = None,
+            ticks: list = None,
+            add_points: bool = False,
+            points_color: Union[str, tuple] = None,
+            points_palette: Union[list, sns.palettes._ColorPalette] = None,
+            points_cmap: str = "viridis",
+            points_legend: bool = False,
+            points_alpha: float = 1,
+            error: str = "se",
+            fancy: bool = False,
+            fancy_rounding: float = 0.15,
+            fancy_pad: float = -0.004,
+            fancy_aspect: float = None,
+            fancy_denom: int = 4,
+            bar_legend: bool = False,
+            lbl_legend: list = None,
+            strip_kw: dict = {},
+            connect: bool = False,
+            connect_kw: dict = {},
+            **kwargs):
 
         self.data = data
         self.x = x
@@ -1619,7 +1649,8 @@ class LazyBar():
         self.connect_kw = connect_kw
         self.kw_defaults = Defaults()
 
-        # avoid that these kwargs are passed down to matplotlib.bar.. Throws errors
+        # avoid that these kwargs are passed down to matplotlib.bar.. Throws
+        # errors
         ignore_kwargs = [
             "trim_left",
             "trim_bottom",
@@ -1644,7 +1675,7 @@ class LazyBar():
         kw_sns = {}
         for ii in kwargs:
             # filter out non-ls kwargs
-            if ii not in self.kw_defaults.ls_kwargs+ignore_kwargs:
+            if ii not in self.kw_defaults.ls_kwargs + ignore_kwargs:
                 kw_sns[ii] = kwargs[ii]
             else:
                 # overwrite ls-kwargs
@@ -1664,7 +1695,7 @@ class LazyBar():
                 self.plot(**kw_sns)
         else:
             self.plot(**kw_sns)
-        
+
         # save
         self.kw_defaults._save_figure(self.save_as)
 
@@ -1680,13 +1711,12 @@ class LazyBar():
                 **kwargs
             )
 
-
     def connect_pairs(
-        self,
-        data,
-        x,
-        hue_id=None,
-        **kwargs):
+            self,
+            data,
+            x,
+            hue_id=None,
+            **kwargs):
 
         # first assess which elements on the x-axis we have
         x_inputs = utils.get_unique_ids(
@@ -1715,15 +1745,18 @@ class LazyBar():
 
         # make all strings so we can regex the "collections"
         child_str_list = [str(i) for i in children]
-        str_collection = utils.get_file_from_substring("collections", child_str_list)
+        str_collection = utils.get_file_from_substring(
+            "collections", child_str_list)
 
         # then index in actual children list
-        real_collection = [children[child_str_list.index(i)] for i in str_collection]
-        
+        real_collection = [
+            children[child_str_list.index(i)] for i in str_collection]
+
         # get correct collections based on hue_id
         if isinstance(hue_id, int):
-            start_idx = hue_id*len(x_inputs)
-            real_collection = real_collection[start_idx:start_idx+len(x_inputs)]
+            start_idx = hue_id * len(x_inputs)
+            real_collection = real_collection[start_idx:start_idx +
+                                              len(x_inputs)]
 
         # find collections
         collections = utils.pairwise(real_collection)
@@ -1736,8 +1769,9 @@ class LazyBar():
 
             # find subdatasets
             sets = [data.loc[data[x] == i][self.yy].values for i in pair]
-            
-            # before plotting, we need to sort so that the data points correspond to each other
+
+            # before plotting, we need to sort so that the data points
+            # correspond to each other
             sort_idxs1 = np.argsort(sets[0])
             sort_idxs2 = np.argsort(sets[1])
 
@@ -1751,7 +1785,7 @@ class LazyBar():
                     x_idx, y_idx = 0, 1
                 else:
                     x_idx, y_idx = 1, 0
-                    
+
                 x1 = [locs1[i, x_idx], locs2_sorted[i, x_idx]]
                 y1 = [locs1[i, y_idx], locs2_sorted[i, y_idx]]
                 self.ff.plot(x1, y1, **kwargs)
@@ -1765,25 +1799,25 @@ class LazyBar():
         if isinstance(self.y, (np.ndarray, list)):
             if isinstance(self.y, list):
                 self.y = np.array(self.y)
-                
+
             if not isinstance(self.x, (np.ndarray, list)):
                 self.x = np.arange(0, self.y.shape[0])
 
             self.data = pd.DataFrame({"x": self.x, "y": self.y})
             self.x = "x"
             self.y = "y"
-        
+
         # check if we should reset the index of dataframe
         try:
             self.data = self.data.reset_index()
-        except:
+        except BaseException:
             pass
-            
+
         # check if we got custom labels
         if isinstance(self.labels, (np.ndarray, list)):
             # check if x is multi-level
-            if len(self.data[self.x])>len(self.labels):
-                
+            if len(self.data[self.x]) > len(self.labels):
+
                 # get unique values
                 unique_x = utils.get_unique_ids(
                     self.data,
@@ -1815,8 +1849,9 @@ class LazyBar():
             self.trim_bottom = True
             self.trim_left = False
         else:
-            raise ValueError(f"sns_ori must be 'v' or 'h', not '{self.sns_ori}'")
-        
+            raise ValueError(
+                f"sns_ori must be 'v' or 'h', not '{self.sns_ori}'")
+
         if isinstance(self.color, (str, tuple, list)):
             if isinstance(self.color, (str, tuple)):
                 self.palette = None
@@ -1832,14 +1867,14 @@ class LazyBar():
             if not isinstance(self.palette, sns.palettes._ColorPalette):
                 # self.palette = sns.color_palette(self.cmap, self.data.shape[0])
                 self.palette = self.cmap
-        
+
         # allow more input types
         if isinstance(self.error, str):
             if self.error.lower() in "sem":
                 self.error = "se"
             elif self.error.lower() == "std":
                 self.error = "sd"
-        
+
         self.ff = sns.barplot(
             data=self.data,
             x=self.xx,
@@ -1859,7 +1894,7 @@ class LazyBar():
 
             if not hasattr(self, "points_hue"):
                 self.points_hue = None
-            
+
             if not self.points_palette:
                 self.points_palette = self.points_cmap
 
@@ -1868,19 +1903,21 @@ class LazyBar():
                 self.points_palette = None
                 self.points_hue = None
 
-            
             if isinstance(self.hue, str):
 
                 if isinstance(self.points_hue, str):
 
                     if self.points_hue != self.hue:
                         multi_strip = True
-                            
-                        self.hue_items = list(np.unique(self.data[self.points_hue].values))
+
+                        self.hue_items = list(
+                            np.unique(self.data[self.points_hue].values))
                         if isinstance(self.points_color, (str, tuple)):
-                            self.hue_colors = [self.points_color for ii in range(len(self.hue_items))]
+                            self.hue_colors = [
+                                self.points_color for ii in range(len(self.hue_items))]
                         else:
-                            self.hue_colors = sns.color_palette(self.points_palette, len(self.hue_items))
+                            self.hue_colors = sns.color_palette(
+                                self.points_palette, len(self.hue_items))
 
                         for it, color in zip(self.hue_items, self.hue_colors):
                             df_per_it = self.data[self.data[self.points_hue] == it]
@@ -1935,14 +1972,14 @@ class LazyBar():
 
         # sort out legend
         if self.bar_legend or self.points_legend:
-            
+
             self.add_legend = True
 
             # filter out handles that correspond to labels
             self.legend_kw = {}
             for key, val in zip(
                 ["fontsize", "handletextpad", "frameon"],
-                [self.label_size, self.legend_handletext, False]):
+                    [self.label_size, self.legend_handletext, False]):
                 self.legend_kw[key] = val
 
             if isinstance(self.bbox_to_anchor, tuple):
@@ -1950,11 +1987,12 @@ class LazyBar():
 
             # get handles
             handles, labels = self.ff.get_legend_handles_labels()
-            
+
             # bar legend
             if self.bar_legend:
 
-                # do some more exotic stuff to disentangle coloring from bars and hue
+                # do some more exotic stuff to disentangle coloring from bars
+                # and hue
                 if isinstance(self.hue, str):
 
                     # find categorical handles
@@ -1963,7 +2001,7 @@ class LazyBar():
                     cc = self.data[self.hue].values
                     indexes = np.unique(cc, return_index=True)[1]
                     cond = [cc[index] for index in sorted(indexes)]
-                    
+
                     if multi_strip:
                         handles = handles[-len(cond):]
                         labels = labels[-len(cond):]
@@ -1977,10 +2015,10 @@ class LazyBar():
 
         # fill in legend
         if self.add_legend:
-            
+
             if isinstance(self.lbl_legend, list):
                 labels = self.lbl_legend
-                
+
             self.ff.legend(
                 handles,
                 labels,
@@ -2001,7 +2039,8 @@ class LazyBar():
             elif self.sns_ori == "v":
                 self.kw_defaults._set_ticks(self.ff, [], axis="x")
             else:
-                raise ValueError(f"sns_ori must be 'v' or 'h', not '{self.sns_ori}'")
+                raise ValueError(
+                    f"sns_ori must be 'v' or 'h', not '{self.sns_ori}'")
         elif isinstance(self.add_labels, list):
             self.kw_defaults._set_xlabel(self.ff, self.add_labels)
 
@@ -2023,7 +2062,8 @@ class LazyBar():
                     fontname=self.fontname
                 )
             else:
-                raise ValueError(f"sns_ori must be 'v' or 'h', not '{self.sns_ori}'")
+                raise ValueError(
+                    f"sns_ori must be 'v' or 'h', not '{self.sns_ori}'")
 
         # set limits depending on orientation
         self.kw_defaults._set_bar_lim(self.ff, self.lim)
@@ -2044,17 +2084,16 @@ class LazyBar():
                     if self.sns_ori == "v":
                         y_limiter = patch._axes.get_ylim()[-1]
                         if isinstance(self.lim, list):
-                            y_limiter-=self.lim[0]
-                        
-                        self.fancy_aspect = y_limiter/self.fancy_denom
+                            y_limiter -= self.lim[0]
+
+                        self.fancy_aspect = y_limiter / self.fancy_denom
                     else:
                         x_limiter = patch._axes.get_xlim()[-1]
                         if isinstance(self.lim, list):
-                            x_limiter-=self.lim[0]
+                            x_limiter -= self.lim[0]
 
-                        self.fancy_aspect = x_limiter/self.fancy_denom
+                        self.fancy_aspect = x_limiter / self.fancy_denom
 
-                
                 # make rounding at limit
                 if isinstance(self.lim, list):
                     if self.sns_ori == "v":
@@ -2095,7 +2134,8 @@ class LazyBar():
         if isinstance(self.y, str) and not isinstance(self.y_label, str):
             self.ff.set(ylabel=None)
 
-        # set these explicitly; remove left axis is orientation = horizontal | remove bottom axis if orientation is vertical
+        # set these explicitly; remove left axis is orientation = horizontal |
+        # remove bottom axis if orientation is vertical
         if hasattr(self, "trim_left"):
             trim_left = self.trim_left
         else:
@@ -2117,12 +2157,12 @@ class LazyBar():
         ]
         for x in ["x", "y"]:
             for ff, el in zip(
-                loop_funcs,
-                ["dec", "label"]):
+                    loop_funcs,
+                    ["dec", "label"]):
 
                 add_to_ax = getattr(self, f"{x}_{el}")
                 getattr(self.kw_defaults, ff)(self.ff, add_to_ax, axis=x)
-                
+
         self.kw_defaults._despine(
             self.ff,
             left=trim_left,
@@ -2182,25 +2222,25 @@ class LazyHist(Defaults):
     """
 
     def __init__(
-        self,
-        data,
-        x=None,
-        y=None,
-        figsize=(5, 5),
-        kde=False,
-        hist=True,
-        bins="auto",
-        fill=False,
-        kde_kwargs={},
-        hist_kwargs={},
-        color="#cccccc",
-        cmap=None,
-        fancy: bool=False,
-        fancy_rounding: float=0.15,
-        fancy_pad: float=-0.004,
-        fancy_aspect: float=None,
-        **kwargs):
-        
+            self,
+            data,
+            x=None,
+            y=None,
+            figsize=(5, 5),
+            kde=False,
+            hist=True,
+            bins="auto",
+            fill=False,
+            kde_kwargs={},
+            hist_kwargs={},
+            color="#cccccc",
+            cmap=None,
+            fancy: bool = False,
+            fancy_rounding: float = 0.15,
+            fancy_pad: float = -0.004,
+            fancy_aspect: float = None,
+            **kwargs):
+
         super().__init__()
         self.__dict__.update(kwargs)
         self.update_rc(self.fontname)
@@ -2235,7 +2275,7 @@ class LazyHist(Defaults):
         if self.kde:
             try:
                 self.kde_ = self.return_kde()
-            except:
+            except BaseException:
                 pass
 
         # save
@@ -2243,7 +2283,7 @@ class LazyHist(Defaults):
 
     def return_kde(self):
         return self.ff.get_lines()[0].get_data()
-    
+
     def force_kde_color(self):
         line_cols = self.ff.get_lines()
         line_cols[-1].set_color(self.color)
@@ -2277,8 +2317,8 @@ class LazyHist(Defaults):
 
                     # max of axis divided by 4 gives nice rounding
                     if not isinstance(self.fancy_aspect, (int, float)):
-                        self.fancy_aspect = patch._axes.get_ylim()[-1]/4
-                    
+                        self.fancy_aspect = patch._axes.get_ylim()[-1] / 4
+
                     bb = patch.get_bbox()
                     color = patch.get_facecolor()
                     p_bbox = patches.FancyBboxPatch(
@@ -2297,7 +2337,7 @@ class LazyHist(Defaults):
                     self.axs.add_patch(patch)
 
         if self.kde:
-            
+
             # turn off legend by default
             if not "legend" in list(self.kde_kwargs):
                 self.kde_kwargs["legend"] = False
@@ -2327,7 +2367,7 @@ class LazyHist(Defaults):
 
         # set titles
         self._set_title(self.active_axs, self.title)
-        
+
         # set tick params/axis width
         self._set_tick_params(self.active_axs)
         self._set_spine_width(self.active_axs)
@@ -2335,7 +2375,7 @@ class LazyHist(Defaults):
         # set limits
         self._set_xlim(self.active_axs, self.x_lim)
         self._set_ylim(self.active_axs, self.y_lim)
-        
+
         # set tickers & despine
         loop_funcs = [
             "_set_ticks",
@@ -2345,8 +2385,8 @@ class LazyHist(Defaults):
         ]
         for x in ["x", "y"]:
             for ff, el in zip(
-                loop_funcs,
-                ["ticks", "ticklabels", "dec", "label"]):
+                    loop_funcs,
+                    ["ticks", "ticklabels", "dec", "label"]):
 
                 add_to_ax = getattr(self, f"{x}_{el}")
                 getattr(self, ff)(self.active_axs, add_to_ax, axis=x)
@@ -2355,7 +2395,7 @@ class LazyHist(Defaults):
         if not isinstance(self.x_label, str):
             self.active_axs.set(xlabel=None)
 
-        if  not isinstance(self.y_label, str):
+        if not isinstance(self.y_label, str):
             self.active_axs.set(ylabel=None)
 
         if hasattr(self, "trim_left"):
@@ -2367,7 +2407,7 @@ class LazyHist(Defaults):
             trim_bottom = self.kwargs["trim_bottom"]
         else:
             trim_bottom = False
-        
+
         self._despine(
             self.active_axs,
             left=trim_left,
@@ -2382,10 +2422,9 @@ class LazyHist(Defaults):
 
 
 def conform_ax_to_obj(
-    ax,
-    obj=None,
-    **lazy_args):
-
+        ax,
+        obj=None,
+        **lazy_args):
     """conform_ax_to_obj
 
     Function to conform any plot to the aesthetics of this plotting module. Can be used when a plot is created with functions other than :class:`lazyplot.plotting.LazyLine`, :class:`lazyplot.plotting.LazyCorr`, :class:`lazyplot.plotting.LazyHist`, or any other function specified in this file. Assumes `ax` is a `matplotlib.axes._subplots.AxesSubplot` object, and `obj` a `lazyplot.plotting.Lazy*`-object.
@@ -2415,9 +2454,9 @@ def conform_ax_to_obj(
     >>> sm.qqplot(mdf.resid, dist=stats.norm, line='s', ax=ax)
     >>> ax = plotting.conform_ax_to_obj(ax,pl)
     """
-    
+
     # check if Lazy* object was passed on
-    if obj == None:
+    if obj is None:
         obj = Defaults()
 
     # update with lazy_args | do separate
@@ -2439,7 +2478,7 @@ def conform_ax_to_obj(
     # format ticks
     try:
         obj._set_spine_width(ax)
-    except:
+    except BaseException:
         pass
 
     obj._set_tick_params(ax)
@@ -2454,8 +2493,8 @@ def conform_ax_to_obj(
 
     for x in ["x", "y", "z"]:
         for ff, el in zip(
-            loop_funcs,
-            ["ticks", "ticklabels", "dec", "label"]):
+                loop_funcs,
+                ["ticks", "ticklabels", "dec", "label"]):
 
             add_to_ax = getattr(obj, f"{x}_{el}")
             getattr(obj, ff)(ax, add_to_ax, axis=x)
@@ -2463,7 +2502,7 @@ def conform_ax_to_obj(
     # format limits
     for lim, func in zip(
         [obj.x_lim, obj.y_lim],
-        [obj._set_xlim, obj._set_ylim]):
+            [obj._set_xlim, obj._set_ylim]):
         if isinstance(lim, (float, int, list)):
             func(ax, lim)
 
@@ -2473,7 +2512,7 @@ def conform_ax_to_obj(
     # despine
     try:
         obj._despine(ax)
-    except:
+    except BaseException:
         pass
 
     return ax, obj
@@ -2482,23 +2521,23 @@ def conform_ax_to_obj(
 class LazyColorbar(Defaults):
 
     def __init__(
-        self,
-        cmap="magma_r",
-        txt=None,
-        vmin=0,
-        vmax=10,
-        ori="vertical",
-        ticks=None,
-        labels=None,
-        flip_ticks=False,
-        flip_label=False,
-        figsize=(6, 0.5),
-        save_as=None,
-        cm_nr=5,
-        cm_decimal=3,
-        cb_kws={},
-        font_kws={},
-        **kwargs):
+            self,
+            cmap="magma_r",
+            txt=None,
+            vmin=0,
+            vmax=10,
+            ori="vertical",
+            ticks=None,
+            labels=None,
+            flip_ticks=False,
+            flip_label=False,
+            figsize=(6, 0.5),
+            save_as=None,
+            cm_nr=5,
+            cm_decimal=3,
+            cb_kws={},
+            font_kws={},
+            **kwargs):
 
         self.cmap = cmap
         self.txt = txt
@@ -2526,12 +2565,12 @@ class LazyColorbar(Defaults):
         self.__dict__.update(kwargs)
         self.update_rc(self.fontname)
 
-        if self.axs == None:
+        if self.axs is None:
             if isinstance(self.save_as, str):
                 self.fig, self.axs = plt.subplots(figsize=self.figsize)
             else:
                 self.fig, self.axs = plt.subplots(figsize=self.figsize)
-            
+
         # make colorbase instance
         if isinstance(self.cmap, str):
             self.cmap = mpl.cm.get_cmap(self.cmap, 256)
@@ -2558,7 +2597,7 @@ class LazyColorbar(Defaults):
         )
 
         if self.ori == "vertical":
-            
+
             tick_ax = "y"
 
             # set font stuff
@@ -2576,7 +2615,7 @@ class LazyColorbar(Defaults):
 
             if self.flip_label:
                 self.axs.xaxis.set_label_position("top")
-                
+
             text = self.axs.xaxis.label
 
         if "color" in list(self.font_kws.keys()):
@@ -2589,7 +2628,7 @@ class LazyColorbar(Defaults):
             size=self.font_size,
             **self.font_kws
         )
-        
+
         text.set_font_properties(font)
         text.set_color(ft_color)
 
@@ -2615,11 +2654,11 @@ class LazyColorbar(Defaults):
 
     @staticmethod
     def colormap_ticks(
-        vmin=None,
-        vmax=None,
-        key=None,
-        dec=3,
-        nr=5):
+            vmin=None,
+            vmax=None,
+            key=None,
+            dec=3,
+            nr=5):
 
         # store colormaps
         if isinstance(key, str):
@@ -2629,7 +2668,7 @@ class LazyColorbar(Defaults):
                 ticks = list(np.linspace(vmin, vmax, endpoint=True, num=nr))
         else:
             ticks = list(np.linspace(vmin, vmax, endpoint=True, num=nr))
-        
+
         # round ticks
         ticks = [round(ii, dec) for ii in ticks]
 
@@ -2642,9 +2681,9 @@ class LazyColorbar(Defaults):
             ticks[-1] = utils.round_decimals_down(vmax, dec)
 
         return ticks
-    
+
     def show(self):
-        
+
         fig = plt.figure()
         new_manager = fig.canvas.manager
         new_manager.canvas.figure = self.fig
@@ -2652,16 +2691,16 @@ class LazyColorbar(Defaults):
 
 
 def fig_annot(
-    fig,
-    axs=None,
-    y=1.01,
-    x0_corr=0,
-    x_corr=-0.09,
-    fontsize=28,
-    lower=False,
-    brackets=False,
-    square=False,
-    **kwargs):
+        fig,
+        axs=None,
+        y=1.01,
+        x0_corr=0,
+        x_corr=-0.09,
+        fontsize=28,
+        lower=False,
+        brackets=False,
+        square=False,
+        **kwargs):
 
     # get figure letters
     if lower:
@@ -2673,7 +2712,7 @@ def fig_annot(
         ax_list = axs
     else:
         ax_list = fig.axes
-        
+
     # make annotations
     for ix, ax in enumerate(ax_list):
         bbox = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
@@ -2681,19 +2720,21 @@ def fig_annot(
         if isinstance(x_corr, (float, int)):
             use_x_pos = x_corr
         else:
-            if len(x_corr) != len(ax_list)-1:
-                raise ValueError(f"List with 'x_corr'-values must match list with axes-1. x_corr contains {len(x_corr)} elements, while {len(ax_list)-1} axes are specified")
-            use_x_pos = x_corr[ix-1]
+            if len(x_corr) != len(ax_list) - 1:
+                raise ValueError(
+                    f"List with 'x_corr'-values must match list with axes-1. x_corr contains {len(x_corr)} elements, while {len(ax_list)-1} axes are specified")
+            use_x_pos = x_corr[ix - 1]
 
         if ix == 0:
-            move_frac = x0_corr/bbox.width
+            move_frac = x0_corr / bbox.width
         else:
-            move_frac = use_x_pos/bbox.width
+            move_frac = use_x_pos / bbox.width
 
         pos = move_frac
         if isinstance(y, list):
             if len(y) != len(ax_list):
-                raise ValueError(f"List with y-values must match list with axes. y contains {len(y)} elements, while {len(ax_list)} axes are specified")
+                raise ValueError(
+                    f"List with y-values must match list with axes. y contains {len(y)} elements, while {len(ax_list)} axes are specified")
             y_pos = y[ix]
         else:
             y_pos = y
@@ -2712,263 +2753,264 @@ def fig_annot(
             xycoords="axes fraction",
             **kwargs)
 
+
 turbo_colormap_data = np.array(
     [[0.18995, 0.07176, 0.23217],
-    [0.19483, 0.08339, 0.26149],
-    [0.19956, 0.09498, 0.29024],
-    [0.20415, 0.10652, 0.31844],
-    [0.20860, 0.11802, 0.34607],
-    [0.21291, 0.12947, 0.37314],
-    [0.21708, 0.14087, 0.39964],
-    [0.22111, 0.15223, 0.42558],
-    [0.22500, 0.16354, 0.45096],
-    [0.22875, 0.17481, 0.47578],
-    [0.23236, 0.18603, 0.50004],
-    [0.23582, 0.19720, 0.52373],
-    [0.23915, 0.20833, 0.54686],
-    [0.24234, 0.21941, 0.56942],
-    [0.24539, 0.23044, 0.59142],
-    [0.24830, 0.24143, 0.61286],
-    [0.25107, 0.25237, 0.63374],
-    [0.25369, 0.26327, 0.65406],
-    [0.25618, 0.27412, 0.67381],
-    [0.25853, 0.28492, 0.69300],
-    [0.26074, 0.29568, 0.71162],
-    [0.26280, 0.30639, 0.72968],
-    [0.26473, 0.31706, 0.74718],
-    [0.26652, 0.32768, 0.76412],
-    [0.26816, 0.33825, 0.78050],
-    [0.26967, 0.34878, 0.79631],
-    [0.27103, 0.35926, 0.81156],
-    [0.27226, 0.36970, 0.82624],
-    [0.27334, 0.38008, 0.84037],
-    [0.27429, 0.39043, 0.85393],
-    [0.27509, 0.40072, 0.86692],
-    [0.27576, 0.41097, 0.87936],
-    [0.27628, 0.42118, 0.89123],
-    [0.27667, 0.43134, 0.90254],
-    [0.27691, 0.44145, 0.91328],
-    [0.27701, 0.45152, 0.92347],
-    [0.27698, 0.46153, 0.93309],
-    [0.27680, 0.47151, 0.94214],
-    [0.27648, 0.48144, 0.95064],
-    [0.27603, 0.49132, 0.95857],
-    [0.27543, 0.50115, 0.96594],
-    [0.27469, 0.51094, 0.97275],
-    [0.27381, 0.52069, 0.97899],
-    [0.27273, 0.53040, 0.98461],
-    [0.27106, 0.54015, 0.98930],
-    [0.26878, 0.54995, 0.99303],
-    [0.26592, 0.55979, 0.99583],
-    [0.26252, 0.56967, 0.99773],
-    [0.25862, 0.57958, 0.99876],
-    [0.25425, 0.58950, 0.99896],
-    [0.24946, 0.59943, 0.99835],
-    [0.24427, 0.60937, 0.99697],
-    [0.23874, 0.61931, 0.99485],
-    [0.23288, 0.62923, 0.99202],
-    [0.22676, 0.63913, 0.98851],
-    [0.22039, 0.64901, 0.98436],
-    [0.21382, 0.65886, 0.97959],
-    [0.20708, 0.66866, 0.97423],
-    [0.20021, 0.67842, 0.96833],
-    [0.19326, 0.68812, 0.96190],
-    [0.18625, 0.69775, 0.95498],
-    [0.17923, 0.70732, 0.94761],
-    [0.17223, 0.71680, 0.93981],
-    [0.16529, 0.72620, 0.93161],
-    [0.15844, 0.73551, 0.92305],
-    [0.15173, 0.74472, 0.91416],
-    [0.14519, 0.75381, 0.90496],
-    [0.13886, 0.76279, 0.89550],
-    [0.13278, 0.77165, 0.88580],
-    [0.12698, 0.78037, 0.87590],
-    [0.12151, 0.78896, 0.86581],
-    [0.11639, 0.79740, 0.85559],
-    [0.11167, 0.80569, 0.84525],
-    [0.10738, 0.81381, 0.83484],
-    [0.10357, 0.82177, 0.82437],
-    [0.10026, 0.82955, 0.81389],
-    [0.09750, 0.83714, 0.80342],
-    [0.09532, 0.84455, 0.79299],
-    [0.09377, 0.85175, 0.78264],
-    [0.09287, 0.85875, 0.77240],
-    [0.09267, 0.86554, 0.76230],
-    [0.09320, 0.87211, 0.75237],
-    [0.09451, 0.87844, 0.74265],
-    [0.09662, 0.88454, 0.73316],
-    [0.09958, 0.89040, 0.72393],
-    [0.10342, 0.89600, 0.71500],
-    [0.10815, 0.90142, 0.70599],
-    [0.11374, 0.90673, 0.69651],
-    [0.12014, 0.91193, 0.68660],
-    [0.12733, 0.91701, 0.67627],
-    [0.13526, 0.92197, 0.66556],
-    [0.14391, 0.92680, 0.65448],
-    [0.15323, 0.93151, 0.64308],
-    [0.16319, 0.93609, 0.63137],
-    [0.17377, 0.94053, 0.61938],
-    [0.18491, 0.94484, 0.60713],
-    [0.19659, 0.94901, 0.59466],
-    [0.20877, 0.95304, 0.58199],
-    [0.22142, 0.95692, 0.56914],
-    [0.23449, 0.96065, 0.55614],
-    [0.24797, 0.96423, 0.54303],
-    [0.26180, 0.96765, 0.52981],
-    [0.27597, 0.97092, 0.51653],
-    [0.29042, 0.97403, 0.50321],
-    [0.30513, 0.97697, 0.48987],
-    [0.32006, 0.97974, 0.47654],
-    [0.33517, 0.98234, 0.46325],
-    [0.35043, 0.98477, 0.45002],
-    [0.36581, 0.98702, 0.43688],
-    [0.38127, 0.98909, 0.42386],
-    [0.39678, 0.99098, 0.41098],
-    [0.41229, 0.99268, 0.39826],
-    [0.42778, 0.99419, 0.38575],
-    [0.44321, 0.99551, 0.37345],
-    [0.45854, 0.99663, 0.36140],
-    [0.47375, 0.99755, 0.34963],
-    [0.48879, 0.99828, 0.33816],
-    [0.50362, 0.99879, 0.32701],
-    [0.51822, 0.99910, 0.31622],
-    [0.53255, 0.99919, 0.30581],
-    [0.54658, 0.99907, 0.29581],
-    [0.56026, 0.99873, 0.28623],
-    [0.57357, 0.99817, 0.27712],
-    [0.58646, 0.99739, 0.26849],
-    [0.59891, 0.99638, 0.26038],
-    [0.61088, 0.99514, 0.25280],
-    [0.62233, 0.99366, 0.24579],
-    [0.63323, 0.99195, 0.23937],
-    [0.64362, 0.98999, 0.23356],
-    [0.65394, 0.98775, 0.22835],
-    [0.66428, 0.98524, 0.22370],
-    [0.67462, 0.98246, 0.21960],
-    [0.68494, 0.97941, 0.21602],
-    [0.69525, 0.97610, 0.21294],
-    [0.70553, 0.97255, 0.21032],
-    [0.71577, 0.96875, 0.20815],
-    [0.72596, 0.96470, 0.20640],
-    [0.73610, 0.96043, 0.20504],
-    [0.74617, 0.95593, 0.20406],
-    [0.75617, 0.95121, 0.20343],
-    [0.76608, 0.94627, 0.20311],
-    [0.77591, 0.94113, 0.20310],
-    [0.78563, 0.93579, 0.20336],
-    [0.79524, 0.93025, 0.20386],
-    [0.80473, 0.92452, 0.20459],
-    [0.81410, 0.91861, 0.20552],
-    [0.82333, 0.91253, 0.20663],
-    [0.83241, 0.90627, 0.20788],
-    [0.84133, 0.89986, 0.20926],
-    [0.85010, 0.89328, 0.21074],
-    [0.85868, 0.88655, 0.21230],
-    [0.86709, 0.87968, 0.21391],
-    [0.87530, 0.87267, 0.21555],
-    [0.88331, 0.86553, 0.21719],
-    [0.89112, 0.85826, 0.21880],
-    [0.89870, 0.85087, 0.22038],
-    [0.90605, 0.84337, 0.22188],
-    [0.91317, 0.83576, 0.22328],
-    [0.92004, 0.82806, 0.22456],
-    [0.92666, 0.82025, 0.22570],
-    [0.93301, 0.81236, 0.22667],
-    [0.93909, 0.80439, 0.22744],
-    [0.94489, 0.79634, 0.22800],
-    [0.95039, 0.78823, 0.22831],
-    [0.95560, 0.78005, 0.22836],
-    [0.96049, 0.77181, 0.22811],
-    [0.96507, 0.76352, 0.22754],
-    [0.96931, 0.75519, 0.22663],
-    [0.97323, 0.74682, 0.22536],
-    [0.97679, 0.73842, 0.22369],
-    [0.98000, 0.73000, 0.22161],
-    [0.98289, 0.72140, 0.21918],
-    [0.98549, 0.71250, 0.21650],
-    [0.98781, 0.70330, 0.21358],
-    [0.98986, 0.69382, 0.21043],
-    [0.99163, 0.68408, 0.20706],
-    [0.99314, 0.67408, 0.20348],
-    [0.99438, 0.66386, 0.19971],
-    [0.99535, 0.65341, 0.19577],
-    [0.99607, 0.64277, 0.19165],
-    [0.99654, 0.63193, 0.18738],
-    [0.99675, 0.62093, 0.18297],
-    [0.99672, 0.60977, 0.17842],
-    [0.99644, 0.59846, 0.17376],
-    [0.99593, 0.58703, 0.16899],
-    [0.99517, 0.57549, 0.16412],
-    [0.99419, 0.56386, 0.15918],
-    [0.99297, 0.55214, 0.15417],
-    [0.99153, 0.54036, 0.14910],
-    [0.98987, 0.52854, 0.14398],
-    [0.98799, 0.51667, 0.13883],
-    [0.98590, 0.50479, 0.13367],
-    [0.98360, 0.49291, 0.12849],
-    [0.98108, 0.48104, 0.12332],
-    [0.97837, 0.46920, 0.11817],
-    [0.97545, 0.45740, 0.11305],
-    [0.97234, 0.44565, 0.10797],
-    [0.96904, 0.43399, 0.10294],
-    [0.96555, 0.42241, 0.09798],
-    [0.96187, 0.41093, 0.09310],
-    [0.95801, 0.39958, 0.08831],
-    [0.95398, 0.38836, 0.08362],
-    [0.94977, 0.37729, 0.07905],
-    [0.94538, 0.36638, 0.07461],
-    [0.94084, 0.35566, 0.07031],
-    [0.93612, 0.34513, 0.06616],
-    [0.93125, 0.33482, 0.06218],
-    [0.92623, 0.32473, 0.05837],
-    [0.92105, 0.31489, 0.05475],
-    [0.91572, 0.30530, 0.05134],
-    [0.91024, 0.29599, 0.04814],
-    [0.90463, 0.28696, 0.04516],
-    [0.89888, 0.27824, 0.04243],
-    [0.89298, 0.26981, 0.03993],
-    [0.88691, 0.26152, 0.03753],
-    [0.88066, 0.25334, 0.03521],
-    [0.87422, 0.24526, 0.03297],
-    [0.86760, 0.23730, 0.03082],
-    [0.86079, 0.22945, 0.02875],
-    [0.85380, 0.22170, 0.02677],
-    [0.84662, 0.21407, 0.02487],
-    [0.83926, 0.20654, 0.02305],
-    [0.83172, 0.19912, 0.02131],
-    [0.82399, 0.19182, 0.01966],
-    [0.81608, 0.18462, 0.01809],
-    [0.80799, 0.17753, 0.01660],
-    [0.79971, 0.17055, 0.01520],
-    [0.79125, 0.16368, 0.01387],
-    [0.78260, 0.15693, 0.01264],
-    [0.77377, 0.15028, 0.01148],
-    [0.76476, 0.14374, 0.01041],
-    [0.75556, 0.13731, 0.00942],
-    [0.74617, 0.13098, 0.00851],
-    [0.73661, 0.12477, 0.00769],
-    [0.72686, 0.11867, 0.00695],
-    [0.71692, 0.11268, 0.00629],
-    [0.70680, 0.10680, 0.00571],
-    [0.69650, 0.10102, 0.00522],
-    [0.68602, 0.09536, 0.00481],
-    [0.67535, 0.08980, 0.00449],
-    [0.66449, 0.08436, 0.00424],
-    [0.65345, 0.07902, 0.00408],
-    [0.64223, 0.07380, 0.00401],
-    [0.63082, 0.06868, 0.00401],
-    [0.61923, 0.06367, 0.00410],
-    [0.60746, 0.05878, 0.00427],
-    [0.59550, 0.05399, 0.00453],
-    [0.58336, 0.04931, 0.00486],
-    [0.57103, 0.04474, 0.00529],
-    [0.55852, 0.04028, 0.00579],
-    [0.54583, 0.03593, 0.00638],
-    [0.53295, 0.03169, 0.00705],
-    [0.51989, 0.02756, 0.00780],
-    [0.50664, 0.02354, 0.00863],
-    [0.49321, 0.01963, 0.00955],
-    [0.47960, 0.01583, 0.01055]]
+     [0.19483, 0.08339, 0.26149],
+     [0.19956, 0.09498, 0.29024],
+     [0.20415, 0.10652, 0.31844],
+     [0.20860, 0.11802, 0.34607],
+     [0.21291, 0.12947, 0.37314],
+     [0.21708, 0.14087, 0.39964],
+     [0.22111, 0.15223, 0.42558],
+     [0.22500, 0.16354, 0.45096],
+     [0.22875, 0.17481, 0.47578],
+     [0.23236, 0.18603, 0.50004],
+     [0.23582, 0.19720, 0.52373],
+     [0.23915, 0.20833, 0.54686],
+     [0.24234, 0.21941, 0.56942],
+     [0.24539, 0.23044, 0.59142],
+     [0.24830, 0.24143, 0.61286],
+     [0.25107, 0.25237, 0.63374],
+     [0.25369, 0.26327, 0.65406],
+     [0.25618, 0.27412, 0.67381],
+     [0.25853, 0.28492, 0.69300],
+     [0.26074, 0.29568, 0.71162],
+     [0.26280, 0.30639, 0.72968],
+     [0.26473, 0.31706, 0.74718],
+     [0.26652, 0.32768, 0.76412],
+     [0.26816, 0.33825, 0.78050],
+     [0.26967, 0.34878, 0.79631],
+     [0.27103, 0.35926, 0.81156],
+     [0.27226, 0.36970, 0.82624],
+     [0.27334, 0.38008, 0.84037],
+     [0.27429, 0.39043, 0.85393],
+     [0.27509, 0.40072, 0.86692],
+     [0.27576, 0.41097, 0.87936],
+     [0.27628, 0.42118, 0.89123],
+     [0.27667, 0.43134, 0.90254],
+     [0.27691, 0.44145, 0.91328],
+     [0.27701, 0.45152, 0.92347],
+     [0.27698, 0.46153, 0.93309],
+     [0.27680, 0.47151, 0.94214],
+     [0.27648, 0.48144, 0.95064],
+     [0.27603, 0.49132, 0.95857],
+     [0.27543, 0.50115, 0.96594],
+     [0.27469, 0.51094, 0.97275],
+     [0.27381, 0.52069, 0.97899],
+     [0.27273, 0.53040, 0.98461],
+     [0.27106, 0.54015, 0.98930],
+     [0.26878, 0.54995, 0.99303],
+     [0.26592, 0.55979, 0.99583],
+     [0.26252, 0.56967, 0.99773],
+     [0.25862, 0.57958, 0.99876],
+     [0.25425, 0.58950, 0.99896],
+     [0.24946, 0.59943, 0.99835],
+     [0.24427, 0.60937, 0.99697],
+     [0.23874, 0.61931, 0.99485],
+     [0.23288, 0.62923, 0.99202],
+     [0.22676, 0.63913, 0.98851],
+     [0.22039, 0.64901, 0.98436],
+     [0.21382, 0.65886, 0.97959],
+     [0.20708, 0.66866, 0.97423],
+     [0.20021, 0.67842, 0.96833],
+     [0.19326, 0.68812, 0.96190],
+     [0.18625, 0.69775, 0.95498],
+     [0.17923, 0.70732, 0.94761],
+     [0.17223, 0.71680, 0.93981],
+     [0.16529, 0.72620, 0.93161],
+     [0.15844, 0.73551, 0.92305],
+     [0.15173, 0.74472, 0.91416],
+     [0.14519, 0.75381, 0.90496],
+     [0.13886, 0.76279, 0.89550],
+     [0.13278, 0.77165, 0.88580],
+     [0.12698, 0.78037, 0.87590],
+     [0.12151, 0.78896, 0.86581],
+     [0.11639, 0.79740, 0.85559],
+     [0.11167, 0.80569, 0.84525],
+     [0.10738, 0.81381, 0.83484],
+     [0.10357, 0.82177, 0.82437],
+     [0.10026, 0.82955, 0.81389],
+     [0.09750, 0.83714, 0.80342],
+     [0.09532, 0.84455, 0.79299],
+     [0.09377, 0.85175, 0.78264],
+     [0.09287, 0.85875, 0.77240],
+     [0.09267, 0.86554, 0.76230],
+     [0.09320, 0.87211, 0.75237],
+     [0.09451, 0.87844, 0.74265],
+     [0.09662, 0.88454, 0.73316],
+     [0.09958, 0.89040, 0.72393],
+     [0.10342, 0.89600, 0.71500],
+     [0.10815, 0.90142, 0.70599],
+     [0.11374, 0.90673, 0.69651],
+     [0.12014, 0.91193, 0.68660],
+     [0.12733, 0.91701, 0.67627],
+     [0.13526, 0.92197, 0.66556],
+     [0.14391, 0.92680, 0.65448],
+     [0.15323, 0.93151, 0.64308],
+     [0.16319, 0.93609, 0.63137],
+     [0.17377, 0.94053, 0.61938],
+     [0.18491, 0.94484, 0.60713],
+     [0.19659, 0.94901, 0.59466],
+     [0.20877, 0.95304, 0.58199],
+     [0.22142, 0.95692, 0.56914],
+     [0.23449, 0.96065, 0.55614],
+     [0.24797, 0.96423, 0.54303],
+     [0.26180, 0.96765, 0.52981],
+     [0.27597, 0.97092, 0.51653],
+     [0.29042, 0.97403, 0.50321],
+     [0.30513, 0.97697, 0.48987],
+     [0.32006, 0.97974, 0.47654],
+     [0.33517, 0.98234, 0.46325],
+     [0.35043, 0.98477, 0.45002],
+     [0.36581, 0.98702, 0.43688],
+     [0.38127, 0.98909, 0.42386],
+     [0.39678, 0.99098, 0.41098],
+     [0.41229, 0.99268, 0.39826],
+     [0.42778, 0.99419, 0.38575],
+     [0.44321, 0.99551, 0.37345],
+     [0.45854, 0.99663, 0.36140],
+     [0.47375, 0.99755, 0.34963],
+     [0.48879, 0.99828, 0.33816],
+     [0.50362, 0.99879, 0.32701],
+     [0.51822, 0.99910, 0.31622],
+     [0.53255, 0.99919, 0.30581],
+     [0.54658, 0.99907, 0.29581],
+     [0.56026, 0.99873, 0.28623],
+     [0.57357, 0.99817, 0.27712],
+     [0.58646, 0.99739, 0.26849],
+     [0.59891, 0.99638, 0.26038],
+     [0.61088, 0.99514, 0.25280],
+     [0.62233, 0.99366, 0.24579],
+     [0.63323, 0.99195, 0.23937],
+     [0.64362, 0.98999, 0.23356],
+     [0.65394, 0.98775, 0.22835],
+     [0.66428, 0.98524, 0.22370],
+     [0.67462, 0.98246, 0.21960],
+     [0.68494, 0.97941, 0.21602],
+     [0.69525, 0.97610, 0.21294],
+     [0.70553, 0.97255, 0.21032],
+     [0.71577, 0.96875, 0.20815],
+     [0.72596, 0.96470, 0.20640],
+     [0.73610, 0.96043, 0.20504],
+     [0.74617, 0.95593, 0.20406],
+     [0.75617, 0.95121, 0.20343],
+     [0.76608, 0.94627, 0.20311],
+     [0.77591, 0.94113, 0.20310],
+     [0.78563, 0.93579, 0.20336],
+     [0.79524, 0.93025, 0.20386],
+     [0.80473, 0.92452, 0.20459],
+     [0.81410, 0.91861, 0.20552],
+     [0.82333, 0.91253, 0.20663],
+     [0.83241, 0.90627, 0.20788],
+     [0.84133, 0.89986, 0.20926],
+     [0.85010, 0.89328, 0.21074],
+     [0.85868, 0.88655, 0.21230],
+     [0.86709, 0.87968, 0.21391],
+     [0.87530, 0.87267, 0.21555],
+     [0.88331, 0.86553, 0.21719],
+     [0.89112, 0.85826, 0.21880],
+     [0.89870, 0.85087, 0.22038],
+     [0.90605, 0.84337, 0.22188],
+     [0.91317, 0.83576, 0.22328],
+     [0.92004, 0.82806, 0.22456],
+     [0.92666, 0.82025, 0.22570],
+     [0.93301, 0.81236, 0.22667],
+     [0.93909, 0.80439, 0.22744],
+     [0.94489, 0.79634, 0.22800],
+     [0.95039, 0.78823, 0.22831],
+     [0.95560, 0.78005, 0.22836],
+     [0.96049, 0.77181, 0.22811],
+     [0.96507, 0.76352, 0.22754],
+     [0.96931, 0.75519, 0.22663],
+     [0.97323, 0.74682, 0.22536],
+     [0.97679, 0.73842, 0.22369],
+     [0.98000, 0.73000, 0.22161],
+     [0.98289, 0.72140, 0.21918],
+     [0.98549, 0.71250, 0.21650],
+     [0.98781, 0.70330, 0.21358],
+     [0.98986, 0.69382, 0.21043],
+     [0.99163, 0.68408, 0.20706],
+     [0.99314, 0.67408, 0.20348],
+     [0.99438, 0.66386, 0.19971],
+     [0.99535, 0.65341, 0.19577],
+     [0.99607, 0.64277, 0.19165],
+     [0.99654, 0.63193, 0.18738],
+     [0.99675, 0.62093, 0.18297],
+     [0.99672, 0.60977, 0.17842],
+     [0.99644, 0.59846, 0.17376],
+     [0.99593, 0.58703, 0.16899],
+     [0.99517, 0.57549, 0.16412],
+     [0.99419, 0.56386, 0.15918],
+     [0.99297, 0.55214, 0.15417],
+     [0.99153, 0.54036, 0.14910],
+     [0.98987, 0.52854, 0.14398],
+     [0.98799, 0.51667, 0.13883],
+     [0.98590, 0.50479, 0.13367],
+     [0.98360, 0.49291, 0.12849],
+     [0.98108, 0.48104, 0.12332],
+     [0.97837, 0.46920, 0.11817],
+     [0.97545, 0.45740, 0.11305],
+     [0.97234, 0.44565, 0.10797],
+     [0.96904, 0.43399, 0.10294],
+     [0.96555, 0.42241, 0.09798],
+     [0.96187, 0.41093, 0.09310],
+     [0.95801, 0.39958, 0.08831],
+     [0.95398, 0.38836, 0.08362],
+     [0.94977, 0.37729, 0.07905],
+     [0.94538, 0.36638, 0.07461],
+     [0.94084, 0.35566, 0.07031],
+     [0.93612, 0.34513, 0.06616],
+     [0.93125, 0.33482, 0.06218],
+     [0.92623, 0.32473, 0.05837],
+     [0.92105, 0.31489, 0.05475],
+     [0.91572, 0.30530, 0.05134],
+     [0.91024, 0.29599, 0.04814],
+     [0.90463, 0.28696, 0.04516],
+     [0.89888, 0.27824, 0.04243],
+     [0.89298, 0.26981, 0.03993],
+     [0.88691, 0.26152, 0.03753],
+     [0.88066, 0.25334, 0.03521],
+     [0.87422, 0.24526, 0.03297],
+     [0.86760, 0.23730, 0.03082],
+     [0.86079, 0.22945, 0.02875],
+     [0.85380, 0.22170, 0.02677],
+     [0.84662, 0.21407, 0.02487],
+     [0.83926, 0.20654, 0.02305],
+     [0.83172, 0.19912, 0.02131],
+     [0.82399, 0.19182, 0.01966],
+     [0.81608, 0.18462, 0.01809],
+     [0.80799, 0.17753, 0.01660],
+     [0.79971, 0.17055, 0.01520],
+     [0.79125, 0.16368, 0.01387],
+     [0.78260, 0.15693, 0.01264],
+     [0.77377, 0.15028, 0.01148],
+     [0.76476, 0.14374, 0.01041],
+     [0.75556, 0.13731, 0.00942],
+     [0.74617, 0.13098, 0.00851],
+     [0.73661, 0.12477, 0.00769],
+     [0.72686, 0.11867, 0.00695],
+     [0.71692, 0.11268, 0.00629],
+     [0.70680, 0.10680, 0.00571],
+     [0.69650, 0.10102, 0.00522],
+     [0.68602, 0.09536, 0.00481],
+     [0.67535, 0.08980, 0.00449],
+     [0.66449, 0.08436, 0.00424],
+     [0.65345, 0.07902, 0.00408],
+     [0.64223, 0.07380, 0.00401],
+     [0.63082, 0.06868, 0.00401],
+     [0.61923, 0.06367, 0.00410],
+     [0.60746, 0.05878, 0.00427],
+     [0.59550, 0.05399, 0.00453],
+     [0.58336, 0.04931, 0.00486],
+     [0.57103, 0.04474, 0.00529],
+     [0.55852, 0.04028, 0.00579],
+     [0.54583, 0.03593, 0.00638],
+     [0.53295, 0.03169, 0.00705],
+     [0.51989, 0.02756, 0.00780],
+     [0.50664, 0.02354, 0.00863],
+     [0.49321, 0.01963, 0.00955],
+     [0.47960, 0.01583, 0.01055]]
 )
 
 
@@ -2976,7 +3018,9 @@ def RGBToPyCmap(rgbdata):
     nsteps = rgbdata.shape[0]
     stepaxis = np.linspace(0, 1, nsteps)
 
-    rdata=[]; gdata=[]; bdata=[]
+    rdata = []
+    gdata = []
+    bdata = []
     for istep in range(nsteps):
         r = rgbdata[istep, 0]
         g = rgbdata[istep, 1]
@@ -2993,6 +3037,7 @@ def RGBToPyCmap(rgbdata):
 
     return mpl_data
 
+
 mpl_data = RGBToPyCmap(turbo_colormap_data)
 try:
     plt.register_cmap(
@@ -3000,7 +3045,7 @@ try:
         data=mpl_data,
         lut=turbo_colormap_data.shape[0]
     )
-except:
+except BaseException:
     pass
 
 mpl_data_r = RGBToPyCmap(turbo_colormap_data[::-1, :])
@@ -3010,5 +3055,5 @@ try:
         data=mpl_data_r,
         lut=turbo_colormap_data.shape[0]
     )
-except:
+except BaseException:
     pass
