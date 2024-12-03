@@ -3057,3 +3057,42 @@ try:
     )
 except BaseException:
     pass
+
+def make_wm_pial_ticks(
+    data, 
+    start=0, 
+    end=100, 
+    step=25,
+    force_int=True
+    ):
+    x_ticks = [0,data.shape[0]//4, data.shape[0]//2,(data.shape[0]//2+data.shape[0]//4),data.shape[0]]
+    x_labels = list(np.arange(start,end*1.1, step=step))
+
+    if len(x_ticks) != len(x_labels):
+        raise ValueError(f"Length of ticks ({len(x_ticks)}) {x_ticks} != length of labels ({len(x_labels)}) {x_labels}")
+    
+    if force_int:
+        x_labels = [int(round(i,0)) for i in x_labels]
+        
+    return {
+        "ticks": x_ticks,
+        "labels": x_labels
+    }
+
+def annotate_cortical_ribbon(
+    axs,
+    pial_pos=(0.02,0.92), 
+    wm_pos=(0.02,0.02), 
+    lbls=["pial","wm"], 
+    **kwargs
+    ):
+
+    if not "xycoords" in list(kwargs.keys()):
+        kwargs["xycoords"] = "axes fraction"
+
+    for pos,tag in zip([pial_pos,wm_pos],lbls):
+        axs.annotate(
+            tag,
+            pos,
+            **kwargs
+        )
