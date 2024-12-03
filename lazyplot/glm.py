@@ -1085,7 +1085,7 @@ def fit_first_level(
                 f"model fit vox {best_vox+1}/{data.shape[1]} (r2={round(r2[best_vox],4)})",
             )
 
-        pl = LazyLine(
+        pl = plotting.LazyLine(
             signals,
             y_label="Activity (a.u.)",
             x_label="volumes",

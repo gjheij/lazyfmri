@@ -3060,7 +3060,7 @@ class HRFMetrics():
         except Exception as e:  # noqa: F821
             if not nan_policy:
                 self.plot_profile_for_debugging(hrf)
-                raise ValueError(f"Could not extract rise-slope from this profile: {e}")
+                raise ValueError(f"Could not extract rise-slope from this profile: {e}") # noqa: F821
             else:
                 val_t = final_val = np.nan 
         
