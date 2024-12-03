@@ -96,7 +96,7 @@ class CurveFitter():
         self.init_params()
         self.run()
         
-    def init_params():
+    def init_params(self):
         if self.func is None:
             self.guess = True
             if isinstance(self.order, int):
@@ -130,7 +130,7 @@ class CurveFitter():
             self.params['intercept'].value = 0
             self.params['intercept'].vary = False
         
-    def run():
+    def run(self):
         self.result = self.pmodel.fit(self.y_data, self.params, x=self.x)
 
         if self.verbose:
