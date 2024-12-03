@@ -72,7 +72,6 @@ REQUIRES = [
     "nilearn",
     "lmfit",
     "scikit-learn",
-    'nideconv @ git+https://github.com/gjheij/nideconv.git'
 ]
 
 opts = dict(
