@@ -4,7 +4,7 @@ PACKAGES = find_packages()
 
 # Function to read the version from version.py
 def get_version():
-    version_file = os.path.join(os.path.dirname(__file__), "mypackage", "version.py")
+    version_file = os.path.join(os.path.dirname(__file__), "lazyplot", "version.py")
     with open(version_file, "r") as f:
         for line in f:
             if line.startswith("__version__"):
