@@ -80,5 +80,5 @@ REQUIRES = [
     "nilearn",
     "lmfit",
     "scikit-learn",
-    "git+https://github.com/gjheij/nideconv.git"
+    "git+https://github.com/gjheij/nideconv.git#egg=nideconv"
 ]
