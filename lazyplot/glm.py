@@ -1,9 +1,4 @@
-from .plotting import (
-    LazyLine, 
-    Defaults, 
-    conform_ax_to_obj
-)
-from lazyplot import utils
+from . import plotting, utils
 from nilearn.glm.first_level import first_level
 from nilearn.glm.first_level import hemodynamic_models 
 from nilearn.plotting import (
@@ -352,7 +347,7 @@ class GenericGLM():
             cols = list(self.design.columns)
             fig,axs = plt.subplots(figsize=(len(cols),10))
             plot_contrast_matrix(self.contrast_matrix, design_matrix=self.design, ax=axs)
-            conform_ax_to_obj(axs)
+            plotting.conform_ax_to_obj(axs)
 
             fig,axs = plt.subplots(figsize=(10,10))
             plot_contrast_matrix(self.contrast_matrix, design_matrix=self.design, ax=axs)
@@ -366,7 +361,7 @@ class GenericGLM():
         cols = list(self.design.columns)
         fig,axs = plt.subplots(figsize=(len(cols),10))
         plotting.plot_design_matrix(self.design, ax=axs)
-        conform_ax_to_obj(axs)
+        plotting.conform_ax_to_obj(axs)
 
         if save_as:
             fig.savefig(save_as)
@@ -684,7 +679,7 @@ def convolve_hrf(
             y_ticks = [0,1]
 
         ax0 = fig.add_subplot(gs[0,0])
-        LazyLine(
+        plotting.LazyLine(
             stim_v, 
             color="#B1BDBD", 
             axs=ax0,
@@ -700,7 +695,7 @@ def convolve_hrf(
         
         # print(list(convolved.T)[0].shape)
         ax1 = fig.add_subplot(gs[1, 0])
-        LazyLine(
+        plotting.LazyLine(
             list(convolved.T),
             axs=ax1,
             title="Convolved stimulus-vector",
@@ -719,7 +714,7 @@ def convolve_hrf(
             "2nd derivative"
         ]
 
-        LazyLine(
+        plotting.LazyLine(
             hrf,
             xx=time,
             axs=ax2,
@@ -1223,7 +1218,7 @@ def double_gamma(x, lag=6, a2=12, b1=0.9, b2=0.9, c=0.35, scale=True):
             (hrf.max() - hrf.min()) + hrf.min()
     return hrf
 
-class Posthoc(Defaults):
+class Posthoc(plotting.Defaults):
     """Posthoc
 
     Run posthoc analysis on the output from `pingouin` ANOVA/ANCOVA or just straight up as pairwise t-tests. During intialization, the plotting arguments are internalized from :class:`linescanning.plotting.Defaults()`. Posthoc test should then be executed using the :func:`linescanning.glm.Posthoc.run_posthoc()` function, which accepts all arguments that :class:`pingouin.pairwise_tukey()` or :class:`pingouin.pairwise_tests()` accept. You can then choose to have the significance bars plotted on a specified `axs`. Note that this only works for relatively simple tests; there's NO support for complicated (nested) data structures such as repeated-measures.

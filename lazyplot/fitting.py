@@ -3057,7 +3057,7 @@ class HRFMetrics():
             val_ix = utils.find_nearest(diff[:mag["t_ix"]],final_val)[0]
             val_t = time[val_ix]
 
-        except Exception as e:
+        except Exception as e:  # noqa: F821
             if not nan_policy:
                 self.plot_profile_for_debugging(hrf)
                 raise ValueError(f"Could not extract rise-slope from this profile: {e}")
