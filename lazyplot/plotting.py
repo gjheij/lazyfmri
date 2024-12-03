@@ -3096,3 +3096,22 @@ def annotate_cortical_ribbon(
             pos,
             **kwargs
         )
+
+def add_axvspan(
+    axs, 
+    loc=(0,2), 
+    color="#cccccc",
+    alpha=0.3, 
+    ymin=0,
+    ymax=1,
+    **kwargs
+    ):
+
+    axs.axvspan(
+        *loc, 
+        ymin=ymin,
+        ymax=ymax, 
+        alpha=alpha, 
+        color=color,
+        **kwargs
+    )
