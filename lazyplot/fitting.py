@@ -3060,7 +3060,7 @@ class HRFMetrics():
         except Exception as e:  # noqa: F821
             if not nan_policy:
                 self.plot_profile_for_debugging(hrf)
-                raise ValueError(f"Could not extract rise-slope from this profile")
+                raise ValueError(f"Could not extract rise-slope from this profile: {e}") # noqa: F821
             else:
                 val_t = final_val = np.nan 
         
@@ -3138,7 +3138,7 @@ class HRFMetrics():
         except:
             if not nan_policy:
                 self.plot_profile_for_debugging(hrf)
-                raise ValueError(f"Could not extract rise-slope from this profile: {e}")
+                raise ValueError(f"Could not extract rise-slope from this profile: {e}") # noqa: F821
             else:
                 slope_val = np.nan            
 
@@ -3159,7 +3159,7 @@ class HRFMetrics():
             except Exception as e:
                 if not nan_policy:
                     self.plot_profile_for_debugging(hrf)
-                    raise ValueError(f"Could not extract rise-slope from this profile: {e}")
+                    raise ValueError(f"Could not extract rise-slope from this profile: {e}") # noqa: F821
                 else:
                     slope_val = np.nan
 
@@ -3186,7 +3186,7 @@ class HRFMetrics():
                 except Exception as e:
                     if not nan_policy:
                         self.plot_profile_for_debugging(hrf)
-                        raise ValueError(f"Could not extract onset-time from this profile: {e}")
+                        raise ValueError(f"Could not extract onset-time from this profile: {e}") # noqa: F821
                     else:
                         intsc = np.nan
 
@@ -3473,7 +3473,7 @@ class HRFMetrics():
         except Exception as e:
             if not nan_policy:
                 self.plot_profile_for_debugging(hrf)
-                raise ValueError(f"Could not extract FWHM from this profile: {e}")
+                raise ValueError(f"Could not extract FWHM from this profile: {e}") # noqa: F821
             else:
                 fwhm_dict = {
                     "fwhm": np.nan,
