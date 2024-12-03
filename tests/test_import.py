@@ -1,5 +1,5 @@
 import nideconv as nd
-from lazyplot import plotting
+from . import plotting
 import pandas as pd
 import os
 opj = os.path.join
