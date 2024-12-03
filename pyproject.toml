@@ -28,7 +28,8 @@ dependencies = [
     "nilearn",
     "lmfit",
     "nideconv @ git+https://github.com/gjheij/nideconv.git",
-    "scikit-learn"
+    "scikit-learn",
+    "pingouin",
 ]
 
 
