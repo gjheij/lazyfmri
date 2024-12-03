@@ -79,7 +79,6 @@ REQUIRES = [
     "seaborn",
     "nilearn",
     "lmfit",
-    "nideconv",
     "scikit-learn",
     "git+https://github.com/gjheij/nideconv"
 ]
