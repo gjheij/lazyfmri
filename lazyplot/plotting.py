@@ -1890,6 +1890,11 @@ class LazyBar():
             ))
 
         multi_strip = False
+
+        # need points in order to connect them..
+        if self.connect:
+            self.add_points = True
+
         if self.add_points:
 
             if not hasattr(self, "points_hue"):
@@ -2015,9 +2020,13 @@ class LazyBar():
 
         # fill in legend
         if self.add_legend:
-
+            
             if isinstance(self.lbl_legend, list):
                 labels = self.lbl_legend
+            
+            # brute force
+            if len(handles) == 0:
+                handles = list(self.ff.patches)
 
             self.ff.legend(
                 handles,

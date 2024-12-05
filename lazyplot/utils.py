@@ -3,10 +3,331 @@ import numpy as np
 import os
 import operator
 import pandas as pd
+from nilearn import signal
+from shapely import geometry
+import matplotlib.colors as mcolors
+from matplotlib import cm
+from PIL import ImageColor
 
 opj = os.path.join
 
+def convert_to_rgb(color, as_integer=False):
+    if isinstance(color, tuple):
+        (R,G,B) = color
+    elif isinstance(color, str):
+        if len(color) == 1:
+            color = mcolors.to_rgb(color)
+        else:
+            color = ImageColor.getcolor(color, "RGB")
+            
+        (R,G,B) = color
+    
+    if not as_integer:
+        rgb = []
+        for v in [R,G,B]:
+            if v>1:
+                v /= 255
+            rgb.append(v)
+        R,G,B = rgb
+    else:
+        rgb = []
+        for v in [R,G,B]:
+            if v<=1:
+                v = int(v*255)
+            rgb.append(v)
+        R,G,B = rgb
+        
+    return (R,G,B)
 
+def make_binary_cm(color):
+
+    """make_binary_cm
+
+    This function creates a custom binary colormap using matplotlib based on the RGB code specified. Especially useful if you want to overlay in imshow, for instance. These RGB values will be converted to range between 0-1 so make sure you're specifying the actual RGB-values. I like `https://htmlcolorcodes.com` to look up RGB-values of my desired color. The snippet of code used here comes from https://kbkb-wx-python.blogspot.com/2015/12/python-transparent-colormap.html
+
+    Parameters
+    ----------
+    <color>: tuple, str
+        either  hex-code with (!!) '#' or a tuple consisting of:
+
+        * <R>     int | red-channel (0-255)
+        * <G>     int | green-channel (0-255)
+        * <B>     int | blue-channel (0-255)
+    
+    Returns
+    ----------
+    matplotlib.colors.LinearSegmentedColormap object
+        colormap to be used with `plt.imshow`
+
+    Example
+    ----------
+    >>> cm = make_binary_cm((232,255,0))
+    >>> cm
+    <matplotlib.colors.LinearSegmentedColormap at 0x7f35f7154a30>
+    >>> cm = make_binary_cm("#D01B47")
+    >>> cm
+    >>> <matplotlib.colors.LinearSegmentedColormap at 0x7f35f7154a30>
+    """
+    
+    # convert input to RGB
+    R,G,B = convert_to_rgb(color)
+
+    colors = [(R,G,B,c) for c in np.linspace(0,1,100)]
+    cmap = mcolors.LinearSegmentedColormap.from_list('mycmap', colors, N=5)
+
+    return cmap
+
+def find_missing(lst):
+    return [i for x, y in zip(lst, lst[1:])
+        for i in range(x + 1, y) if y - x > 1]
+        
+def make_between_cm(
+    col1,
+    col2,
+    as_list=False,
+    **kwargs):
+
+    input_list = [col1,col2]
+
+    # scale to 0-1
+    col_list = []
+    for color in input_list:
+
+        scaled_color = convert_to_rgb(color)
+        col_list.append(scaled_color)
+
+    cm = mcolors.LinearSegmentedColormap.from_list("", col_list, **kwargs)
+
+    if as_list:
+        return [mcolors.rgb2hex(cm(i)) for i in range(cm.N)]
+    else:
+        return cm
+
+def make_stats_cm(
+    direction, 
+    lower_neg=(51,0,248),
+    upper_neg=(151,253,253), 
+    lower_pos=(217,36,36),
+    upper_pos=(251,255,72),
+    invert=False,
+    ):
+
+    if direction not in ["pos","neg"]:
+        raise ValueError(f"direction must be one of 'pos' or 'neg', not '{direction}'")
+    
+    if direction == "pos":
+        input_list = [lower_pos,upper_pos]
+    else:
+        input_list = [lower_neg, upper_neg]
+
+    if invert:
+        input_list = input_list[::-1]
+
+    # scale to 0-1
+    col_list = []
+    for color in input_list:
+        scaled_color = convert_to_rgb(color)
+        col_list.append(scaled_color)
+
+    return mcolors.LinearSegmentedColormap.from_list("", col_list)
+
+def remove_files(path, string, ext=False):
+    """remove_files
+
+    Remove files from a given path that containg a string as extension (`ext=True`), or at the
+    start of the file (`ext=False`)
+
+    Parameters
+    ----------
+    path: str
+        path to the directory from which we need to remove files
+    string: str
+        tag for files we need to remove
+    ext: str, optional
+        only remove files containing `string` that end with `ext`
+    """
+
+    files_in_directory = os.listdir(path)
+
+    if ext:
+        filtered_files = [file for file in files_in_directory if file.endswith(string)]
+    else:
+        filtered_files = [file for file in files_in_directory if file.startswith(string)]
+
+    for file in filtered_files:
+        path_to_file = os.path.join(path, file)
+        os.remove(path_to_file)
+
+def calculate_tsnr(data,ax):
+    mean_d = np.mean(data,axis=ax)
+    std_d = np.std(data,axis=ax)
+    tsnr = mean_d/std_d
+    tsnr[np.where(np.isinf(tsnr))] = np.nan
+
+    return tsnr
+
+def percent_change(
+    ts, 
+    ax, 
+    nilearn=False, 
+    baseline=20,
+    prf=False,
+    dm=None
+    ):
+    """percent_change
+
+    Function to convert input data to percent signal change. Two options are current supported: the nilearn method (`nilearn=True`), where the mean of the entire timecourse if subtracted from the timecourse, and the baseline method (`nilearn=False`), where the median of `baseline` is subtracted from the timecourse.
+
+    Parameters
+    ----------
+    ts: numpy.ndarray
+        Array representing the data to be converted to percent signal change. Should be of shape (n_voxels, n_timepoints)
+    ax: int
+        Axis over which to perform the conversion. If shape (n_voxels, n_timepoints), then ax=1. If shape (n_timepoints, n_voxels), then ax=0.
+    nilearn: bool, optional
+        Use nilearn method, by default False
+    baseline: int, list, np.ndarray optional
+        Use custom method where only the median of the baseline (instead of the full timecourse) is subtracted, by default 20. Length should be in `volumes`, not `seconds`. Can also be a list or numpy array (1d) of indices which are to be considered as baseline. The list of indices should be corrected for any deleted volumes at the beginning.
+
+    Returns
+    ----------
+    numpy.ndarray
+        Array with the same size as `ts` (voxels,time), but with percent signal change.
+
+    Raises
+    ----------
+    ValueError
+        If `ax` > 2
+    """
+    
+    if ts.ndim == 1:
+        ts = ts[:,np.newaxis]
+        ax = 0
+    
+    if prf:
+        from linescanning import prf
+
+        # format data
+        if ts.ndim == 1:
+            ts = ts[...,np.newaxis]
+
+        # read design matrix
+        if isinstance(dm, str):
+            dm = prf.read_par_file(dm)
+
+        # calculate mean
+        avg = np.mean(ts, axis=ax)
+        ts *= (100/avg)
+
+        # find points with no stimulus
+        timepoints_no_stim = prf.baseline_from_dm(dm)
+
+        # find timecourses with no stimulus
+        if ax == 0:
+            med_bsl = ts[timepoints_no_stim,:]
+        else:
+            med_bsl = ts[:,timepoints_no_stim]
+
+        # calculat median over baseline
+        median_baseline = np.median(med_bsl, axis=ax)
+
+        # shift to zero
+        ts -= median_baseline
+
+        return ts
+    else:
+        if nilearn:
+            if ax == 0:
+                psc = signal._standardize(ts, standardize='psc')
+            else:
+                psc = signal._standardize(ts.T, standardize='psc').T
+        else:
+
+            # first step of PSC; set NaNs to zero if dividing by 0 (in case of crappy timecourses)
+            ts_m = ts*np.expand_dims(np.nan_to_num((100/np.mean(ts, axis=ax))), ax)
+
+            # get median of baseline
+            if isinstance(baseline, np.ndarray):
+                baseline = list(baseline)
+
+            if ax == 0:
+                if isinstance(baseline, list):
+                    median_baseline = np.median(ts_m[baseline,:], axis=0)
+                else:
+                    median_baseline = np.median(ts_m[:baseline,:], axis=0)
+            elif ax == 1:
+                if isinstance(baseline, list):
+                    median_baseline = np.median(ts_m[:,baseline], axis=1)
+                else:
+                    median_baseline = np.median(ts_m[:,:baseline], axis=1)
+            else:
+                raise ValueError("ax must be 0 or 1")
+
+            # subtract
+            psc = ts_m-np.expand_dims(median_baseline,ax)
+        
+        return psc
+    
+def split_bids_components(fname, entities=False):
+
+    comp_list = fname.split('_')
+    comps = {}
+    
+    ids = ['sub', 'ses', 'task', 'acq', 'rec', 'run', 'space', 'hemi', 'model', 'stage', 'desc', 'vox']
+
+    full_entities = [
+        "subject",
+        "session",
+        "task",
+        "reconstruction",
+        "acquisition",
+        "run"
+    ]
+    for el in comp_list:
+        for i in ids:
+            if i in el:
+                comp = el.split('-')[-1]
+
+                if "." in comp:
+                    ic = comp.index(".")
+                    if ic > 0:
+                        ex = 0
+                    else:
+                        ex = -1
+
+                    comp = comp.split(".")[ex]
+                
+                # if i == "run":
+                #     comp = int(comp)
+
+                comps[i] = comp
+
+    if len(comps) != 0:
+
+        if entities:
+            return comps, full_entities
+        else:
+            return comps
+    else:
+        raise ValueError(f"Could not find any element of {ids} in {fname}")
+    
+def get_ids(func_list, bids="task"):
+
+    ids = []
+    if isinstance(func_list, list):
+        for ff in func_list:
+            if isinstance(ff, str):
+                bids_comps = split_bids_components(ff)
+                if bids in list(bids_comps.keys()):
+                    ids.append(bids_comps[bids])
+        
+    if len(ids) > 0:
+        ids = list(np.unique(np.array(ids)))
+
+        return ids
+    else:
+        return []
+    
 def str2operator(ops):
 
     if ops in ["and", "&", "&&"]:
@@ -92,11 +413,7 @@ def select_from_df(
 
         return col1, operator1, val1
 
-    if not isinstance(expression, (str, tuple, list)):
-        raise ValueError(
-            f"Please specify expressions to apply to the dataframe. Input is '{expression}' of type ({type(expression)})")
-
-    if expression == "ribbon":
+    if isinstance(indices, (list,tuple,np.ndarray)):
 
         if isinstance(indices, tuple):
             return df.iloc[:, indices[0]:indices[1]]
@@ -119,6 +436,11 @@ def select_from_df(
             raise TypeError(
                 f"Unknown type '{type(indices)}' for indices; must be a tuple of 2 values representing a range, or a list/array of indices to select")
     else:
+        if not isinstance(expression, (str, tuple, list)):
+            raise ValueError(
+                f"Please specify expressions to apply to the dataframe. Input is '{expression}' of type ({type(expression)})"
+            )
+        
         # fetch existing indices
         idc = list(df.index.names)
         if idc[0] is not None:
@@ -420,3 +742,118 @@ def update_kwargs(kwargs, el, val, force=False):
         kwargs[el] = val
 
     return kwargs
+
+def find_nearest(array, value, return_nr=1):
+    """find_nearest
+
+    Find the index and value in an array given a value. You can either choose to have 1 item (the `closest`) returned, or the 5 nearest items (`return_nr=5`), or everything you're interested in (`return_nr="all"`)
+
+    Parameters
+    ----------
+    array: numpy.ndarray
+        array to search in
+    value: float
+        value to search for in `array`
+    return_nr: int, str, optional
+        number of elements to return after searching for elements in `array` that are close to `value`. Can either be an integer or a string *all*
+
+    Returns
+    ----------
+    int
+        integer representing the index of the element in `array` closest to `value`. 
+
+    list
+        if `return_nr` > 1, a list of indices will be returned
+
+    numpy.ndarray
+        value in `array` at the index closest to `value`
+    """
+    
+    array = np.asarray(array)
+
+    if return_nr == 1:
+        idx = np.nanargmin((np.abs(array-value)))
+        return idx, array[idx]
+    else:
+        
+        # check nan indices
+        nans = np.isnan(array)
+
+        # initialize output
+        idx = np.full_like(array, np.nan)
+
+        # loop through values in array
+        for qq,ii in enumerate(array):
+
+            # don't do anything if value is nan
+            if not nans[qq]:
+                idx[qq] = np.abs(ii-value)
+        
+        # sort
+        idx = np.argsort(idx)
+
+        # return everything
+        if return_nr == "all":
+            idc_list = idx.copy()
+        else:
+            # return closest X values
+            idc_list = idx[:return_nr]
+        
+        return idc_list, array[idc_list]
+
+def find_intersection(xx, curve1, curve2):
+    """find_intersection
+
+    Find the intersection coordinates given two functions using `Shapely`.
+
+    Parameters
+    ----------
+    xx: numpy.ndarray
+        array describing the x-axis values
+    curve1: numpy.ndarray
+        array describing the first curve
+    curve2: numpy.ndarray
+        array describing the first curve
+
+    Returns
+    ----------
+    tuple
+        x,y coordinates where *curve1* and *curve2* intersect
+
+    Raises
+    ----------
+    ValueError
+        if no intersection coordinates could be found
+
+    Example
+    ----------
+    See [refer to linescanning.prf.SizeResponse.find_stim_sizes]
+    """
+
+    first_line = geometry.LineString(np.column_stack((xx, curve1)))
+    second_line = geometry.LineString(np.column_stack((xx, curve2)))
+    geom = first_line.intersection(second_line)
+    
+    try:
+        if isinstance(geom, geometry.multipoint.MultiPoint):
+            # multiple coordinates
+            coords = [i.coords._coords for i in list(geom.geoms)]
+        elif isinstance(geom, geometry.point.Point):
+            # single coordinate
+            coords = [geom.coords._coords]
+        elif isinstance(geom, geometry.collection.GeometryCollection):
+            # coordinates + line segments
+            mapper = geometry.mapping(geom)
+            coords = []
+            for el in mapper["geometries"]:
+                coor = np.array(el["coordinates"])
+                if coor.ndim > 1:
+                    coor = coor[0]
+                coords.append(coor[np.newaxis,...]) # to make indexing same as above
+        else:
+            raise ValueError(f"Can't deal with output of type {type(geom)}")
+            # coords = geom
+    except:
+        raise ValueError("Could not find intersection between curves..")
+    
+    return coords

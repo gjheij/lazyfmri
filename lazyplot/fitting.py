@@ -56,12 +56,12 @@ class CurveFitter():
     >>> data = np.array([5.436, 5.467, 5.293, 0.99 , 2.603, 1.902, 2.317])
     >>> # create instantiation of CurveFitter
     >>> cf = fitting.CurveFitter(data, order=3, verbose=False)
-    >>> # initiate figure with axis to be fed into LazyPlot
+    >>> # initiate figure with axis to be fed into LazyLine
     >>> fig, axs = plt.subplots(figsize=(8,8))
     >>> # plot original data points
     >>> axs.plot(cf.x, data, 'o', color="#DE3163", alpha=0.6)
     >>> # plot upsampled fit with 95% confidence intervals as shaded error
-    >>> plotting.LazyPlot(
+    >>> plotting.LazyLine(
     >>>     cf.y_pred_upsampled,
     >>>     xx=cf.x_pred_upsampled,
     >>>     error=cf.ci_upsampled,
@@ -139,7 +139,7 @@ class CurveFitter():
             print(self.result.fit_report())
 
         # create predictions & confidence intervals that are compatible with
-        # LazyPlot
+        # LazyLine
         self.y_pred = self.result.best_fit
         self.x_pred_upsampled = np.linspace(self.x[0], self.x[-1], 1000)
         self.y_pred_upsampled = self.result.eval(x=self.x_pred_upsampled)
@@ -1991,7 +1991,7 @@ class NideconvFitter(InitFitter):
         # average across voxels
         self.avg_across_runs_voxels = self.avg_across_runs.mean(axis=1)
 
-        # parse into list so it's compatible with LazyPlot (requires an array
+        # parse into list so it's compatible with LazyLine (requires an array
         # of lists)
         self.event_avg = self.avg_across_runs_voxels.groupby(
             "event_type").apply(np.hstack).to_list()
@@ -2027,7 +2027,7 @@ class NideconvFitter(InitFitter):
             self.use_error = None
 
         # plot
-        plotter = plotting.LazyPlot(
+        plotter = plotting.LazyLine(
             self.event_avg,
             xx=self.time,
             axs=axs,
@@ -2378,7 +2378,7 @@ class NideconvFitter(InitFitter):
                              for ii in range(self.arr_voxels_in_event.shape[0])]
 
                 if isinstance(axs, mpl.axes._axes.Axes):
-                    self.pl = plotting.LazyPlot(
+                    self.pl = plotting.LazyLine(
                         vox_data,
                         xx=self.time,
                         error=vox_error,
@@ -2387,7 +2387,7 @@ class NideconvFitter(InitFitter):
                         add_hline='default',
                         **kwargs)
                 else:
-                    self.pl = plotting.LazyPlot(
+                    self.pl = plotting.LazyLine(
                         vox_data,
                         xx=self.time,
                         error=vox_error,
@@ -2427,7 +2427,7 @@ class NideconvFitter(InitFitter):
                     else:
                         add_title = col
 
-                    self.pl = plotting.LazyPlot(
+                    self.pl = plotting.LazyLine(
                         vox_data,
                         xx=self.time,
                         error=vox_error,
@@ -2667,7 +2667,7 @@ class NideconvFitter(InitFitter):
             if not isinstance(error_type, str):
                 self.error_for_plot = None
 
-            plotting.LazyPlot(
+            plotting.LazyLine(
                 self.data_for_plot,
                 xx=self.time,
                 error=self.error_for_plot,
@@ -3163,7 +3163,7 @@ class HRFMetrics():
             _, axs = plt.subplots(figsize=figsize)
 
         time, time_col = self._get_time(hrf)
-        plotting.LazyPlot(
+        plotting.LazyLine(
             hrf.values.squeeze(),
             xx=list(time),
             x_label="time (s)",
@@ -5032,7 +5032,7 @@ class GLM(InitFitter):
                 val
             )
 
-        pl = plotting.LazyPlot(
+        pl = plotting.LazyLine(
             signals,
             axs=axs,
             markers=markers,

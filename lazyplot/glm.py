@@ -21,11 +21,11 @@ class GenericGLM():
     Parameters
     ----------
     onset: pandas.DataFrame
-        Dataframe containing the onset times for all events in an experiment. Specifically design to work smoothly with :func:`linescanning.utils.ParseExpToolsFile`. You should insert the output from :func:`linescanning.utils.ParseExpToolsFile.get_onset_df()` as `onset`
+        Dataframe containing the onset times for all events in an experiment. Specifically design to work smoothly with :func:`lazyplot.utils.ParseExpToolsFile`. You should insert the output from :func:`lazyplot.utils.ParseExpToolsFile.get_onset_df()` as `onset`
     data: numpy.ndarray, pandas.DataFrame
         <time,voxels> numpy array or pandas DataFrame; required for creating the appropriate length of the stimulus vectors
     hrf_pars: dict, optional
-        dictionary collecting the parameters required for :func:`linescanning.glm.double_gamma` (generally the defaults are fine though!)
+        dictionary collecting the parameters required for :func:`lazyplot.glm.double_gamma` (generally the defaults are fine though!)
 
         >>> pars = {'lag': 6,
         >>>         'a2': 12,
@@ -48,7 +48,7 @@ class GenericGLM():
     make_figure: bool, optional
         Create overview figure of HRF, stimulus vector, and convolved stimulus vector, by default False
     scan_length: int
-        number of volumes in `data` (= `scan_length` in :func:`linescanning.glm.make_stimulus_vector`)
+        number of volumes in `data` (= `scan_length` in :func:`lazyplot.glm.make_stimulus_vector`)
     xkcd: bool, optional
         Plot the figre in XKCD-style (cartoon), by default False
     plot_vox: int, optional
@@ -76,8 +76,8 @@ class GenericGLM():
     Example
     ----------
     >>> # import modules
-    >>> from linescanning.glm import GenericGLM
-    >>> from linescanning import dataset
+    >>> from lazyplot.glm import GenericGLM
+    >>> from lazyplot import dataset
 
     >>> # define file with fMRI-data and the output from Exptools2
     >>> func_file = "some_func_file.mat"
@@ -453,12 +453,12 @@ def make_stimulus_vector(
         amplitude=None):
     """make_stimulus_vector
 
-    Creates a stimulus vector for each of the conditions found in `onset_df`. You can account for onset times being in decimal using the oversampling factor `osf`. This would return an upsampled stimulus vector which should be convolved with an equally upsampled HRF. This can be ensured by using the same `osf` in :func:`linescanning.glm.double_gamma`.
+    Creates a stimulus vector for each of the conditions found in `onset_df`. You can account for onset times being in decimal using the oversampling factor `osf`. This would return an upsampled stimulus vector which should be convolved with an equally upsampled HRF. This can be ensured by using the same `osf` in :func:`lazyplot.glm.double_gamma`.
 
     Parameters
     ----------
     onset_df: pandas.DataFrame
-        onset times as read in with :class:`linescanning.utils.ParseExpToolsFile`
+        onset times as read in with :class:`lazyplot.utils.ParseExpToolsFile`
     scan_length: float, optional
         length of the , by default None
     TR: float, optional
@@ -488,8 +488,8 @@ def make_stimulus_vector(
 
     Example
     ----------
-    >>> from linescanning import utils
-    >>> from linescanning import glm
+    >>> from lazyplot import utils
+    >>> from lazyplot import glm
     >>> exp_file = 'path/to/exptools2_file.tsv'
     >>> exp_df = utilsParseExpToolsFile(exp_file, subject=1, run=1)
     >>> times = exp_df.get_onset_df()
@@ -651,20 +651,20 @@ def convolve_hrf(
         **kwargs):
     """convolve_hrf
 
-    Convolve :func:`linescanning.glm.double_gamma` with :func:`linescanning.glm.make_stimulus_vector`. There's an option to plot the result in a nice overview figure, though python-wise it's not the prettiest..
+    Convolve :func:`lazyplot.glm.double_gamma` with :func:`lazyplot.glm.make_stimulus_vector`. There's an option to plot the result in a nice overview figure, though python-wise it's not the prettiest..
 
     Parameters
     ----------
     hrf: numpy.ndarray
         HRF across given timepoints with shape (,`x.shape[0]`)
     stim_v: numpy.ndarray, list
-        Stimulus vector as per :func:`linescanning.glm.make_stimulus_vector` or numpy array containing one stimulus vector (e.g., a *key* from :func:`linescanning.glm.make_stimulus_vector`)
+        Stimulus vector as per :func:`lazyplot.glm.make_stimulus_vector` or numpy array containing one stimulus vector (e.g., a *key* from :func:`lazyplot.glm.make_stimulus_vector`)
     TR: float
         repetition time of acquisition
     make_figure: bool, optional
         Create overview figure of HRF, stimulus vector, and convolved stimulus vector, by default False
     scan_length: int
-        number of volumes in `data` (= `scan_length` in :func:`linescanning.glm.make_stimulus_vector`)
+        number of volumes in `data` (= `scan_length` in :func:`lazyplot.glm.make_stimulus_vector`)
     xkcd: bool, optional
         Plot the figre in XKCD-style (cartoon), by default False
     add_array1: numpy.ndarray, optional
@@ -684,7 +684,7 @@ def convolve_hrf(
 
     Example
     ----------
-    >>> from linescanning.glm import convolve_hrf
+    >>> from lazyplot.glm import convolve_hrf
     >>> convolved_stim_vector_left = convolve_hrf(hrf_custom, stims, make_figure=True, xkcd=True) # creates figure too
     >>> convolved_stim_vector_left = convolve_hrf(hrf_custom, stims) # no figure
     """
@@ -828,9 +828,9 @@ def resample_stim_vector(convolved_array, scan_length, interpolate='nearest'):
     Parameters
     ----------
     convolved_array: dict, numpy.ndarray
-        oversampled convolved stimulus vector as per :func:`linescanning.glm.convolve_hrf`
+        oversampled convolved stimulus vector as per :func:`lazyplot.glm.convolve_hrf`
     scan_length: int
-        number of volumes in `data` (= `scan_length` in :func:`linescanning.glm.make_stimulus_vector`)
+        number of volumes in `data` (= `scan_length` in :func:`lazyplot.glm.make_stimulus_vector`)
     interpolate: str, optional
         interpolation method, by default 'nearest'
 
@@ -841,7 +841,7 @@ def resample_stim_vector(convolved_array, scan_length, interpolate='nearest'):
 
     Example
     ----------
-    >>> from linescanning.glm import resample_stim_vector
+    >>> from lazyplot.glm import resample_stim_vector
     >>> convolved_stim_vector_left_ds = resample_stim_vector(convolved_stim_vector_left, <`scan_length`>)
     """
 
@@ -966,9 +966,9 @@ def fit_first_level(
     Parameters
     ----------
     stim_vector: pandas.DataFrame, numpy.ndarray
-        either the output from :func:`linescanning.glm.resample_stim_vector` (convolved stimulus vector in fMRI-acquisition time domain) or a pandas.DataFrame containing the full design matrix as per the output of :func:`linescanning.glm.first_level_matrix`.s
+        either the output from :func:`lazyplot.glm.resample_stim_vector` (convolved stimulus vector in fMRI-acquisition time domain) or a pandas.DataFrame containing the full design matrix as per the output of :func:`lazyplot.glm.first_level_matrix`.s
     data: numpy.ndarray
-        <time,voxels> numpy array; same input as **data** from :func:`linescanning.glm.make_stimulus_vector`
+        <time,voxels> numpy array; same input as **data** from :func:`lazyplot.glm.make_stimulus_vector`
     make_figure: bool, optional
         Create a figure of best-voxel fit, by default False
     copes: [type], optional
@@ -990,7 +990,7 @@ def fit_first_level(
 
     Example
     ----------
-    >>> from linescanning.glm import fit_first_level
+    >>> from lazyplot.glm import fit_first_level
     >>> betas_left,x_conv_left = fit_first_level(convolved_stim_vector_left_ds, data, make_figure=True, xkcd=True) # plots first event
     >>> betas_left,x_conv_left = fit_first_level(convolved_stim_vector_left_ds, data, make_figure=True, xkcd=True, plot_events=[1,2]) # plots first two events
     """
@@ -1268,7 +1268,7 @@ def double_gamma(x, lag=6, a2=12, b1=0.9, b2=0.9, c=0.35, scale=True):
     ----------
     >>> dt = 1
     >>> time_points = np.linspace(0,36,np.rint(float(36)/dt).astype(int))
-    >>> hrf_custom = linescanning.glm.double_gamma(time_points, lag=6)
+    >>> hrf_custom = lazyplot.glm.double_gamma(time_points, lag=6)
     >>> hrf_custom = hrf_custom[np.newaxis,...]
     """
     a1 = lag
@@ -1286,15 +1286,15 @@ def double_gamma(x, lag=6, a2=12, b1=0.9, b2=0.9, c=0.35, scale=True):
 class Posthoc(plotting.Defaults):
     """Posthoc
 
-    Run posthoc analysis on the output from `pingouin` ANOVA/ANCOVA or just straight up as pairwise t-tests. During intialization, the plotting arguments are internalized from :class:`linescanning.plotting.Defaults()`. Posthoc test should then be executed using the :func:`linescanning.glm.Posthoc.run_posthoc()` function, which accepts all arguments that :class:`pingouin.pairwise_tukey()` or :class:`pingouin.pairwise_tests()` accept. You can then choose to have the significance bars plotted on a specified `axs`. Note that this only works for relatively simple tests; there's NO support for complicated (nested) data structures such as repeated-measures.
+    Run posthoc analysis on the output from `pingouin` ANOVA/ANCOVA or just straight up as pairwise t-tests. During intialization, the plotting arguments are internalized from :class:`lazyplot.plotting.Defaults()`. Posthoc test should then be executed using the :func:`lazyplot.glm.Posthoc.run_posthoc()` function, which accepts all arguments that :class:`pingouin.pairwise_tukey()` or :class:`pingouin.pairwise_tests()` accept. You can then choose to have the significance bars plotted on a specified `axs`. Note that this only works for relatively simple tests; there's NO support for complicated (nested) data structures such as repeated-measures.
 
     Parameters
     ----------
-    See: :class:`linescanning.plotting.Defaults()`
+    See: :class:`lazyplot.plotting.Defaults()`
 
     Example
     ----------
-    >>> from linescanning import glm
+    >>> from lazyplot import glm
     >>> posth = glm.Posthoc()
     >>> posth.run_posthoc(
     >>>     data=df,
@@ -1536,7 +1536,7 @@ class ANOVA(Posthoc):
 
     """ANOVA
 
-    Run an ANOVA with pingouin and subsequently run posthoc test. Allows you to immediately visualize significant results given a matplotlib axis. In contrast to :class:`linescanning.glm.Posthoc()`, arguments for the ANOVA test are immediately passed on during the initialization stage.
+    Run an ANOVA with pingouin and subsequently run posthoc test. Allows you to immediately visualize significant results given a matplotlib axis. In contrast to :class:`lazyplot.glm.Posthoc()`, arguments for the ANOVA test are immediately passed on during the initialization stage. If `covar` is passed, we'll run an ANCOVA rather than ANOVA.
 
     Parameters
     ----------
@@ -1545,19 +1545,33 @@ class ANOVA(Posthoc):
     axs: mpl.axes._axes.Axes, optional
         Axis to plot the lines on, by default None
     posthoc_kw: dict, optional
-        Dictionairy containing arguments that are passed to :func:`linescanning.glm.Posthoc.plot_bars()`, by default {}. See docs for arguments
+        Dictionairy containing arguments that are passed to :func:`lazyplot.glm.Posthoc.plot_bars()`, by default {}. See docs for arguments
 
     Example
     ----------
-    >>> from linescanning import glm
-    >>> anv = glm.ANOVA(
+    >>> from lazyplot import glm
+    >>> ano = glm.ANOVA(
     >>>     data=df,
     >>>     dv="dependent_variable",
     >>>     between="grouping_variable",
     >>>     posthoc_kw={
-    >>>         "ns_annot": True
-    >>>     },
-    >>>     axs=axs,
+    >>>         "effsize": "cohen",
+    >>>         "test": "test",
+    >>>         "paired": True,
+    >>>         "subject": "vox",
+    >>>         "padjust": "holm"
+    >>>     }
+    >>> )
+    >>> print("\n", normality)
+    >>> print("\n", aov.ano)
+    >>> print("\n", aov.posthoc_sorted)
+
+    >>> # if you have LazyBar-object ready, add the significance bars:
+    >>> aov.plot_bars( 
+    >>>     axs=br.ff,
+    >>>     ast_frac=0,
+    >>>     y_pos=1.15,
+    >>>     line_separate_factor=-0.075
     >>> )
     """
 
@@ -1636,7 +1650,12 @@ class ANOVA(Posthoc):
                 parametric = self.norm_test.iloc[0]
 
         if parametric:
-            self.ano = pg.anova(
+            if "covar" in list (kwargs.keys()):
+                ffunc = pg.ancova
+            else:
+                ffunc = pg.anova
+
+            self.ano = ffunc(
                 *args,
                 **kwargs
             )
@@ -1650,107 +1669,6 @@ class ANOVA(Posthoc):
         self.results = self._get_results(self.ano, alpha=self.alpha)
 
         # found sig results; do posthoc
-        self.ph_obj = {}
-        super().__init__(**plot_kw)
-        self.run_posthoc(ano=self.results, **kwargs, **posthoc_kw)
-
-        if isinstance(axs, mpl.axes._axes.Axes):
-            self.plot_bars(
-                axs=axs,
-                **bar_kw
-            )
-
-
-class ANCOVA(Posthoc):
-
-    """ANCOVA
-
-    Run an ANCOVA with pingouin and subsequently run posthoc test. Allows you to immediately visualize significant results given a matplotlib axis. In contrast to :class:`linescanning.glm.Posthoc()`, arguments for the ANCOVA test are immediately passed on during the initialization stage.
-
-    Parameters
-    ----------
-    alpha: float, optional
-        Alpha value to consider contrasts significant, by default 0.05
-    axs: mpl.axes._axes.Axes, optional
-        Axis to plot the lines on, by default None
-    posthoc_kw: dict, optional
-        Dictionairy containing arguments that are passed to :func:`linescanning.glm.Posthoc.plot_bars()`, by default {}. See docs for arguments
-
-    Example
-    ----------
-    >>> from linescanning import glm
-    >>> ancv = glm.ANCOVA(
-    >>>     data=df,
-    >>>     dv="dependent_variable",
-    >>>     between="grouping_variable",
-    >>>     covar="covariate",
-    >>>     posthoc_kw={
-    >>>         "ns_annot": True
-    >>>     },
-    >>>     axs=axs,
-    >>> )
-    """
-
-    def __init__(
-            self,
-            alpha: float = 0.05,
-            axs: mpl.axes._axes.Axes = None,
-            posthoc_kw: dict = {},
-            bar_kw: dict = {},
-            plot_kw: dict = {},
-            *args,
-            **kwargs):
-
-        self.posthoc_kw = posthoc_kw
-        self.plot_kw = plot_kw
-        self.bar_kw = bar_kw
-        self.alpha = alpha
-        self.run_ancova(
-            alpha=self.alpha,
-            axs=axs,
-            posthoc_kw=self.posthoc_kw,
-            bar_kw=self.bar_kw,
-            plot_kw=self.plot_kw,
-            *args,
-            **kwargs)
-
-    def _get_results(self, df, alpha=0.05):
-        effects = df["Source"].to_list()
-        p_vals = {}
-        for ef in effects:
-            p_ = df.loc[(df["Source"] == ef)]["p-unc"].values[0]
-
-            if p_ < alpha:
-                p_vals[ef] = p_
-
-        return p_vals
-
-    def run_ancova(
-            self,
-            alpha: float = 0.05,
-            axs: mpl.axes._axes.Axes = None,
-            posthoc_kw={},
-            plot_kw={},
-            bar_kw={},
-            *args,
-            **kwargs):
-
-        self.alpha = alpha
-        try:
-            import pingouin as pg
-        except BaseException:
-            raise ImportError(f"Could not import 'pingouin'")
-
-        # do stats
-        self.ano = pg.ancova(
-            *args,
-            **kwargs
-        )
-
-        # check if there's signifcant results
-        self.results = self._get_results(self.ano, alpha=self.alpha)
-
-        # found sig results; do posthoc
         filter_kwargs = [
             "covar",
         ]
@@ -1759,6 +1677,8 @@ class ANCOVA(Posthoc):
             if i in list(kwargs.keys()):
                 kwargs.pop(i)
 
+        # found sig results; do posthoc
+        self.ph_obj = {}
         super().__init__(**plot_kw)
         self.run_posthoc(ano=self.results, **kwargs, **posthoc_kw)
 
