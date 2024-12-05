@@ -2,7 +2,11 @@ from . import utils, plotting, fitting
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from nilearn.signal import clean
-from nilearn.glm.first_level.design_matrix import _cosine_drift
+
+try:
+    from nilearn.glm.first_level.design_matrix import _cosine_drift as cosine_drift
+except:
+    from nilearn.glm.first_level.design_matrix import create_cosine_drift as cosine_drift
 from nitime.timeseries import TimeSeries
 from nitime.analysis import SpectralAnalyzer
 import numpy as np
@@ -114,7 +118,7 @@ def highpass_dct(
     n_vol = func.shape[-1]
     st_ref = 0  # offset frametimes by st_ref * tr
     ft = np.linspace(st_ref * TR, (n_vol + st_ref) * TR, n_vol, endpoint=False)
-    hp_set = _cosine_drift(lb, ft)
+    hp_set = cosine_drift(lb, ft)
 
     # select modes
     if isinstance(modes_to_remove, int):
