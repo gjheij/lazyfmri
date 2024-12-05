@@ -1846,6 +1846,8 @@ class NideconvFitter(InitFitter):
             self.verbose)
         if self.fit_type.lower() == "ols":
             self.model.fit(type=self.fit_type)
+            self.fitters = self.model._get_response_fitters()
+            self.format_fitters()
 
         utils.verbose("Fitting completed", self.verbose)
 
