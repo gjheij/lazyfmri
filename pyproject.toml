@@ -34,6 +34,9 @@ dependencies = [
     "niworkflows",
     "shapely",
     "pillow",
+    "alive_progress",
+    "ipython",
+    "ipykernel",
 ]
 
 
