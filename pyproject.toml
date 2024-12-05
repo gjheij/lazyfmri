@@ -30,6 +30,10 @@ dependencies = [
     "nideconv @ git+https://github.com/gjheij/nideconv.git",
     "scikit-learn",
     "pingouin",
+    "nitime",
+    "niworkflows",
+    "shapely",
+    "pillow",
 ]
 
 
