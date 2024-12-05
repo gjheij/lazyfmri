@@ -3,3 +3,6 @@
 from . import plotting
 from . import utils
 from . import glm
+from . import preproc
+from . import dataset
+from . import version
