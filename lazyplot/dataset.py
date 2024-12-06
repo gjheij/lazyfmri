@@ -2500,8 +2500,8 @@ The data was then low-pass filtered using a Savitsky-Golay filter [removes high 
             # get basic qualities
             self.basic_qa(
                 self.ts_corrected, 
-                run=run, 
-                make_figure=True)
+                run=run,
+            )
 
             # final
             self.desc_func = self.func_pre_desc + self.desc_trim + self.desc_filt
@@ -2652,9 +2652,8 @@ The data was then low-pass filtered using a Savitsky-Golay filter [removes high 
                 labels=var_lbl,
                 add_hline=var_lines,
                 x_ticks=vox_ticks,
-                line_width=2)            
-
-            plt.close(fig)
+                line_width=2
+            )
 
     def get_data(
         self, 
