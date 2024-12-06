@@ -1,16 +1,12 @@
 from . import glm, plotting, preproc, utils
 import matplotlib.pyplot as plt
 import nibabel as nb
-from niworkflows.reports import core
 import json
 import numpy as np
 import os
-from pathlib import Path
 import pandas as pd
 import pickle
 from scipy import io
-from time import strftime
-from uuid import uuid4
 import warnings
 
 try:
@@ -149,7 +145,6 @@ class ParseEyetrackerFile(SetAttributes):
         use_bids=True,
         nr_vols=None,
         h5_file=None,
-        report=False,
         save_as=None,
         invoked_from_func=False,
         overwrite=False,
@@ -172,7 +167,6 @@ class ParseEyetrackerFile(SetAttributes):
         self.use_bids           = use_bids
         self.nr_vols            = nr_vols
         self.h5_file            = h5_file
-        self.report             = report
         self.save_as            = save_as
         self.invoked_from_func  = invoked_from_func
         self.overwrite          = overwrite
@@ -185,52 +179,9 @@ class ParseEyetrackerFile(SetAttributes):
             # print message
             utils.verbose("\nEYETRACKER", self.verbose)
 
-            # check report stuff
-            self.eyeprep_dir = None
-            if not self.invoked_from_func:
-                if self.report:
-                    if self.save_as == None:
-                        try:
-                            self.eyeprep_dir = opj(os.environ.get("DIR_DATA_DERIV"), 'eyeprep')
-                        except:
-                            raise ValueError(f"Please specify an output directory with 'save_as='")
-                    else:
-                        self.eyeprep_dir = opj(self.save_as, "eyeprep")
-
-                    self.eyeprep_logs = opj(self.eyeprep_dir, 'logs')
-                    if not os.path.exists(self.eyeprep_logs):
-                        os.makedirs(self.eyeprep_logs)
-
             # preprocess and fetch dataframes
             self.preprocess_edf_files()
             self.ho.close_hdf_file()
-
-        # write boilerplate
-        if not self.invoked_from_func:
-            if self.report:
-                    
-                # make figure directory
-                self.run_uuid = f"{strftime('%Y%m%d-%H%M%S')}_{uuid4()}"
-
-                self.citation_file = Path(opj(self.eyeprep_logs, "CITATION.md"))
-                self.citation_file.write_text(self.desc_eye)
-                # write report
-                self.config = str(Path(utils.__file__).parents[1]/'misc'/'default_eye.yml')
-                if not os.path.exists(self.config):
-                    raise FileNotFoundError(f"Could not find 'default_eye.yml'-file in '{str(Path(utils.__file__).parents[1]/'misc')}'")
-                
-                if self.report:
-                    self.report_obj = core.Report(
-                        os.path.dirname(self.eyeprep_dir),
-                        self.run_uuid,
-                        subject_id=str(self.sub),
-                        packagename="eyeprep",
-                        config=self.config)
-
-                    # generate report
-                    self.report_obj.generate_report()
-
-                    utils.verbose(f"Saving report to {str(self.report_obj.out_dir/self.report_obj.out_filename)}", self.verbose)
 
     def preprocess_edf_files(self):
 
@@ -259,17 +210,6 @@ class ParseEyetrackerFile(SetAttributes):
         # write boilerplate
         self.desc_eye = f"""For each of the eyetracking file(s) found, the following preprocessing was performed: First, eye blinks were removed and interpolated over, after which data was band-pass filtered with a butterworth filter with a 
 frequency range of {self.high_pass_pupil_f}-{self.low_pass_pupil_f}Hz. """
-        if self.invoked_from_func:
-            
-            # remove task from filename
-            file_parts = self.base_name.split("_")
-            if any(["task" in i for i in file_parts]):
-                out_name = "_".join([i for i in file_parts if not "task" in i])
-            else:
-                out_name = self.base_name
-
-            self.h5_file = opj(os.path.dirname(self.edfs[0]), f"{out_name}_desc-eye.h5")
-            self.eyeprep_figures = self.lsprep_figures
         
         # deal with edf-files
         if self.func_file != None:
@@ -368,13 +308,6 @@ frequency range of {self.high_pass_pupil_f}-{self.low_pass_pupil_f}Hz. """
             alias = f"run_{self.run}"
             if isinstance(self.task, str):
                 alias = f"task_{self.task}_run_{self.run}"
-
-            # set eyeprep folder
-            if not self.invoked_from_func:
-                if self.report:
-                    self.eyeprep_figures = opj(self.eyeprep_dir, f'sub-{self.sub}', 'figures')
-                    if not os.path.exists(self.eyeprep_figures):
-                        os.makedirs(self.eyeprep_figures)
                     
             fetch_data = True
             try:
@@ -629,12 +562,6 @@ frequency range of {self.high_pass_pupil_f}-{self.low_pass_pupil_f}Hz. """
 
         if len(df_saccades) > 0:
             return_dict["saccades"] = df_saccades
-
-        if self.report:
-
-            # make some plots
-            fname = opj(self.eyeprep_figures, f"{self.base_name}_run-{self.run}_desc")
-            self.plot_trace_and_heatmap(df_space_eye, fname=fname)
 
         return return_dict
 
@@ -1977,14 +1904,12 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
         gm_range=[355, 375],
         tissue_thresholds=[0.7,0.7,0.7],
         save_ext="svg",
-        report=False,
         transpose=False,
         baseline=20,
         baseline_units="seconds",
         psc_nilearn=False,
         foldover="FH",
         shift=0,
-        report_dir=None,
         **kwargs):
 
         self.sub                        = subject
@@ -2020,14 +1945,12 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
         self.tissue_thresholds          = tissue_thresholds
         self.save_ext                   = save_ext
         self.filter_strategy            = filter_strategy
-        self.report                     = report
         self.transpose                  = transpose
         self.baseline                   = baseline
         self.baseline_units             = baseline_units
         self.psc_nilearn                = psc_nilearn
         self.ica                        = ica
         self.keep_comps                 = keep_comps
-        self.report_dir                 = report_dir
         self.__dict__.update(kwargs)
 
         # sampling rate and nyquist freq
@@ -2148,25 +2071,6 @@ Functional data preprocessing
 
                 if isinstance(self.task, str):
                     self.base_name += f"_task-{self.task}" 
-                
-                # make LSprep output directory
-                if self.report:
-                    if self.save_as == None:
-                        try:
-                            self.report_dir = opj(os.environ.get("DIR_DATA_DERIV"), 'lazyprep')
-                        except:
-                            raise ValueError(f"Please specify an output directory with 'save_as='")
-                    else:
-                        self.report_dir = save_as
-
-                    # make figure directory
-                    self.run_uuid = f"{strftime('%Y%m%d-%H%M%S')}_{uuid4()}"
-                    self.lsprep_figures = opj(self.report_dir, f'sub-{self.sub}', 'figures')
-                    self.lsprep_runid = opj(self.report_dir, f'sub-{self.sub}', 'log', self.run_uuid)
-                    self.lsprep_logs = opj(self.report_dir, 'logs')
-                    for dir in self.lsprep_figures, self.lsprep_logs, self.lsprep_runid:
-                        if not os.path.exists(dir):
-                            os.makedirs(dir, exist_ok=True)
 
                 # check if deleted_first_timepoints is list or not
                 delete_first = check_input_is_list(
@@ -2292,42 +2196,13 @@ Functional data preprocessing
                 use_bids=self.use_bids,
                 button=self.button,
                 verbose=self.verbose,
-                report=self.report,
-                save_as=self.report_dir,
                 invoked_from_func=True,
                 **kwargs
             )
 
             if hasattr(self, "desc_eye"):
                 self.desc_func += self.desc_eye
-
-        # write boilerplate
-        if self.report:
-            self.make_report()
     
-    def make_report(self):
-        self.citation_file = Path(opj(self.lsprep_logs, "CITATION.md"))
-        self.citation_file.write_text(self.desc_func)
-
-        # write report
-        self.config = str(Path(utils.__file__).parents[1]/'misc'/'default.yml')
-        if not os.path.exists(self.config):
-            raise FileNotFoundError(f"Could not find 'default.yml'-file in '{str(Path(utils.__file__).parents[1]/'misc')}'")
-        
-        if self.report:
-            self.report_obj = core.Report(
-                os.path.dirname(self.report_dir),
-                self.run_uuid,
-                subject_id=self.sub,
-                packagename="lazyprep",
-                config=self.config
-            )
-
-            # generate report
-            self.report_obj.generate_report()
-
-            utils.verbose(f"Saving report to {str(self.report_obj.out_dir/self.report_obj.out_filename)}", self.verbose)
-
     def preprocess_func_file(
         self, 
         func_file, 
@@ -2335,10 +2210,8 @@ Functional data preprocessing
         task=None,
         deleted_first_timepoints=0, 
         deleted_last_timepoints=0,
-        reference_slice=None,
-        baseline=None,
-        shift=0,
-        **kwargs):
+        baseline=None
+        ):
 
         #----------------------------------------------------------------------------------------------------------------------------------------------------
         # BASIC DATA LOADING
@@ -2528,15 +2401,9 @@ Functional data preprocessing
                 self.zscore_SD = self.hp_raw.std(axis=-1, keepdims=True)
                 self.zscore_M = self.hp_raw.mean(axis=-1, keepdims=True)
 
-                # don't save figures if report=False
-                if self.report:
-                    save_as = self.lsprep_figures
-                else:
-                    save_as = None
-
                 if self.ica:
 
-                    self.run_ica(task=task, save_as=save_as)
+                    self.run_ica(task=task)
                     self.clean_tag = "ica"
                     self.clean_data = self.ica_obj.ica_data
 
@@ -2548,7 +2415,8 @@ Functional data preprocessing
                         task=task,
                         run=run, 
                         TR=self.TR,
-                        set_index=True)
+                        set_index=True
+                    )
 
                     setattr(self, f"hp_{self.clean_tag}_df", self.tmp_df)
                     
@@ -2673,12 +2541,8 @@ The data was then low-pass filtered using a Savitsky-Golay filter [removes high 
             filter_confs=self.filter_confs,
             keep_comps=self.keep_comps,
             verbose=self.verbose,
-            summary_plot=self.report,
-            melodic_plot=self.report,
             zoom_freq=True,
-            ribbon=tuple(self.gm_range),
-            save_as=save_as,
-            save_ext=self.save_ext
+            ribbon=tuple(self.gm_range)
         )
 
         # regress
@@ -2801,9 +2665,6 @@ The data was then low-pass filtered using a Savitsky-Golay filter [removes high 
                 line_width=2)            
 
             plt.close(fig)
-            if self.report:
-                fname = opj(self.lsprep_figures, f"{self.base_name}_run-{run}_desc-qa.{self.save_ext}")
-                fig.savefig(fname, bbox_inches='tight', dpi=300)
 
     def get_data(
         self, 
@@ -3064,28 +2925,9 @@ class Dataset(ParseFuncFile,SetAttributes):
 
     def to_hdf(
         self, 
-        output_file=None, 
+        h5_file=None, 
         overwrite=False, 
-        suffix="desc-preproc_bold"
         ):
-
-        if output_file == None:
-            if hasattr(self, "report_dir"):
-                if not hasattr(self, "base_name"):
-                    out_name = f'sub-{self.sub}'
-                else:
-                    # remove task from filename
-                    file_parts = self.base_name.split("_")
-                    if any(["task" in i for i in file_parts]):
-                        out_name = "_".join([i for i in file_parts if not "task" in i])
-                    else:
-                        out_name = self.base_name
-                                    
-                self.h5_file = opj(self.report_dir, f'sub-{self.sub}', f"{out_name}_{suffix}.h5")
-            else:
-                raise ValueError("No output file specified")
-        else:
-            self.h5_file = os.path.abspath(output_file)
 
         # make the directory
         if not os.path.exists(os.path.dirname(self.h5_file)):

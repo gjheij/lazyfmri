@@ -32,7 +32,6 @@ dependencies = [
     "scikit-learn",
     "pingouin",
     "nitime",
-    "niworkflows",
     "shapely",
     "pillow",
     "alive_progress",
