@@ -1909,7 +1909,6 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
         baseline_units="seconds",
         psc_nilearn=False,
         foldover="FH",
-        shift=0,
         **kwargs):
 
         self.sub                        = subject
@@ -1932,7 +1931,6 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
         self.verbose                    = verbose
         self.retroicor                  = retroicor
         self.foldover                   = foldover
-        self.shift                      = shift
         self.func_tag                   = func_tag
         self.n_components               = n_components
         self.select_component           = select_component
@@ -1991,7 +1989,6 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
             "verbose",
             "retroicor",
             "foldover",
-            "shift",
             "func_tag",
             "n_components",
             "select_component",
@@ -2091,14 +2088,7 @@ Functional data preprocessing
                     self, 
                     var="baseline", 
                     list_element=run_id,
-                    matcher="func_file")
-
-                # check if shift is list or not
-                shift = check_input_is_list(
-                    self, 
-                    var="shift", 
-                    list_element=run_id,
-                    matcher="func_file")                    
+                    matcher="func_file")           
 
                 utils.verbose(f" Filtering strategy: '{self.filter_strategy}'", self.verbose)
                 utils.verbose(f" Standardization strategy: '{self.standardization}'", self.verbose)
@@ -2110,7 +2100,6 @@ Functional data preprocessing
                     deleted_first_timepoints=delete_first,
                     deleted_last_timepoints=delete_last,
                     baseline=baseline,
-                    shift=shift,
                     **kwargs
                 )
                 
@@ -2210,7 +2199,8 @@ Functional data preprocessing
         task=None,
         deleted_first_timepoints=0, 
         deleted_last_timepoints=0,
-        baseline=None
+        baseline=None,
+        **kwargs
         ):
 
         #----------------------------------------------------------------------------------------------------------------------------------------------------
