@@ -1975,66 +1975,6 @@ class LazyBar():
                         **self.connect_kw
                     )
 
-        # sort out legend
-        if self.bar_legend or self.points_legend:
-
-            self.add_legend = True
-
-            # filter out handles that correspond to labels
-            self.legend_kw = {}
-            for key, val in zip(
-                ["fontsize", "handletextpad", "frameon"],
-                    [self.label_size, self.legend_handletext, False]):
-                self.legend_kw[key] = val
-
-            if isinstance(self.bbox_to_anchor, tuple):
-                self.legend_kw["bbox_to_anchor"] = self.bbox_to_anchor
-
-            # get handles
-            handles, labels = self.ff.get_legend_handles_labels()
-
-            # bar legend
-            if self.bar_legend:
-
-                # do some more exotic stuff to disentangle coloring from bars
-                # and hue
-                if isinstance(self.hue, str):
-
-                    # find categorical handles
-                    handles, labels = self.ff.get_legend_handles_labels()
-                    # find indices of categorical handles in list
-                    cc = self.data[self.hue].values
-                    indexes = np.unique(cc, return_index=True)[1]
-                    cond = [cc[index] for index in sorted(indexes)]
-
-                    if multi_strip:
-                        handles = handles[-len(cond):]
-                        labels = labels[-len(cond):]
-
-            else:
-                if not self.add_points:
-                    self.add_legend = False
-
-        else:
-            self.add_legend = False
-
-        # fill in legend
-        if self.add_legend:
-            
-            if isinstance(self.lbl_legend, list):
-                labels = self.lbl_legend
-            
-            # brute force
-            if len(handles) == 0:
-                handles = list(self.ff.patches)
-
-            self.ff.legend(
-                handles,
-                labels,
-                **self.legend_kw
-            )
-        else:
-            self.ff.legend([], [], frameon=False)
 
         # set tick params
         self.kw_defaults._set_tick_params(self.ff)
@@ -2084,7 +2024,7 @@ class LazyBar():
         if self.fancy:
             new_patches = []
 
-            for patch in reversed(self.ff.patches):
+            for patch in self.ff.patches:
                 bb = patch.get_bbox()
                 color = patch.get_facecolor()
 
@@ -2171,6 +2111,69 @@ class LazyBar():
 
                 add_to_ax = getattr(self, f"{x}_{el}")
                 getattr(self.kw_defaults, ff)(self.ff, add_to_ax, axis=x)
+
+        # sort out legend
+        if self.bar_legend or self.points_legend:
+
+            self.add_legend = True
+
+            # filter out handles that correspond to labels
+            self.legend_kw = {}
+            for key, val in zip(
+                ["fontsize", "handletextpad", "frameon"],
+                    [self.label_size, self.legend_handletext, False]):
+                self.legend_kw[key] = val
+
+            if isinstance(self.bbox_to_anchor, tuple):
+                self.legend_kw["bbox_to_anchor"] = self.bbox_to_anchor
+
+            # get handles
+            handles, labels = self.ff.get_legend_handles_labels()
+
+            # bar legend
+            if self.bar_legend:
+
+                # do some more exotic stuff to disentangle coloring from bars
+                # and hue
+                if isinstance(self.hue, str):
+
+                    # find categorical handles
+                    handles, labels = self.ff.get_legend_handles_labels()
+                    # find indices of categorical handles in list
+                    cc = self.data[self.hue].values
+                    indexes = np.unique(cc, return_index=True)[1]
+                    cond = [cc[index] for index in sorted(indexes)]
+
+                    if multi_strip:
+                        handles = handles[-len(cond):]
+                        labels = labels[-len(cond):]
+
+            else:
+                if not self.add_points:
+                    self.add_legend = False
+
+        else:
+            self.add_legend = False
+
+        # fill in legend
+        if self.add_legend:
+            
+            if isinstance(self.lbl_legend, list):
+                labels = self.lbl_legend
+            
+            # brute force
+            if len(handles) == 0:
+                handles = list(self.ff.patches)
+
+            self.legend = self.ff.legend(
+                handles,
+                labels,
+                **self.legend_kw
+            )
+
+                    
+        else:
+            self.legend = self.ff.legend([], [], frameon=False)
 
         self.kw_defaults._despine(
             self.ff,
