@@ -17,10 +17,6 @@ import seaborn as sns
 from sklearn import decomposition
 from typing import Union
 import warnings
-from statsmodels.api import stats
-from bids import BIDSLayout
-import pickle
-import nibabel as nb
 
 opj = os.path.join
 pd.options.mode.chained_assignment = None # disable warning thrown by string2float
