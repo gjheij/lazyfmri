@@ -164,9 +164,7 @@ class InitFitter():
         func,
         onsets,
         TR,
-        merge=False,
-        *args,
-        **kwargs
+        merge=False
     ):
 
         self.func = func
@@ -784,6 +782,7 @@ class ParameterFitter(InitFitter):
         onsets,
         TR=0.105,
         merge=False,
+        verbose=False,
         *args,
         **kwargs
     ):
@@ -792,6 +791,7 @@ class ParameterFitter(InitFitter):
         self.onsets = onsets
         self.TR = TR
         self.merge = merge
+        self.verbose = verbose
 
         # prepare data
         super().__init__(
@@ -852,7 +852,7 @@ class ParameterFitter(InitFitter):
         **kwargs
     ):
 
-        self.ddict_sub = self._set_dict()
+        self.ddict_ev = self._set_dict()
 
         # loop through subject
         for sub in self.sub_ids:
@@ -862,7 +862,6 @@ class ParameterFitter(InitFitter):
             # get subject specific onsets
             self.sub_onsets = utils.select_from_df(
                 self.orig_onsets, expression=f"subject = {sub}")
-            self.ddict_run = self._set_dict()
             for run in self.run_ids:
 
                 # subject and run specific data
@@ -872,11 +871,9 @@ class ParameterFitter(InitFitter):
                     "&",
                     f"run = {run}"
                 )
-                self.run_func = utils.select_from_df(
-                    self.orig_func, expression=expr)
+                self.run_func = utils.select_from_df(self.orig_func, expression=expr)
 
                 # loop through events
-                self.ddict_ev = self._set_dict()
                 for ev in self.ev_ids:
 
                     utils.verbose(f"  ev-'{ev}'", debug)
@@ -900,58 +897,35 @@ class ParameterFitter(InitFitter):
                     )
 
                     # get profiles and full timecourse predictions
-                    tmp = self.rf.hrf_profiles.copy().reset_index()
-                    pr = self.rf.predictions.copy().reset_index()
-                    tmp["run"] = run
-                    pr["run"] = run
-
-                    # finalize dataframe with proper formatting
-                    df = tmp.set_index(["run", "time"]).groupby(
-                        ["time"]).mean().reset_index()
-                    df["covariate"], df["event_type"] = "intercept", ev
-                    pr["event_type"] = ev
-
-                    try:
-                        df = df.reset_index(drop=True)
-                    except BaseException:
-                        pass
-
+                    df = self.rf.hrf_profiles.copy()
+                    pr = self.rf.predictions.copy()
+                    
+                    es = self.rf.estimates.copy()
+                    es["vox"] = list(self.func.columns)
+                    es.set_index(["subject", "event_type","run","vox"], inplace=True)
+                    
                     # append
                     self.ddict_ev["predictions"].append(pr)
                     self.ddict_ev["profiles"].append(df)
-
-                # concatenate all evs
-                self.ddict_ev = self._concat_dict(self.ddict_ev)
-
-                # set run id and append to run dict
-                for key, val in self.ddict_ev.items():
-                    self.ddict_ev[key]['run'] = run
-                    self.ddict_run[key].append(val)
-
-            # concatenate all runs
-            self.ddict_run = self._concat_dict(self.ddict_run)
-
-            # set run id and append to run dict
-            for key, val in self.ddict_run.items():
-                self.ddict_run[key]['subject'] = sub
-                self.ddict_sub[key].append(val)
+                    self.ddict_ev["pars"].append(es)
 
         # concatenate all subjects
-        self.ddict_sub = self._concat_dict(self.ddict_sub)
+        self.ddict_sub = self._concat_dict(self.ddict_ev)
 
         # set final outputs
-        self.tc_subjects = self.ddict_sub["profiles"].set_index(
-            ["subject", "run", "event_type", "covariate", "time"])
+        self.tc_subjects = self.ddict_sub["profiles"]
+        self.ev_predictions = self.ddict_sub["predictions"]
+        self.estimates = self.ddict_sub["pars"]
 
-        self.grouper = self.tc_subjects.groupby(
-            level=['event_type', 'covariate', 'time'])
+        self.tc_subjects.columns = self.func.columns
+        self.ev_predictions.columns = self.func.columns
+
+        self.grouper = self.tc_subjects.groupby(level=['event_type', 'covariate', 'time'])
         self.tc_condition = self.grouper.mean()
         self.sem_condition = self.grouper.sem()
         self.std_condition = self.grouper.std()
 
-        self.ev_predictions = self.ddict_sub["predictions"].set_index(
-            ["subject", "run", "event_type", "t"])
-
+        self.time = utils.get_unique_ids(self.tc_condition, id="time")
 
 class NideconvFitter(InitFitter):
     """NideconvFitter
@@ -3880,7 +3854,7 @@ def make_prediction(
     onsets=None,
     scan_length=None,
     TR=1.32,
-    osf=100,
+    osf=1,
     cov_as_ampl=None,
     negative=False,
     interval=[0, 25]
@@ -3924,13 +3898,15 @@ def iterative_search(
         onsets,
         starting_params=[6, 12, 0.9, 0.9, 0.35, 5.4, 10.8],
         bounds=None,
+        method='trust-constr',
         constraints=None,
         cov_as_ampl=None,
         TR=1.32,
-        osf=100,
+        osf=1,
         interval=[0, 25],
         xtol=1e-4,
-        ftol=1e-4):
+        ftol=1e-4,
+        ):
     """iterative_search
 
     Iterative search function to find the best set of parameters that describe the HRF across a full timeseries. During the optimization, each parameter is adjusted and a new prediction is formed until the variance explained of this prediction is maximized.
@@ -3981,7 +3957,6 @@ def iterative_search(
     }
 
     # run for both negative and positive; return parameters of best r2
-
     res = {}
     for lbl, np in zip(["pos", "neg"], [False, True]):
         res[lbl] = {}
@@ -3993,7 +3968,7 @@ def iterative_search(
                 args,
                 data,
                 make_prediction),
-            method='trust-constr',
+            method=method,
             bounds=bounds,
             tol=ftol,
             options=dict(xtol=xtol)
@@ -4058,16 +4033,18 @@ class FitHRFparams():
             onsets,
             verbose=False,
             TR=1.32,
-            osf=100,
+            osf=1,
             starting_params=[6, 12, 0.9, 0.9, 0.35, 5.4, 10.8],
             n_jobs=1,
             bounds=None,
             resample_to_shape=None,
             xtol=1e-4,
             ftol=1e-4,
+            method="trust-constr",
             cov_as_ampl=None,
             interval=[0, 30],
             read_index=False,
+            parallel=True,
             **kwargs):
 
         self.data = data
@@ -4084,6 +4061,8 @@ class FitHRFparams():
         self.cov_as_ampl = cov_as_ampl
         self.resample_to_shape = resample_to_shape
         self.read_index = read_index
+        self.parallel = parallel
+        self.method = method
 
         # set default bounds that can be updated with kwargs
         if not isinstance(self.bounds, list):
@@ -4109,18 +4088,37 @@ class FitHRFparams():
         if self.data.ndim < 2:
             self.data = self.data[np.newaxis, ...]
 
-        self.tmp_results = Parallel(self.n_jobs, verbose=self.verbose)(
-            delayed(iterative_search)(
-                self.data[i, :],
-                self.onsets,
-                starting_params=self.starting_params,
-                TR=self.TR,
-                bounds=self.bounds,
-                xtol=self.xtol,
-                ftol=self.ftol,
-                cov_as_ampl=self.cov_as_ampl
-            ) for i in range(self.data.shape[0])
-        )
+        if self.parallel:
+            self.tmp_results = Parallel(self.n_jobs, verbose=self.verbose)(
+                delayed(iterative_search)(
+                    self.data[i, :],
+                    self.onsets,
+                    starting_params=self.starting_params,
+                    TR=self.TR,
+                    bounds=self.bounds,
+                    xtol=self.xtol,
+                    ftol=self.ftol,
+                    cov_as_ampl=self.cov_as_ampl,
+                    osf=self.osf,
+                    method=self.method
+                ) for i in range(self.data.shape[0])
+            )
+        else:
+            self.tmp_results = []
+            for i in range(self.data.shape[0]):
+                tt = iterative_search(
+                    self.data[i, :],
+                    self.onsets,
+                    starting_params=self.starting_params,
+                    TR=self.TR,
+                    bounds=self.bounds,
+                    xtol=self.xtol,
+                    ftol=self.ftol,
+                    cov_as_ampl=self.cov_as_ampl,
+                    osf=self.osf,
+                    method=self.method
+                )
+                self.tmp_results.append(tt)
 
         # parse into array
         self.iterative_search_params = np.array(
@@ -4151,6 +4149,12 @@ class FitHRFparams():
             force_neg=self.force_neg,
             force_pos=self.force_pos
         ).return_metrics()
+
+        self.estimates = pd.DataFrame(self.iterative_search_params, columns=["a1", "a2", "b1", "b2", "c", "d1", "d2"])
+
+        self.estimates["subject"] = utils.get_unique_ids(self.hrf_profiles, id="subject")[0]
+        self.estimates["run"] = utils.get_unique_ids(self.hrf_profiles, id="run")[0]
+        self.estimates["event_type"] = utils.get_unique_ids(self.hrf_profiles, id="event_type")[0]
 
     def profiles_from_parameters(
             self,
@@ -4203,12 +4207,12 @@ class FitHRFparams():
 
         self.hrf_profiles = pd.DataFrame(hrf_profiles.T)
         self.hrf_profiles["time"] = time_points
+        self.hrf_profiles["covariate"] = "intercept"
         self.predictions = pd.DataFrame(predictions.T)
-        self.predictions["t"] = list(
-            np.arange(0, self.data.shape[1]) * self.TR)
+        self.predictions["t"] = list(np.arange(0, self.data.shape[1]) * self.TR)
 
         # read indices from onset dataframe
-        self.prof_indices = ["time"]
+        self.prof_indices = ["covariate","time"]
         self.pred_indices = ["t"]
 
         self.custom_indices = []
