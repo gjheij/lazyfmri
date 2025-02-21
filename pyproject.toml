@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "lazyplot"
+name = "lazyfmri"
 version = "0.1.0" # Replace this with the value dynamically loaded by `get_version`
-description = "LazyPlot: seaborn wrapper for plotting"
+description = "lazyfmri: seaborn wrapper for plotting & HRF fitting procedures"
 readme = "README.md"
 license = { text = "GPL-3.0-or-later" }
 authors = [{ name = "Jurjen Heij", email = "jurjenheij@gmail.com" }]
@@ -45,5 +45,5 @@ dependencies = [
 dev = ["pytest", "black", "flake8"]
 
 [tool.setuptools]
-packages = ["lazyplot"]
+packages = ["lazyfmri"]
 package-data = { lazyplot = ["version.py"] }
