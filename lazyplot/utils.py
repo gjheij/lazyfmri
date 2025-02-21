@@ -6,44 +6,47 @@ import pandas as pd
 from nilearn import signal
 from shapely import geometry
 import matplotlib.colors as mcolors
-from matplotlib import cm
 from PIL import ImageColor
 
 opj = os.path.join
 
+
 def convert_to_rgb(color, as_integer=False):
     if isinstance(color, tuple):
-        (R,G,B) = color
+        (R, G, B) = color
     elif isinstance(color, str):
         if len(color) == 1:
             color = mcolors.to_rgb(color)
         else:
             color = ImageColor.getcolor(color, "RGB")
-            
-        (R,G,B) = color
-    
+
+        (R, G, B) = color
+
     if not as_integer:
         rgb = []
-        for v in [R,G,B]:
-            if v>1:
+        for v in [R, G, B]:
+            if v > 1:
                 v /= 255
             rgb.append(v)
-        R,G,B = rgb
+        R, G, B = rgb
     else:
         rgb = []
-        for v in [R,G,B]:
-            if v<=1:
+        for v in [R, G, B]:
+            if v <= 1:
                 v = int(v*255)
             rgb.append(v)
-        R,G,B = rgb
-        
-    return (R,G,B)
+        R, G, B = rgb
+
+    return (R, G, B)
+
 
 def make_binary_cm(color):
-
     """make_binary_cm
 
-    This function creates a custom binary colormap using matplotlib based on the RGB code specified. Especially useful if you want to overlay in imshow, for instance. These RGB values will be converted to range between 0-1 so make sure you're specifying the actual RGB-values. I like `https://htmlcolorcodes.com` to look up RGB-values of my desired color. The snippet of code used here comes from https://kbkb-wx-python.blogspot.com/2015/12/python-transparent-colormap.html
+    This function creates a custom binary colormap using matplotlib based on the RGB code specified. Especially useful if you
+    want to overlay in imshow, for instance. These RGB values will be converted to range between 0-1 so make sure you're
+    specifying the actual RGB-values. I like `https://htmlcolorcodes.com` to look up RGB-values of my desired color. The
+    snippet of code used here comes from https://kbkb-wx-python.blogspot.com/2015/12/python-transparent-colormap.html
 
     Parameters
     ----------
@@ -53,7 +56,7 @@ def make_binary_cm(color):
         * <R>     int | red-channel (0-255)
         * <G>     int | green-channel (0-255)
         * <B>     int | blue-channel (0-255)
-    
+
     Returns
     ----------
     matplotlib.colors.LinearSegmentedColormap object
@@ -68,26 +71,28 @@ def make_binary_cm(color):
     >>> cm
     >>> <matplotlib.colors.LinearSegmentedColormap at 0x7f35f7154a30>
     """
-    
-    # convert input to RGB
-    R,G,B = convert_to_rgb(color)
 
-    colors = [(R,G,B,c) for c in np.linspace(0,1,100)]
+    # convert input to RGB
+    R, G, B = convert_to_rgb(color)
+
+    colors = [(R, G, B, c) for c in np.linspace(0, 1, 100)]
     cmap = mcolors.LinearSegmentedColormap.from_list('mycmap', colors, N=5)
 
     return cmap
 
+
 def find_missing(lst):
     return [i for x, y in zip(lst, lst[1:])
-        for i in range(x + 1, y) if y - x > 1]
-        
-def make_between_cm(
-    col1,
-    col2,
-    as_list=False,
-    **kwargs):
+            for i in range(x + 1, y) if y - x > 1]
 
-    input_list = [col1,col2]
+
+def make_between_cm(
+        col1,
+        col2,
+        as_list=False,
+        **kwargs):
+
+    input_list = [col1, col2]
 
     # scale to 0-1
     col_list = []
@@ -103,20 +108,22 @@ def make_between_cm(
     else:
         return cm
 
-def make_stats_cm(
-    direction, 
-    lower_neg=(51,0,248),
-    upper_neg=(151,253,253), 
-    lower_pos=(217,36,36),
-    upper_pos=(251,255,72),
-    invert=False,
-    ):
 
-    if direction not in ["pos","neg"]:
-        raise ValueError(f"direction must be one of 'pos' or 'neg', not '{direction}'")
-    
+def make_stats_cm(
+    direction,
+    lower_neg=(51, 0, 248),
+    upper_neg=(151, 253, 253),
+    lower_pos=(217, 36, 36),
+    upper_pos=(251, 255, 72),
+    invert=False,
+):
+
+    if direction not in ["pos", "neg"]:
+        raise ValueError(
+            f"direction must be one of 'pos' or 'neg', not '{direction}'")
+
     if direction == "pos":
-        input_list = [lower_pos,upper_pos]
+        input_list = [lower_pos, upper_pos]
     else:
         input_list = [lower_neg, upper_neg]
 
@@ -130,6 +137,7 @@ def make_stats_cm(
         col_list.append(scaled_color)
 
     return mcolors.LinearSegmentedColormap.from_list("", col_list)
+
 
 def remove_files(path, string, ext=False):
     """remove_files
@@ -150,44 +158,54 @@ def remove_files(path, string, ext=False):
     files_in_directory = os.listdir(path)
 
     if ext:
-        filtered_files = [file for file in files_in_directory if file.endswith(string)]
+        filtered_files = [
+            file for file in files_in_directory if file.endswith(string)]
     else:
-        filtered_files = [file for file in files_in_directory if file.startswith(string)]
+        filtered_files = [
+            file for file in files_in_directory if file.startswith(string)]
 
     for file in filtered_files:
         path_to_file = os.path.join(path, file)
         os.remove(path_to_file)
 
-def calculate_tsnr(data,ax):
-    mean_d = np.mean(data,axis=ax)
-    std_d = np.std(data,axis=ax)
+
+def calculate_tsnr(data, ax):
+    mean_d = np.mean(data, axis=ax)
+    std_d = np.std(data, axis=ax)
     tsnr = mean_d/std_d
     tsnr[np.where(np.isinf(tsnr))] = np.nan
 
     return tsnr
 
+
 def percent_change(
-    ts, 
-    ax, 
-    nilearn=False, 
+    ts,
+    ax,
+    nilearn=False,
     baseline=20,
     prf=False,
     dm=None
-    ):
+):
+
     """percent_change
 
-    Function to convert input data to percent signal change. Two options are current supported: the nilearn method (`nilearn=True`), where the mean of the entire timecourse if subtracted from the timecourse, and the baseline method (`nilearn=False`), where the median of `baseline` is subtracted from the timecourse.
+    Function to convert input data to percent signal change. Two options are current supported: the nilearn method
+    (`nilearn=True`), where the mean of the entire timecourse if subtracted from the timecourse, and the baseline method
+    (`nilearn=False`), where the median of `baseline` is subtracted from the timecourse.
 
     Parameters
     ----------
     ts: numpy.ndarray
         Array representing the data to be converted to percent signal change. Should be of shape (n_voxels, n_timepoints)
     ax: int
-        Axis over which to perform the conversion. If shape (n_voxels, n_timepoints), then ax=1. If shape (n_timepoints, n_voxels), then ax=0.
+        Axis over which to perform the conversion. If shape (n_voxels, n_timepoints), then ax=1.
+        If shape (n_timepoints, n_voxels), then ax=0.
     nilearn: bool, optional
         Use nilearn method, by default False
     baseline: int, list, np.ndarray optional
-        Use custom method where only the median of the baseline (instead of the full timecourse) is subtracted, by default 20. Length should be in `volumes`, not `seconds`. Can also be a list or numpy array (1d) of indices which are to be considered as baseline. The list of indices should be corrected for any deleted volumes at the beginning.
+        Use custom method where only the median of the baseline (instead of the full timecourse) is subtracted, by default 20.
+        Length should be in `volumes`, not `seconds`. Can also be a list or numpy array (1d) of indices which are to be
+        considered as baseline. The list of indices should be corrected for any deleted volumes at the beginning.
 
     Returns
     ----------
@@ -199,17 +217,17 @@ def percent_change(
     ValueError
         If `ax` > 2
     """
-    
+
     if ts.ndim == 1:
-        ts = ts[:,np.newaxis]
+        ts = ts[:, np.newaxis]
         ax = 0
-    
+
     if prf:
         from linescanning import prf
 
         # format data
         if ts.ndim == 1:
-            ts = ts[...,np.newaxis]
+            ts = ts[..., np.newaxis]
 
         # read design matrix
         if isinstance(dm, str):
@@ -224,9 +242,9 @@ def percent_change(
 
         # find timecourses with no stimulus
         if ax == 0:
-            med_bsl = ts[timepoints_no_stim,:]
+            med_bsl = ts[timepoints_no_stim, :]
         else:
-            med_bsl = ts[:,timepoints_no_stim]
+            med_bsl = ts[:, timepoints_no_stim]
 
         # calculat median over baseline
         median_baseline = np.median(med_bsl, axis=ax)
@@ -244,7 +262,8 @@ def percent_change(
         else:
 
             # first step of PSC; set NaNs to zero if dividing by 0 (in case of crappy timecourses)
-            ts_m = ts*np.expand_dims(np.nan_to_num((100/np.mean(ts, axis=ax))), ax)
+            ts_m = ts * \
+                np.expand_dims(np.nan_to_num((100/np.mean(ts, axis=ax))), ax)
 
             # get median of baseline
             if isinstance(baseline, np.ndarray):
@@ -252,28 +271,30 @@ def percent_change(
 
             if ax == 0:
                 if isinstance(baseline, list):
-                    median_baseline = np.median(ts_m[baseline,:], axis=0)
+                    median_baseline = np.median(ts_m[baseline, :], axis=0)
                 else:
-                    median_baseline = np.median(ts_m[:baseline,:], axis=0)
+                    median_baseline = np.median(ts_m[:baseline, :], axis=0)
             elif ax == 1:
                 if isinstance(baseline, list):
-                    median_baseline = np.median(ts_m[:,baseline], axis=1)
+                    median_baseline = np.median(ts_m[:, baseline], axis=1)
                 else:
-                    median_baseline = np.median(ts_m[:,:baseline], axis=1)
+                    median_baseline = np.median(ts_m[:, :baseline], axis=1)
             else:
                 raise ValueError("ax must be 0 or 1")
 
             # subtract
-            psc = ts_m-np.expand_dims(median_baseline,ax)
-        
+            psc = ts_m-np.expand_dims(median_baseline, ax)
+
         return psc
-    
+
+
 def split_bids_components(fname, entities=False):
 
     comp_list = fname.split('_')
     comps = {}
-    
-    ids = ['sub', 'ses', 'task', 'acq', 'rec', 'run', 'space', 'hemi', 'model', 'stage', 'desc', 'vox']
+
+    ids = ['sub', 'ses', 'task', 'acq', 'rec', 'run',
+           'space', 'hemi', 'model', 'stage', 'desc', 'vox']
 
     full_entities = [
         "subject",
@@ -296,7 +317,7 @@ def split_bids_components(fname, entities=False):
                         ex = -1
 
                     comp = comp.split(".")[ex]
-                
+
                 # if i == "run":
                 #     comp = int(comp)
 
@@ -310,7 +331,8 @@ def split_bids_components(fname, entities=False):
             return comps
     else:
         raise ValueError(f"Could not find any element of {ids} in {fname}")
-    
+
+
 def get_ids(func_list, bids="task"):
 
     ids = []
@@ -320,14 +342,15 @@ def get_ids(func_list, bids="task"):
                 bids_comps = split_bids_components(ff)
                 if bids in list(bids_comps.keys()):
                     ids.append(bids_comps[bids])
-        
+
     if len(ids) > 0:
         ids = list(np.unique(np.array(ids)))
 
         return ids
     else:
         return []
-    
+
+
 def str2operator(ops):
 
     if ops in ["and", "&", "&&"]:
@@ -363,20 +386,28 @@ def select_from_df(
 ):
     """select_from_df
 
-    Select a subset of a dataframe based on an expression. Dataframe should be indexed by the variable you want to select on or have the variable specified in the expression argument as column name. If index is True, the dataframe will be indexed by the selected variable. If indices is specified, the dataframe will be indexed by the indices specified through a list (only select the elements in the list) or a `range`-object (select within range).
+    Select a subset of a dataframe based on an expression. Dataframe should be indexed by the variable you want to select on
+    or have the variable specified in the expression argument as column name. If index is True, the dataframe will be indexed
+    by the selected variable. If indices is specified, the dataframe will be indexed by the indices specified through a list
+    (only select the elements in the list) or a `range`-object (select within range).
 
     Parameters
     ----------
     df: pandas.DataFrame
         input dataframe
     expression: str, optional
-        what subject of the dataframe to select, by default None. The expression must consist of a variable name and an operator. The operator can be any of the following: '=', '>', '<', '>=', '<=', '!=', separated by spaces. You can also change 2 operations by specifying the `&`-operator between the two expressions. If you want to use `indices`, specify `expression="ribbon"`.
+        what subject of the dataframe to select, by default None. The expression must consist of a variable name and an
+        operator. The operator can be any of the following: '=', '>', '<', '>=', '<=', '!=', separated by spaces. You can also
+        change 2 operations by specifying the `&`-operator between the two expressions. If you want to use `indices`, specify
+        `expression="ribbon"`.
     index: bool, optional
         return output dataframe with the same indexing as `df`, by default True
     indices: list, range, numpy.ndarray, optional
         List, range, or numpy array of indices to select from `df`, by default None
     match_exact: bool, optional:
-        When you insert a list of strings with `indices` to be filtered from the dataframe, you can either request that the items of `indices` should **match** exactly (`match_exact=True`, default) the column names of `df`, or whether the columns of `df` should **contain** the items of `indices` (`match_exact=False`).
+        When you insert a list of strings with `indices` to be filtered from the dataframe, you can either request that the
+        items of `indices` should **match** exactly (`match_exact=True`, default) the column names of `df`, or whether the
+        columns of `df` should **contain** the items of `indices` (`match_exact=False`).
 
     Returns
     ----------
@@ -390,7 +421,8 @@ def select_from_df(
 
     Notes
     ----------
-    See https://linescanning.readthedocs.io/en/latest/examples/nideconv.html for an example of how to use this function (do ctrl+F and enter "select_from_df").
+    See https://linescanning.readthedocs.io/en/latest/examples/nideconv.html for an example of how to use this function (do
+    ctrl+F and enter "select_from_df").
     """
 
     # not the biggest fan of a function within a function, but this allows
@@ -413,7 +445,7 @@ def select_from_df(
 
         return col1, operator1, val1
 
-    if isinstance(indices, (list,tuple,np.ndarray)):
+    if isinstance(indices, (list, tuple, np.ndarray)):
 
         if isinstance(indices, tuple):
             return df.iloc[:, indices[0]:indices[1]]
@@ -434,13 +466,15 @@ def select_from_df(
             return df.iloc[:, list(indices)]
         else:
             raise TypeError(
-                f"Unknown type '{type(indices)}' for indices; must be a tuple of 2 values representing a range, or a list/array of indices to select")
+                f"""Unknown type '{type(indices)}' for indices; must be a tuple of 2 values representing a range, or a
+                list/array of indices to select""")
     else:
         if not isinstance(expression, (str, tuple, list)):
             raise ValueError(
-                f"Please specify expressions to apply to the dataframe. Input is '{expression}' of type ({type(expression)})"
+                f"""Please specify expressions to apply to the dataframe.
+                Input is '{expression}' of type ({type(expression)})"""
             )
-        
+
         # fetch existing indices
         idc = list(df.index.names)
         if idc[0] is not None:
@@ -518,9 +552,8 @@ def multiselect_from_df(df, expression=[]):
             f"expression must be list of tuples (see docs utils.select_from_df), not {type(expression)}")
 
     if len(expression) == 0:
-        raise ValueError(f"List is empty")
+        raise ValueError("List is empty")
 
-    start_df = df.copy()
     for expr in expression:
         df = select_from_df(df, expression=expr)
 
@@ -571,7 +604,7 @@ def get_unique_ids(df, id=None, sort=True, as_int=False, drop_na=True):
         pass
 
     if not isinstance(id, str):
-        raise ValueError(f"Please specify a identifier from the dataframe")
+        raise ValueError("Please specify a identifier from the dataframe")
 
     try:
         a = df[id].values
@@ -589,7 +622,7 @@ def get_unique_ids(df, id=None, sort=True, as_int=False, drop_na=True):
             ret_list = [int(i) for i in ret_list]
         return ret_list
 
-    except Exception as e:
+    except Exception:
         raise RuntimeError(f"Could not find '{id}' in {list(df.columns)}")
 
 # Define a function 'pairwise' that iterates over all pairs of consecutive
@@ -618,7 +651,11 @@ def pairwise(l1):
 def get_file_from_substring(filt, path, return_msg='error', exclude=None):
     """get_file_from_substring
 
-    This function returns the file given a path and a substring. Avoids annoying stuff with glob. Now also allows multiple filters to be applied to the list of files in the directory. The idea here is to construct a binary matrix of shape (files_in_directory, nr_of_filters), and test for each filter if it exists in the filename. If all filters are present in a file, then the entire row should be 1. This is what we'll be looking for. If multiple files are found in this manner, a list of paths is returned. If only 1 file was found, the string representing the filepath will be returned.
+    This function returns the file given a path and a substring. Avoids annoying stuff with glob. Now also allows multiple
+    filters to be applied to the list of files in the directory. The idea here is to construct a binary matrix of shape
+    (files_in_directory, nr_of_filters), and test for each filter if it exists in the filename. If all filters are present in
+    a file, then the entire row should be 1. This is what we'll be looking for. If multiple files are found in this manner, a
+    list of paths is returned. If only 1 file was found, the string representing the filepath will be returned.
 
     Parameters
     ----------
@@ -629,7 +666,8 @@ def get_file_from_substring(filt, path, return_msg='error', exclude=None):
     return_msg: str, optional
         whether to raise an error (*return_msg='error') or return None (*return_msg=None*). Default = 'error'.
     exclude: str, optional:
-        Specify string to exclude from options. This criteria will be ensued after finding files that conform to `filt` as final filter.
+        Specify string to exclude from options. This criteria will be ensued after finding files that conform to `filt` as
+        final filter.
 
     Returns
     ----------
@@ -680,7 +718,8 @@ def get_file_from_substring(filt, path, return_msg='error', exclude=None):
             for filt_ix, filt_opt in enumerate(filt):
                 filt_array[ix, filt_ix] = filt_opt in f
 
-        # now we have a binary <number of files x number of filters> array. If all filters were available in a file, the entire row should be 1,
+        # now we have a binary <number of files x number of filters> array. If all filters were available in a file, the
+        # entire row should be 1,
         # so we're going to look for those rows
         full_match = np.ones(len(filt))
         full_match_idc = np.where(np.all(filt_array == full_match, axis=1))[0]
@@ -736,17 +775,19 @@ def get_file_from_substring(filt, path, return_msg='error', exclude=None):
 
 def update_kwargs(kwargs, el, val, force=False):
     if not force:
-        if not el in list(kwargs.keys()):
+        if el not in list(kwargs.keys()):
             kwargs[el] = val
     else:
         kwargs[el] = val
 
     return kwargs
 
+
 def find_nearest(array, value, return_nr=1):
     """find_nearest
 
-    Find the index and value in an array given a value. You can either choose to have 1 item (the `closest`) returned, or the 5 nearest items (`return_nr=5`), or everything you're interested in (`return_nr="all"`)
+    Find the index and value in an array given a value. You can either choose to have 1 item (the `closest`) returned, or the
+    5 nearest items (`return_nr=5`), or everything you're interested in (`return_nr="all"`)
 
     Parameters
     ----------
@@ -755,12 +796,13 @@ def find_nearest(array, value, return_nr=1):
     value: float
         value to search for in `array`
     return_nr: int, str, optional
-        number of elements to return after searching for elements in `array` that are close to `value`. Can either be an integer or a string *all*
+        number of elements to return after searching for elements in `array` that are close to `value`. Can either be an
+        integer or a string *all*
 
     Returns
     ----------
     int
-        integer representing the index of the element in `array` closest to `value`. 
+        integer representing the index of the element in `array` closest to `value`.
 
     list
         if `return_nr` > 1, a list of indices will be returned
@@ -768,14 +810,14 @@ def find_nearest(array, value, return_nr=1):
     numpy.ndarray
         value in `array` at the index closest to `value`
     """
-    
+
     array = np.asarray(array)
 
     if return_nr == 1:
         idx = np.nanargmin((np.abs(array-value)))
         return idx, array[idx]
     else:
-        
+
         # check nan indices
         nans = np.isnan(array)
 
@@ -783,12 +825,12 @@ def find_nearest(array, value, return_nr=1):
         idx = np.full_like(array, np.nan)
 
         # loop through values in array
-        for qq,ii in enumerate(array):
+        for qq, ii in enumerate(array):
 
             # don't do anything if value is nan
             if not nans[qq]:
                 idx[qq] = np.abs(ii-value)
-        
+
         # sort
         idx = np.argsort(idx)
 
@@ -798,8 +840,9 @@ def find_nearest(array, value, return_nr=1):
         else:
             # return closest X values
             idc_list = idx[:return_nr]
-        
+
         return idc_list, array[idc_list]
+
 
 def find_intersection(xx, curve1, curve2):
     """find_intersection
@@ -833,7 +876,7 @@ def find_intersection(xx, curve1, curve2):
     first_line = geometry.LineString(np.column_stack((xx, curve1)))
     second_line = geometry.LineString(np.column_stack((xx, curve2)))
     geom = first_line.intersection(second_line)
-    
+
     try:
         if isinstance(geom, geometry.multipoint.MultiPoint):
             # multiple coordinates
@@ -849,11 +892,12 @@ def find_intersection(xx, curve1, curve2):
                 coor = np.array(el["coordinates"])
                 if coor.ndim > 1:
                     coor = coor[0]
-                coords.append(coor[np.newaxis,...]) # to make indexing same as above
+                # to make indexing same as above
+                coords.append(coor[np.newaxis, ...])
         else:
             raise ValueError(f"Can't deal with output of type {type(geom)}")
             # coords = geom
-    except:
+    except Exception:
         raise ValueError("Could not find intersection between curves..")
-    
+
     return coords

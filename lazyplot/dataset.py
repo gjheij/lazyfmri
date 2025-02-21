@@ -12,12 +12,14 @@ import warnings
 try:
     import hedfpy
     HEDFPY_AVAILABLE = True
-except:
+except ImportError:
     HEDFPY_AVAILABLE = False
 
 opj = os.path.join
-pd.options.mode.chained_assignment = None # disable warning thrown by string2float
+# disable warning thrown by string2float
+pd.options.mode.chained_assignment = None
 warnings.filterwarnings("ignore")
+
 
 def filter_kwargs(ignore_kwargs, kwargs):
 
@@ -30,6 +32,7 @@ def filter_kwargs(ignore_kwargs, kwargs):
             tmp_kwargs[ii] = kwargs[ii]
     return tmp_kwargs
 
+
 def check_input_is_list(obj, var=None, list_element=0, matcher="func_file"):
 
     if hasattr(obj, var):
@@ -37,13 +40,17 @@ def check_input_is_list(obj, var=None, list_element=0, matcher="func_file"):
     else:
         raise ValueError(f"Class does not have '{var}'-attribute")
 
-    if isinstance(attr, (list,np.ndarray)):
-        if len(attr) != len(getattr(obj,matcher)):
-            raise ValueError(f"Length of '{var}' ({len(attr)}) does not match number of func files ({len(getattr(obj,matcher))}). Either specify a list of equal lenghts or 1 integer value for all volumes")
+    if isinstance(attr, (list, np.ndarray)):
+        if len(attr) != len(getattr(obj, matcher)):
+            raise ValueError(
+                f"""
+Length of '{var}' ({len(attr)}) does not match number of func files ({len(getattr(obj,matcher))}).
+Either specify a list of equal lenghts or 1 integer value for all volumes""")
 
         return attr[list_element]
     else:
         return attr
+
 
 class SetAttributes():
 
@@ -63,7 +70,7 @@ class SetAttributes():
             "df_rts",
             "df_accuracy",
             "df_responses",
-        ]        
+        ]
 
         # store ParseFuncFile attributes
         self.func_attributes = [
@@ -74,18 +81,28 @@ class SetAttributes():
         ]
 
         # combine them all for Dataset-class
-        self.all_attributes = self.eye_attributes+self.exp_attributes+self.func_attributes
+        self.all_attributes = self.eye_attributes + \
+            self.exp_attributes+self.func_attributes
+
 
 class ParseEyetrackerFile(SetAttributes):
 
     """ParseEyetrackerFile
 
-    Class for parsing edf-files created during experiments with Exptools2. The class will read in the file, read when the experiment actually started, correct onset times for this start time and time deleted because of removing the first few volumes (to do this correctly, set the `TR` and `deleted_first_timepoints`). You can also provide a numpy array/file containing eye blinks that should be added to the onset times in real-world time (seconds). In principle, it will return a pandas DataFrame indexed by subject and run that can be easily concatenated over runs. This function relies on the naming used when programming the experiment. In the `session.py` file, you should have created `phase_names=['iti', 'stim']`; the class will use these things to parse the file.
+    Class for parsing edf-files created during experiments with Exptools2. The class will read in the file, read when the
+    experiment actually started, correct onset times for this start time and time deleted because of removing the first few
+    volumes (to do this correctly, set the `TR` and `deleted_first_timepoints`). You can also provide a numpy array/file
+    containing eye blinks that should be added to the onset times in real-world time (seconds). In principle, it will return a
+    pandas DataFrame indexed by subject and run that can be easily concatenated over runs. This function relies on the naming
+    used when programming the experiment. In the `session.py` file, you should have created `phase_names=['iti', 'stim']`; the
+    class will use these things to parse the file.
+
 
     Parameters
     ----------
     edf_file: str, list
-        path pointing to the output file of the experiment; can be a list of multiple. Ideally, all these files belong to 1 subject, otherwise it tries to write everything to 1 file, which is too much
+        path pointing to the output file of the experiment; can be a list of multiple. Ideally, all these files belong to 1
+        subject, otherwise it tries to write everything to 1 file, which is too much
     subject: int
         subject number in the returned pandas DataFrame (should start with 1, ..., n)
     run: int
@@ -95,15 +112,16 @@ class ParseEyetrackerFile(SetAttributes):
     high_pass_pupil_f: float, optional
         High-pass cutoff frequency
     TR: float, optional (fMRI)
-        Repetition time of experiment. Together with `nr_vols`, used to determine the period that needs to be extracted after onset
-        of the first trial. Default = None
+        Repetition time of experiment. Together with `nr_vols`, used to determine the period that needs to be extracted after
+        onset of the first trial. Default = None
     nr_vols: int, optional (fMRI)
         Together with `TR`, used to determine the period that needs to be extracted after onset
         of the first trial. Default = None
     deleted_first_timepoints: int
         number of volumes to delete to correct onset times for deleted volumes
     h5_file: str, optional
-        Custom path to h5-file in which to store the complete output from `edf_file`. If nothing's specified, it'll output an `eye.h5`-file in the directory of the first edf-file in the list.
+        Custom path to h5-file in which to store the complete output from `edf_file`. If nothing's specified, it'll output an
+        `eye.h5`-file in the directory of the first edf-file in the list.
 
     Examples
     ----------
@@ -119,11 +137,11 @@ class ParseEyetrackerFile(SetAttributes):
     >>>     path_tsv_files = os.path.join(f'some/path/sub-{sub}')
     >>>     f = os.listdir(path_tsv_files)
     >>>     nr_runs = []; [nr_runs.append(os.path.join(path_tsv_files, r)) for r in f if "events.tsv" in r]
-    >>> 
+    >>>
     >>>     for run in range(1,len(nr_runs)+1):
     >>>         sub_idx = run_subjects.index(sub)+1
     >>>         onsets.append(ParseExpToolsFile(df_onsets, subject=sub_idx, run=run).get_onset_df())
-    >>>         
+    >>>
     >>> onsets = pd.concat(onsets).set_index(['subject', 'run', 'event_type'])
 
     Notes
@@ -132,97 +150,95 @@ class ParseEyetrackerFile(SetAttributes):
     """
 
     def __init__(
-        self, 
-        edf_file, 
-        subject=1, 
-        run=1, 
-        task=None,
-        low_pass_pupil_f=6.0, 
-        high_pass_pupil_f=0.01,
-        func_file=None, 
-        TR=0.105, 
-        verbose=False, 
-        use_bids=True,
-        nr_vols=None,
-        h5_file=None,
-        save_as=None,
-        invoked_from_func=False,
-        overwrite=False,
-        **kwargs):
+            self,
+            edf_file,
+            subject=1,
+            run=1,
+            task=None,
+            low_pass_pupil_f=6.0,
+            high_pass_pupil_f=0.01,
+            func_file=None,
+            TR=0.105,
+            verbose=False,
+            use_bids=True,
+            nr_vols=None,
+            h5_file=None,
+            save_as=None,
+            invoked_from_func=False,
+            overwrite=False,
+            **kwargs):
 
         super().__init__()
 
         if not HEDFPY_AVAILABLE:
-            raise ModuleNotFoundError("could not find 'hedfpy', so this functionality is disabled")
+            raise ModuleNotFoundError(
+                "could not find 'hedfpy', so this functionality is disabled")
 
-        self.edf_file           = edf_file
-        self.func_file          = func_file
-        self.sub                = subject
-        self.run                = run
-        self.task               = task
-        self.TR                 = TR
-        self.low_pass_pupil_f   = low_pass_pupil_f
-        self.high_pass_pupil_f  = high_pass_pupil_f
-        self.verbose            = verbose
-        self.use_bids           = use_bids
-        self.nr_vols            = nr_vols
-        self.h5_file            = h5_file
-        self.save_as            = save_as
-        self.invoked_from_func  = invoked_from_func
-        self.overwrite          = overwrite
+        self.edf_file = edf_file
+        self.func_file = func_file
+        self.sub = subject
+        self.run = run
+        self.task = task
+        self.TR = TR
+        self.low_pass_pupil_f = low_pass_pupil_f
+        self.high_pass_pupil_f = high_pass_pupil_f
+        self.verbose = verbose
+        self.use_bids = use_bids
+        self.nr_vols = nr_vols
+        self.h5_file = h5_file
+        self.save_as = save_as
+        self.invoked_from_func = invoked_from_func
+        self.overwrite = overwrite
         self.__dict__.update(kwargs)
 
-            
+        # deal with edf-files
+        self.edf_file = self.check_input(self.edf_file)
+        self.func_file = self.check_input(self.func_file)
+
         # add all files to h5-file
-        if isinstance(self.edf_file, (str,list)):
-            
+        if isinstance(self.edf_file, (str, list)):
+
             # print message
             utils.verbose("\nEYETRACKER", self.verbose)
 
             # preprocess and fetch dataframes
+            self.set_indices()
+            self.define_hdf_file()
+            self.write_edf_to_hdf()
             self.preprocess_edf_files()
             self.ho.close_hdf_file()
 
-    def preprocess_edf_files(self):
-
-        # deal with edf-files
-        if isinstance(self.edf_file, str):
-            self.edfs = [os.path.abspath(self.edf_file)]
-        elif isinstance(self.edf_file, list):
-            self.edfs = self.edf_file.copy()
-        else:
-            raise ValueError(f"Input must be 'str' or 'list', not '{type(self.edf_file)}'")
-
+    def set_indices(self):
         # check if we should index task
         self.index_task = False
-        self.blink_index = ['subject','run','event_type']
-        self.eye_index = ['subject','run','eye','t']
-        self.sac_index = ['subject','run','event_type']
+        self.blink_index = ['subject', 'run', 'event_type']
+        self.eye_index = ['subject', 'run', 'eye', 't']
+        self.sac_index = ['subject', 'run', 'event_type']
         if self.use_bids:
             self.task_ids = utils.get_ids(self.edf_file, bids="task")
 
             # insert task id in indexer
             if len(self.task_ids) > 1:
                 self.index_task = True
-                for idx in ["blink_index","eye_index","sac_index"]:
+                for idx in ["blink_index", "eye_index", "sac_index"]:
                     getattr(self, idx).insert(1, "task")
-                
-        # write boilerplate
-        self.desc_eye = f"""For each of the eyetracking file(s) found, the following preprocessing was performed: First, eye blinks were removed and interpolated over, after which data was band-pass filtered with a butterworth filter with a 
-frequency range of {self.high_pass_pupil_f}-{self.low_pass_pupil_f}Hz. """
-        
-        # deal with edf-files
-        if self.func_file != None:
-            if isinstance(self.func_file, str):
-                self.func_file = [str(self.func_file)]
-            elif isinstance(self.func_file, list):
-                self.func_file = self.func_file.copy()
+
+    def check_input(self, in_files):
+        # deal with files
+        if in_files is not None:
+            if isinstance(in_files, str):
+                in_files = [os.path.abspath(in_files)]
+            elif isinstance(in_files, list):
+                in_files = [os.path.abspath(i) for i in in_files]
             else:
-                raise ValueError(f"Input must be 'str' or 'list', not '{type(self.edf_file)}'")
+                raise ValueError(
+                    f"Input must be 'str' or 'list', not '{type(in_files)}'")
+
+    def define_hdf_file(self):
 
         # check if there's an instance of h5_file
         if not isinstance(self.h5_file, str):
-            self.h5_file = opj(os.path.dirname(self.edfs[0]), f"eye.h5")
+            self.h5_file = opj(os.path.dirname(self.edfs[0]), "eye.h5")
 
         # check if we should overwrite
         if self.overwrite:
@@ -232,11 +248,15 @@ frequency range of {self.high_pass_pupil_f}-{self.low_pass_pupil_f}Hz. """
                 os.remove(self.h5_file)
 
         self.ho = hedfpy.HDFEyeOperator(self.h5_file)
+
+    def write_edf_to_hdf(self):
+
         if not os.path.exists(self.h5_file):
             for i, edf_file in enumerate(self.edfs):
 
                 if not os.path.exists(edf_file):
-                    raise FileNotFoundError(f"Could not read specified file: '{edf_file}'")
+                    raise FileNotFoundError(
+                        f"Could not read specified file: '{edf_file}'")
 
                 self.run = i+1
                 self.sub = 1
@@ -245,7 +265,7 @@ frequency range of {self.high_pass_pupil_f}-{self.low_pass_pupil_f}Hz. """
                     for el in ['sub', 'run', 'task']:
                         if el in list(bids_comps.keys()):
                             setattr(self, el, bids_comps[el])
-                        
+
                 # set alias
                 alias = f"run_{self.run}"
                 if isinstance(self.task, str):
@@ -262,8 +282,88 @@ frequency range of {self.high_pass_pupil_f}-{self.low_pass_pupil_f}Hz. """
             self.ho.open_hdf_file()
 
         # clean up hedfpy-files
-        for ext in [".pdf",".gaz",".msg",".gaz.gz",".asc"]:
+        for ext in [".pdf", ".gaz", ".msg", ".gaz.gz", ".asc"]:
             utils.remove_files(os.path.dirname(self.h5_file), ext, ext=True)
+
+    def get_base_name(self, subID=None, sesID=None, taskID=None):
+
+        base_name = ""
+
+        # set base name based on presence of bids tags
+        for key, val in zip(["sub", "ses", "task"], [subID, sesID, taskID]):
+            if isinstance(key, (str, float, int)):
+                if key == "sub":
+                    base_name = f"{key}-{val}"
+                else:
+                    base_name += f"_{key}-{val}"
+
+        return base_name
+
+    def get_tr(self, run=None):
+        if self.TR is not None:
+            use_TR = check_input_is_list(
+                self,
+                "TR",
+                list_element=run,
+                matcher="edf_file")
+        else:
+            use_TR = None
+
+        return use_TR
+
+    def get_vols(self, i):
+        nr_vols = None
+        if isinstance(self.func_file, list):
+            nr_vols = self.vols(self.func_file[i])
+
+        return nr_vols
+
+    def get_bids_info(self, file, i):
+        self.run = i+1
+        self.ses = None
+        self.task = None
+        if self.use_bids:
+            bids_comps = utils.split_bids_components(file)
+            for el in ['sub', 'run', 'ses', 'task']:
+                if el in list(bids_comps.keys()):
+                    setattr(self, el, bids_comps[el])
+
+    def fetch_extracted_data(self, run, task, TR, nr_vols):
+        alias = f"run_{run}"
+        if isinstance(task, str):
+            alias = f"task_{task}_run_{run}"
+
+        fetch_data = True
+        try:
+            self.data = self.fetch_relevant_info(
+                TR=TR,
+                task=task,
+                nr_vols=nr_vols,
+                alias=alias)
+        except Exception:
+            fetch_data = False
+
+        # collect outputs if all went well
+        if fetch_data:
+            self.df_blinks.append(self.fetch_eyeblinks())
+            self.df_space_func.append(self.fetch_eye_func_time())
+            self.df_space_eye.append(self.fetch_eye_tracker_time())
+            self.df_saccades.append(self.fetch_saccades())
+
+    def concat_dataframes(self):
+        for ii, ll in zip(
+            ["df_blinks", "df_space_eye", "df_saccades"],
+                [self.blink_index, self.eye_index, self.sac_index]):
+            if len(getattr(self, ii)) > 0:
+                setattr(self, ii, pd.concat(getattr(self, ii)).set_index(ll))
+
+        if len(self.df_space_func) > 0:
+            # check if all elements are dataframes
+            if all(isinstance(x, pd.DataFrame) for x in self.df_space_func):
+                self.df_space_func = pd.concat(
+                    self.df_space_func).set_index(self.eye_index)
+
+    def preprocess_edf_files(self):
 
         # set them for internal reference
         for attr in self.eye_attributes:
@@ -272,76 +372,27 @@ frequency range of {self.high_pass_pupil_f}-{self.low_pass_pupil_f}Hz. """
         for i, edf_file in enumerate(self.edfs):
 
             utils.verbose(f"Preprocessing {edf_file}", self.verbose)
+            self.get_bids_info(edf_file, i)
 
-            self.run = i+1
-            self.ses = None
-            self.task = None
-            if self.use_bids:
-                bids_comps = utils.split_bids_components(edf_file)
-                for el in ['sub', 'run', 'ses', 'task']:
-                    if el in list(bids_comps.keys()):
-                        setattr(self, el, bids_comps[el])
+            # get basename
+            self.base_name = self.get_base_name()
 
-            # set base name based on presence of bids tags
-            self.base_name = f"sub-{self.sub}"
-            if isinstance(self.ses, (str,float,int)):
-                self.base_name += f"_ses-{self.ses}"
-
-            if isinstance(self.task, str):
-                self.base_name += f"_task-{self.task}" 
-                            
             # check if we got multiple TRs for different edf-files
-            if self.TR != None:
-                use_TR = check_input_is_list(
-                    self, 
-                    "TR", 
-                    list_element=self.run,
-                    matcher="edf_file")
-            else:
-                use_TR = None                  
+            use_TR = self.get_tr(run=self.run)
 
-            # full output from 'fetch_relevant_info' > use sub as differentiator if multiple files were given
-            nr_vols = None
-            if isinstance(self.func_file, list):
-                nr_vols = self.vols(self.func_file[i])
+            # check volumes
+            nr_vols = self.get_vols(i)
 
-            alias = f"run_{self.run}"
-            if isinstance(self.task, str):
-                alias = f"task_{self.task}_run_{self.run}"
-                    
-            fetch_data = True
-            try:
-                self.data = self.fetch_relevant_info(
-                    TR=use_TR, 
-                    task=self.task,
-                    nr_vols=nr_vols,
-                    alias=alias)
-            except:
-                fetch_data = False
-
-            # collect outputs if all went well
-            if fetch_data:
-                self.df_blinks.append(self.fetch_eyeblinks())
-                self.df_space_func.append(self.fetch_eye_func_time())
-                self.df_space_eye.append(self.fetch_eye_tracker_time())
-                self.df_saccades.append(self.fetch_saccades())
+            # fetch relevant data
+            self.fetch_extracted_data(self.run, self.task, use_TR, nr_vols)
 
         # concatenate available dataframes
-        for ii,ll in zip(
-            ["df_blinks","df_space_eye","df_saccades"],
-            [self.blink_index,self.eye_index,self.sac_index]):
-            if len(getattr(self, ii)) > 0:
-                setattr(self, ii, pd.concat(getattr(self, ii)).set_index(ll))
-
-        if len(self.df_space_func) > 0:
-            # check if all elements are dataframes
-            if all(isinstance(x, pd.DataFrame) for x in self.df_space_func):
-                self.df_space_func = pd.concat(self.df_space_func).set_index(self.eye_index)
+        self.concat_dataframes()
 
     def fetch_blinks_run(self, run=1, return_type='df'):
         blink_df = utils.select_from_df(
-            self.df_blinks, 
-            expression=(f"run = {run}"), 
+            self.df_blinks,
+            expression=(f"run = {run}"),
             index=['subject', 'run', 'event_type'])
 
         if return_type == "df":
@@ -351,9 +402,9 @@ frequency range of {self.high_pass_pupil_f}-{self.low_pass_pupil_f}Hz. """
 
     def fetch_eyeblinks(self):
         return self.data['blink_events']
-    
+
     def fetch_saccades(self):
-        return self.data['saccades']        
+        return self.data['saccades']
 
     def fetch_eye_func_time(self):
         return self.data['space_func']
@@ -362,19 +413,18 @@ frequency range of {self.high_pass_pupil_f}-{self.low_pass_pupil_f}Hz. """
         return self.data['space_eye']
 
     def fetch_relevant_info(
-        self,
-        task=None,
-        nr_vols=None,
-        alias=None,
-        TR=None):
+            self,
+            task=None,
+            nr_vols=None,
+            alias=None,
+            TR=None):
 
         # load times per session:
         trial_times = self.ho.read_session_data(alias, 'trials')
-        trial_phase_times = self.ho.read_session_data(alias, 'trial_phases')
 
         # fetch duration of scan or read until end of edf file
         use_end_point = True
-        if TR != None and nr_vols != None:
+        if TR is not None and nr_vols is not None:
             func_time = nr_vols*TR
             use_end_point = False
 
@@ -384,12 +434,15 @@ frequency range of {self.high_pass_pupil_f}-{self.low_pass_pupil_f}Hz. """
 
         # add number of fMRI*samplerate as stop EL time or read until end of edf file
         if not use_end_point:
-            self.session_stop_EL_time = self.session_start_EL_time+(func_time*self.sample_rate)
+            self.session_stop_EL_time = self.session_start_EL_time + \
+                (func_time*self.sample_rate)
         else:
-            self.session_stop_EL_time = self.ho.block_properties(alias)["block_end_timestamp"].iloc[0]
+            self.session_stop_EL_time = self.ho.block_properties(
+                alias)["block_end_timestamp"].iloc[0]
 
         # define period
-        self.time_period = [self.session_start_EL_time,self.session_stop_EL_time]
+        self.time_period = [self.session_start_EL_time,
+                            self.session_stop_EL_time]
 
         eye = self.ho.eye_during_period(self.time_period, alias)
         utils.verbose(f" Eye:         {eye}", self.verbose)
@@ -401,81 +454,84 @@ frequency range of {self.high_pass_pupil_f}-{self.low_pass_pupil_f}Hz. """
         n_samples = int(self.time_period[1]-self.time_period[0])
         duration_sec = n_samples*(1/self.sample_rate)
 
-        utils.verbose(f" Duration:    {duration_sec}s [{n_samples} samples]", self.verbose)
+        utils.verbose(
+            f" Duration:    {duration_sec}s [{n_samples} samples]", self.verbose)
 
         # Fetch a bunch of data
         extract = [
-            "pupil", 
+            "pupil",
             "pupil_int",
             "gaze_x_int",
             "gaze_y_int",
             "gaze_x",
-            "gaze_y"]           
-        
+            "gaze_y"]
+
         utils.verbose(f" Fetching:    {extract}", self.verbose)
 
         tf = []
         tf_rs = []
         df_space_func = None
-        for par_ix,extr in enumerate(extract):
+        for par_ix, extr in enumerate(extract):
             data = np.squeeze(
                 self.ho.signal_during_period(
-                    time_period=self.time_period, 
-                    alias=alias, 
-                    signal=extr, 
+                    time_period=self.time_period,
+                    alias=alias,
+                    signal=extr,
                     requested_eye=eye).values)
 
             if data.ndim < 2:
-                data = data[...,np.newaxis]
-                
+                data = data[..., np.newaxis]
+
             tmp = []
             tmp_rs = []
-            for ix,ii in enumerate(list(eye)):
-                
+            for ix, ii in enumerate(list(eye)):
+
                 if isinstance(nr_vols, int):
-                    rs = glm.resample_stim_vector(data[:,ix], nr_vols)
+                    rs = glm.resample_stim_vector(data[:, ix], nr_vols)
                     hp = preproc.highpass_dct(
-                        rs, 
+                        rs,
                         self.high_pass_pupil_f,
                         TR=TR)[0]
-                    
+
                     psc = np.squeeze(
                         utils.percent_change(
-                            rs, 
+                            rs,
                             0,
                             baseline=hp.shape[0]))
-                    
+
                     psc_hp = np.squeeze(
                         utils.percent_change(
-                            hp, 
+                            hp,
                             0,
-                            baseline=hp.shape[0]))                    
-                    
-                    tmp_rs_df =  pd.DataFrame({
+                            baseline=hp.shape[0]))
+
+                    tmp_rs_df = pd.DataFrame({
                         f"{extr}": rs,
                         f"{extr}_psc": psc,
                         f"{extr}_hp": hp,
                         f"{extr}_hp_psc": psc_hp})
-                    
+
                     if par_ix == len(extr)-1:
                         tmp_rs_df["eye"] = ii
-                        tmp_rs_df["t"] = list((1/self.sample_rate)*np.arange(rs.shape[0]))
+                        tmp_rs_df["t"] = list(
+                            (1/self.sample_rate)*np.arange(rs.shape[0]))
 
                     tmp_rs.append(tmp_rs_df)
-                
+
                 psc = np.squeeze(
                     utils.percent_change(
-                        data[:,ix], 
+                        data[:, ix],
                         0,
-                        baseline=data[:,ix].shape[0]))
-                
-                tmp_df =  pd.DataFrame({
-                    f"{extr}": data[:,ix],
+                        baseline=data[:, ix].shape[0]))
+
+                tmp_df = pd.DataFrame({
+                    f"{extr}": data[:, ix],
                     f"{extr}_psc": psc})
-                    
+
                 if par_ix == len(extr)-1:
                     tmp_df["eye"] = ii
-                    tmp_df["t"] = list((1/self.sample_rate)*np.arange(data.shape[0]))
+                    tmp_df["t"] = list((1/self.sample_rate)
+                                       * np.arange(data.shape[0]))
 
                 tmp.append(tmp_df)
 
@@ -485,9 +541,9 @@ frequency range of {self.high_pass_pupil_f}-{self.low_pass_pupil_f}Hz. """
             if len(tmp_rs) > 0:
                 tmp_df = pd.concat(tmp_rs)
                 tf_rs.append(tmp_df)
-                    
+
         df_space_eye = pd.concat(tf, axis=1)
-        
+
         # nothing to resample if nr_vols==None
         if len(tf_rs) > 0:
             df_space_func = pd.concat(tf_rs, axis=1)
@@ -495,12 +551,12 @@ frequency range of {self.high_pass_pupil_f}-{self.low_pass_pupil_f}Hz. """
         # add start time to it
         start_exp_time = trial_times.iloc[0, :][-1]
 
-        utils.verbose(f" Start time:  {round(start_exp_time, 2)}s", self.verbose)
+        utils.verbose(
+            f" Start time:  {round(start_exp_time, 2)}s", self.verbose)
         # get onset time of blinks, cluster blinks that occur within 350 ms
         bb = self.ho.blinks_during_period(self.time_period, alias=alias)
 
         onsets = bb["start_timestamp"].values
-        duration = bb["duration"].values/self.sample_rate
 
         # convert the onsets to seconds in experiment
         onsets = (onsets-self.time_period[0])*(1/self.sample_rate)
@@ -509,23 +565,27 @@ frequency range of {self.high_pass_pupil_f}-{self.low_pass_pupil_f}Hz. """
         # ref: https://www.sciencedirect.com/science/article/abs/pii/S0014483599906607
         blink_rate = len(onsets)/duration_sec
 
-        utils.verbose(f" Nr blinks:   {len(onsets)} [{round(blink_rate, 2)} blinks per second]", self.verbose)
+        utils.verbose(
+            f" Nr blinks:   {len(onsets)} [{round(blink_rate, 2)} blinks per second]", self.verbose)
 
         # extract saccades
-        df_saccades = self.ho.detect_saccades_during_period(time_period=self.time_period, alias=alias)
-        
+        df_saccades = self.ho.detect_saccades_during_period(
+            time_period=self.time_period, alias=alias)
+
         if len(df_saccades) > 0:
-            utils.verbose(f" Nr saccades: {len(df_saccades)} saccades", self.verbose)
+            utils.verbose(
+                f" Nr saccades: {len(df_saccades)} saccades", self.verbose)
 
             # convert saccade onset to seconds relative to start of run
-            df_saccades["onset"] = df_saccades["expanded_start_time"]/self.sample_rate
+            df_saccades["onset"] = df_saccades["expanded_start_time"] / \
+                self.sample_rate
 
             # add some stuff for indexing
-            for tt,mm in zip(["subject","run","event_type"],[self.sub,self.run,"saccade"]):
+            for tt, mm in zip(["subject", "run", "event_type"], [self.sub, self.run, "saccade"]):
                 df_saccades[tt] = mm
 
             # set task index
-            df_saccades = self.set_task_index(df_saccades, task=task)                
+            df_saccades = self.set_task_index(df_saccades, task=task)
 
         # build dataframe with relevant information
         self.tmp_df = df_space_eye.copy()
@@ -533,23 +593,23 @@ frequency range of {self.high_pass_pupil_f}-{self.low_pass_pupil_f}Hz. """
 
         # index
         df_space_eye['subject'], df_space_eye['run'] = self.sub, self.run
-        
+
         # set task index
         df_space_eye = self.set_task_index(df_space_eye, task=task)
 
         # index
         if isinstance(df_space_func, pd.DataFrame):
             df_space_func['subject'], df_space_func['run'] = self.sub, self.run
-            
+
             # set task index
             df_space_func = self.set_task_index(df_space_func, task=task)
 
         # index
         df_blink_events = pd.DataFrame(onsets, columns=['onset'])
 
-        for tt,mm in zip(['subject','run','event_type'],[self.sub,self.run,"blink"]):
+        for tt, mm in zip(['subject', 'run', 'event_type'], [self.sub, self.run, "blink"]):
             df_blink_events[tt] = mm
-        
+
         # set task index
         df_blink_events = self.set_task_index(df_blink_events, task=task)
 
@@ -574,18 +634,19 @@ frequency range of {self.high_pass_pupil_f}-{self.low_pass_pupil_f}Hz. """
         return df
 
     def plot_trace_and_heatmap(
-        self, 
-        df, 
-        fname=None, 
-        screen_size=(1920,1080),
-        scale="screen"):
+            self,
+            df,
+            fname=None,
+            screen_size=(1920, 1080),
+            scale="screen"):
 
         if not isinstance(df, pd.DataFrame):
             raise TypeError(f"Input must be a pd.Dataframe, not {type(df)}")
-        
+
         use_eyes = list(np.unique(df.reset_index()['eye']))
 
-        fig = plt.figure(figsize=(24,len(use_eyes)*6), constrained_layout=True)
+        fig = plt.figure(figsize=(24, len(use_eyes)*6),
+                         constrained_layout=True)
         if len(use_eyes) > 1:
             y = 1.075
             hspace = 0.12
@@ -602,40 +663,44 @@ frequency range of {self.high_pass_pupil_f}-{self.low_pass_pupil_f}Hz. """
                 sf_a = sf[ii]
             else:
                 sf_a = sf
-            
+
             axs = sf_a.subplots(ncols=2, gridspec_kw={
-                "width_ratios": [0.35,0.65],
+                "width_ratios": [0.35, 0.65],
                 "hspace": hspace})
 
             eye_df = utils.select_from_df(df, expression=f"eye = {eye}")
-            input_l = [eye_df[f"gaze_{i}_int"].values for i in ["x","y"]]
+            input_l = [eye_df[f"gaze_{i}_int"].values for i in ["x", "y"]]
 
-            x_cor_fixcross = screen_size[0]/2 # x-coordinate of the fixation cross
-            y_cor_fixcross = screen_size[1]/2 # y-coordinate of the fixation cross
-            x_coor_relfix = (input_l[0] - x_cor_fixcross) 
+            # x-coordinate of the fixation cross
+            x_cor_fixcross = screen_size[0]/2
+            # y-coordinate of the fixation cross
+            y_cor_fixcross = screen_size[1]/2
+            x_coor_relfix = (input_l[0] - x_cor_fixcross)
             y_coor_relfix = (input_l[1] - y_cor_fixcross)
 
             if isinstance(scale, str):
                 if scale == "auto":
-                    ext = [x_coor_relfix.min(), x_coor_relfix.max(), y_coor_relfix.min(), y_coor_relfix.max()]
+                    ext = [x_coor_relfix.min(), x_coor_relfix.max(),
+                           y_coor_relfix.min(), y_coor_relfix.max()]
                 elif scale == "screen":
-                    xlim = (-screen_size[0]//2,screen_size[0]//2)
-                    ylim = (-screen_size[1]//2,screen_size[1]//2)
+                    xlim = (-screen_size[0]//2, screen_size[0]//2)
+                    ylim = (-screen_size[1]//2, screen_size[1]//2)
                     ext = [xlim[0], xlim[1], ylim[0], ylim[1]]
                 else:
-                    raise ValueError(f"Unknown scale '{scale}' specified. Must be 'auto' or 'screen', or specify a tuple")
-                
+                    raise ValueError(
+                        f"Unknown scale '{scale}' specified. Must be 'auto' or 'screen', or specify a tuple")
+
             axs[0].hexbin(
                 x_coor_relfix,
-                y_coor_relfix, 
-                gridsize=100, 
+                y_coor_relfix,
+                gridsize=100,
                 cmap="magma",
                 extent=ext)
-            
-            axs[0].axhline(y=0, color='white', linestyle= '-', linewidth=0.5)
-            axs[0].axvline(x=0, color='white', linestyle= '-', linewidth=0.5)
+
+            axs[0].axhline(y=0, color='white', linestyle='-', linewidth=0.5)
+            axs[0].axvline(x=0, color='white', linestyle='-', linewidth=0.5)
             plotting.conform_ax_to_obj(
-                ax=axs[0], 
+                ax=axs[0],
                 y_label="y position",
                 x_label="x position")
 
@@ -645,21 +710,22 @@ frequency range of {self.high_pass_pupil_f}-{self.low_pass_pupil_f}Hz. """
                 input_l,
                 line_width=2,
                 axs=axs[1],
-                color=["#1B9E77","#D95F02"],
-                labels=[f"gaze {i} (M={round(avg[ix],2)}; SD={round(std[ix],2)}px)" for ix,i in enumerate(["x","y"])],
+                color=["#1B9E77", "#D95F02"],
+                labels=[f"gaze {i} (M={round(avg[ix],2)}; SD={round(std[ix],2)}px)" for ix, i in enumerate(
+                    ["x", "y"])],
                 x_label="samples",
                 y_label="position (pixels)",
                 add_hline={"pos": avg},
             )
-                
+
             y_pos = 1.05
-            sf_a.suptitle(f"eye-{eye}", fontsize=24, y=y_pos, fontweight="bold")
+            sf_a.suptitle(f"eye-{eye}", fontsize=24,
+                          y=y_pos, fontweight="bold")
 
             # plt.tight_layout()
 
         if isinstance(fname, str):
             fig.savefig(f"{fname}-eye_qa.svg", bbox_inches='tight', dpi=300)
-
 
     def vols(self, func_file):
         if func_file.endswith("gz") or func_file.endswith('nii'):
@@ -672,15 +738,23 @@ frequency range of {self.high_pass_pupil_f}-{self.low_pass_pupil_f}Hz. """
             raw = raw[tag]
             nr_vols = raw.shape[-1]
         else:
-            raise ValueError(f"Could not derive number of volumes for file '{func_file}'")
+            raise ValueError(
+                f"Could not derive number of volumes for file '{func_file}'")
 
         return nr_vols
 
-class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
+
+class ParseExpToolsFile(ParseEyetrackerFile, SetAttributes):
 
     """ParseExpToolsFile()
 
-    Class for parsing tsv-files created during experiments with Exptools2. The class will read in the file, read when the experiment actually started, correct onset times for this start time and time deleted because of removing the first few volumes (to do this correctly, set the `TR` and `deleted_first_timepoints`). You can also provide a numpy array/file containing eye blinks that should be added to the onset times in real-world time (seconds). In principle, it will return a pandas DataFrame indexed by subject and run that can be easily concatenated over runs. This function relies on the naming used when programming the experiment. In the `session.py` file, you should have created `phase_names=['iti', 'stim']`; the class will use these things to parse the file.
+    Class for parsing tsv-files created during experiments with Exptools2. The class will read in the file, read when the
+    experiment actually started, correct onset times for this start time and time deleted because of removing the first few
+    volumes (to do this correctly, set the `TR` and `deleted_first_timepoints`). You can also provide a numpy array/file
+    containing eye blinks that should be added to the onset times in real-world time (seconds). In principle, it will return a
+    pandas DataFrame indexed by subject and run that can be easily concatenated over runs. This function relies on the naming
+    used when programming the experiment. In the `session.py` file, you should have created `phase_names=['iti', 'stim']`; the
+    class will use these things to parse the file.
 
     Parameters
     ----------
@@ -695,41 +769,63 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
     TR: float
         repetition time to correct onset times for deleted volumes
     deleted_first_timepoints: int
-        number of volumes to delete to correct onset times for deleted volumes. Can be specified for each individual run if `tsv_file` is a list
+        number of volumes to delete to correct onset times for deleted volumes. Can be specified for each individual run if
+        `tsv_file` is a list
     use_bids: bool, optional
-        If true, we'll read BIDS-components such as 'sub', 'run', 'task', etc from the input file and use those as indexers, rather than sequential 1,2,3.
+        If true, we'll read BIDS-components such as 'sub', 'run', 'task', etc from the input file and use those as indexers,
+        rather than sequential 1,2,3.
     funcs: str, list, optional
-        List of functional files that is being passed down down to :class:`linescanning.dataset.ParseEyetrackerFile`. Required for correct resampling to functional space
+        List of functional files that is being passed down down to :class:`linescanning.dataset.ParseEyetrackerFile`. Required
+        for correct resampling to functional space
     edfs: str, list, optional
         List of eyetracking output files that is being passed down down to :class:`linescanning.dataset.ParseEyetrackerFile`.
     verbose: bool, optional
         Print details to the terminal, default is False
     phase_onset: int, optional
-        Which phase of exptools-trial should be considered the actual stimulus trial. Usually, `phase_onset=0` means the interstimulus interval. Therefore, default = 1
+        Which phase of exptools-trial should be considered the actual stimulus trial. Usually, `phase_onset=0` means the
+        interstimulus interval. Therefore, default = 1
     stim_duration: str, int, optional
-        If desired, add stimulus duration to onset dataframe. Can be one of 'None', 'stim' (to use duration from exptools'  log file) or any given integer
+        If desired, add stimulus duration to onset dataframe. Can be one of 'None', 'stim' (to use duration from exptools' log
+        file) or any given integer
     add_events: str, list, optional
-        Add additional events to onset dataframe. Must be an existing column in the exptools log file. For intance, `responses` and `event_type = stim` are read in by default, but if we have a separate column containing the onset of some target (e.g., 'target_onset'), we can add these times to the dataframe with `add_events='target_onset'`.
+        Add additional events to onset dataframe. Must be an existing column in the exptools log file. For intance,
+        `responses` and `event_type = stim` are read in by default, but if we have a separate column containing the onset of
+        some target (e.g., 'target_onset'), we can add these times to the dataframe with `add_events='target_onset'`.
     event_names: str, list, optional
-        Custom names for manually added events through `add_events` if the column names are not the names you want to use in the dataframe. E.g., if I find `target_onset` too long of a name, I can specify `event_names='target'`. If `add_events` is a list, then `event_names` must be a list of equal length if custom names are desired. By default we'll take the names from `add_events`
+        Custom names for manually added events through `add_events` if the column names are not the names you want to use in
+        the dataframe. E.g., if I find `target_onset` too long of a name, I can specify `event_names='target'`. If
+        `add_events` is a list, then `event_names` must be a list of equal length if custom names are desired. By default
+        we'll take the names from `add_events`
     RTs: bool, optional
         If we have a design that required some response to a stimulus, we can request the reaction times. Default = False
     RT_relative_to: str, optional
-        If `RTs=True`, we need to know relative to what time the button response should be offset. Only correct responses are considered, as there's a conditional statement that requires the present of the reference time (e.g., `target_onset`) and button response. If there's a response but no reference time, the reaction time cannot be calculated. If you do not have a separate reference time column, you can specify `RT_relative_to='start'` to calculate the reaction time relative to onset time. If `RT_relative_to != 'start'`, I'll assume you had a target in your experiment in X/n_trials. From this, we can calculate the accuracy and save that to `self.df_accuracy`, while reaction times are saved in`self.df_rts`
+        If `RTs=True`, we need to know relative to what time the button response should be offset. Only correct responses are
+        considered, as there's a conditional statement that requires the present of the reference time (e.g., `target_onset`)
+        and button response. If there's a response but no reference time, the reaction time cannot be calculated. If you do
+        not have a separate reference time column, you can specify `RT_relative_to='start'` to calculate the reaction time
+        relative to onset time. If `RT_relative_to != 'start'`, I'll assume you had a target in your experiment in X/n_trials.
+        From this, we can calculate the accuracy and save that to `self.df_accuracy`, while reaction times are saved in
+        `self.df_rts`
     button_duration: float, int, optional
         Set duration for button event
     response_window: float, int, optional
         Set window in which a response is counted
     merge: bool, optional
-        Merge the dataframes containing responses and stimulus onsets. Default = True. Onset times will be sorted in an ascending order. Select parts of dataframes with :func:`linescanning.utils.select_from_df()`
+        Merge the dataframes containing responses and stimulus onsets. Default = True. Onset times will be sorted in an
+        ascending order. Select parts of dataframes with :func:`linescanning.utils.select_from_df()`
     resp_as_cov: bool, optional
-        If you have a design where you have button presses in half of the trials, you can add a covariate consisting of -1/1 for the stimulus onsets where there was a response or not. This way, the response event will not steal variance from the stimulus event when fitting using :class:`linescanning.fitting.NideconvFitter()`. Default = False
+        If you have a design where you have button presses in half of the trials, you can add a covariate consisting of -1/1
+        for the stimulus onsets where there was a response or not. This way, the response event will not steal variance from
+        the stimulus event when fitting using :class:`linescanning.fitting.NideconvFitter()`. Default = False
     ev_onset: str, optional
-        Sometimes experiments are coded such that the event name of interest is not called `stim`. Use this variable + `phase_onset` to extract the correct onset times
+        Sometimes experiments are coded such that the event name of interest is not called `stim`. Use this variable +
+        `phase_onset` to extract the correct onset times
     key_press: list, optional
         Specify a custom list of button presses to extract. Default = `['b']`
     expr: str, tuple, optional
-        Add additional conditions for your extracted onset times. This follows the formulation of :func:`linescanning.utils.select_from_df()`. E.g., `expr="movie_type != blank`. Acts as an extra filter to extract the relevant onsets
+        Add additional conditions for your extracted onset times. This follows the formulation of
+        :func:`linescanning.utils.select_from_df()`. E.g., `expr="movie_type != blank`. Acts as an extra filter to extract the
+        relevant onsets
     filter_na: bool, optional
         Try to filter out NaN-events from the onset dataframe
 
@@ -742,89 +838,98 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
     """
 
     def __init__(
-        self, 
-        tsv_file, 
-        subject=1, 
-        run=1, 
-        button=False, 
-        RTs=False,
-        RT_relative_to=None,
-        TR=0.105, 
-        deleted_first_timepoints=0, 
-        edfs=None, 
-        funcs=None, 
-        use_bids=True,
-        verbose=False,
-        phase_onset=1,
-        stim_duration=None,
-        add_events=None,
-        add_cols=None,
-        event_names=None,
-        invoked_from_func=False,
-        button_duration=1,
-        response_window=3,
-        merge=True,
-        resp_as_cov=False,
-        cov_amplitude=1,
-        ev_onset="stim",
-        duration_col="duration",
-        key_press=["b"],
-        expr=None,
-        filter_na=False,
-        **kwargs):
+            self,
+            tsv_file,
+            subject=1,
+            run=1,
+            button=False,
+            RTs=False,
+            RT_relative_to=None,
+            TR=0.105,
+            deleted_first_timepoints=0,
+            edfs=None,
+            funcs=None,
+            use_bids=True,
+            verbose=False,
+            phase_onset=1,
+            stim_duration=None,
+            add_events=None,
+            add_cols=None,
+            event_names=None,
+            invoked_from_func=False,
+            button_duration=1,
+            response_window=3,
+            merge=True,
+            resp_as_cov=False,
+            cov_amplitude=1,
+            ev_onset="stim",
+            duration_col="duration",
+            key_press=["b"],
+            expr=None,
+            filter_na=False,
+            **kwargs):
 
-        self.tsv_file                       = tsv_file
-        self.sub                            = subject
-        self.run                            = run
-        self.TR                             = TR
-        self.deleted_first_timepoints       = deleted_first_timepoints
-        self.button                         = button
-        self.funcs                          = funcs
-        self.edfs                           = edfs
-        self.use_bids                       = use_bids
-        self.verbose                        = verbose
-        self.phase_onset                    = phase_onset
-        self.stim_duration                  = stim_duration
-        self.RTs                            = RTs
-        self.RT_relative_to                 = RT_relative_to
-        self.add_events                     = add_events
-        self.event_names                    = event_names
-        self.invoked_from_func              = invoked_from_func
-        self.button_duration                = button_duration
-        self.response_window                = response_window
-        self.merge                          = merge
-        self.resp_as_cov                    = resp_as_cov
-        self.key_press                      = key_press
-        self.ev_onset                       = ev_onset
-        self.expr                           = expr
-        self.duration_col                   = duration_col
-        self.add_cols                       = add_cols
-        self.cov_amplitude                  = cov_amplitude
-        self.filter_na                      = filter_na
-        
+        self.tsv_file = tsv_file
+        self.sub = subject
+        self.run = run
+        self.TR = TR
+        self.deleted_first_timepoints = deleted_first_timepoints
+        self.button = button
+        self.funcs = funcs
+        self.edfs = edfs
+        self.use_bids = use_bids
+        self.verbose = verbose
+        self.phase_onset = phase_onset
+        self.stim_duration = stim_duration
+        self.RTs = RTs
+        self.RT_relative_to = RT_relative_to
+        self.add_events = add_events
+        self.event_names = event_names
+        self.invoked_from_func = invoked_from_func
+        self.button_duration = button_duration
+        self.response_window = response_window
+        self.merge = merge
+        self.resp_as_cov = resp_as_cov
+        self.key_press = key_press
+        self.ev_onset = ev_onset
+        self.expr = expr
+        self.duration_col = duration_col
+        self.add_cols = add_cols
+        self.cov_amplitude = cov_amplitude
+        self.filter_na = filter_na
+
         # filter kwargs
         tmp_kwargs = filter_kwargs(
             [
                 "ref_slice",
                 "filter_strat",
-            ], 
+            ],
             kwargs)
         self.__dict__.update(tmp_kwargs)
 
         # set attributes
         SetAttributes.__init__(self)
 
-        if self.edfs != None or hasattr(self, "h5_file"):
+        # process edf
+        self.process_edf_file(**tmp_kwargs)
+
+        # deal with exptools files
+        self.process_exptools_files()
+
+    def process_edf_file(self, **kwargs):
+        if self.edfs is not None or hasattr(self, "h5_file"):
             ParseEyetrackerFile.__init__(
                 self,
-                self.edfs, 
-                subject=self.sub, 
-                func_file=self.funcs, 
-                TR=self.TR, 
-                use_bids=self.use_bids, 
+                self.edfs,
+                subject=self.sub,
+                func_file=self.funcs,
+                TR=self.TR,
+                use_bids=self.use_bids,
                 verbose=self.verbose,
                 invoked_from_func=self.invoked_from_func,
-                **tmp_kwargs)
+                **kwargs)
+
+    def process_exptools_files(self):
 
         utils.verbose("\nEXPTOOLS", self.verbose)
 
@@ -832,7 +937,7 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
             self.tsv_file = [self.tsv_file]
 
         if isinstance(self.tsv_file, list):
-            
+
             self.onset_index = ['subject', 'run', 'event_type']
             self._index = ['subject', 'run']
             self.index_task = False
@@ -842,7 +947,7 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
                 # insert task id in indexer
                 if len(self.task_ids) > 1:
                     self.index_task = True
-                    for idx in ["onset_index","_index"]:
+                    for idx in ["onset_index", "_index"]:
                         getattr(self, idx).insert(1, "task")
 
             # set them for internal reference
@@ -862,18 +967,18 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
 
                 # check if we got different nr of vols to delete per run
                 delete_vols = check_input_is_list(
-                    self, 
-                    "deleted_first_timepoints", 
+                    self,
+                    "deleted_first_timepoints",
                     list_element=run,
                     matcher="tsv_file")
 
                 # check if we got different stimulus durations per run
                 duration = check_input_is_list(
-                    self, 
-                    var="stim_duration", 
+                    self,
+                    var="stim_duration",
                     list_element=run,
                     matcher="tsv_file"
-                    )
+                )
 
                 # read in the exptools-file
                 self.preprocess_exptools_file(
@@ -882,7 +987,8 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
                     task=self.task,
                     delete_vols=delete_vols,
                     phase_onset=self.phase_onset,
-                    duration=duration)
+                    duration=duration
+                )
 
                 # append to df
                 self.df_onsets.append(self.get_onset_df(index=False))
@@ -890,48 +996,53 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
                 # check if we got RTs
                 try:
                     self.df_rts.append(self.get_rts_df(index=False))
-                except:
+                except Exception:
                     pass
 
                 # check if we got accuracy (only if RT_relative_to != 'start')
                 try:
                     self.df_accuracy.append(self.get_accuracy(index=False))
-                except:
+                except Exception:
                     pass
 
                 # check if we got responses (only if button == False)
                 try:
                     self.df_responses.append(self.get_responses(index=False))
-                except:
-                    pass                
+                except Exception:
+                    pass
 
             # concatemate df
-            self.df_onsets = pd.concat(self.df_onsets).set_index(self.onset_index)
-            
+            self.df_onsets = pd.concat(
+                self.df_onsets).set_index(self.onset_index)
+
             # filter for NaNs to be sure
             if self.filter_na:
-                self.df_onsets = utils.select_from_df(self.df_onsets, expression="event_type != nan")
+                self.df_onsets = utils.select_from_df(
+                    self.df_onsets, expression="event_type != nan")
 
             # rts
             try:
                 self.df_rts = pd.concat(self.df_rts).set_index(self._index)
-            except:
+            except Exception:
                 pass
 
             # accuracy
             try:
-                self.df_accuracy = pd.concat(self.df_accuracy).set_index(self._index)
-            except:
+                self.df_accuracy = pd.concat(
+                    self.df_accuracy).set_index(self._index)
+            except Exception:
                 pass
 
             # accuracy
             try:
-                self.df_responses = pd.concat(self.df_responses).set_index(self.onset_index)
-            except:
-                pass            
+                self.df_responses = pd.concat(
+                    self.df_responses).set_index(self.onset_index)
+            except Exception:
+                pass
 
         # get events per run
-        self.evs_per_run = utils.get_unique_ids(self.df_onsets, id="event_type")
+        self.evs_per_run = utils.get_unique_ids(
+            self.df_onsets, id="event_type")
 
         # check if we should merge responses with onsets
         if self.merge:
@@ -949,9 +1060,10 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
                 self.concat_list += [self.df_blinks.copy()]
 
             # concatenate and sort
-            if len(self.concat_list)>0:
-                self.merged = pd.concat(self.concat_list).sort_values(["subject","run","onset"])
-                
+            if len(self.concat_list) > 0:
+                self.merged = pd.concat(self.concat_list).sort_values(
+                    ["subject", "run", "onset"])
+
                 # set merged to new df_onsets
                 self.df_onsets = self.merged.copy()
 
@@ -959,7 +1071,8 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
         n_runs = np.unique(self.df_onsets.reset_index()['run'].values)
         events = {}
         for run in n_runs:
-            df = utils.select_from_df(self.df_onsets, expression=f"run = {run}", index=None)
+            df = utils.select_from_df(
+                self.df_onsets, expression=f"run = {run}", index=None)
             events[run] = np.unique(df['event_type'].values)
 
         return events
@@ -968,13 +1081,13 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
         return self.events_per_run[run]
 
     def preprocess_exptools_file(
-        self, 
-        tsv_file, 
-        task=None,
-        run=1, 
-        delete_vols=0, 
-        phase_onset=1, 
-        duration=None):
+            self,
+            tsv_file,
+            task=None,
+            run=1,
+            delete_vols=0,
+            phase_onset=1,
+            duration=None):
 
         utils.verbose(f"Preprocessing {tsv_file}", self.verbose)
         with open(tsv_file) as f:
@@ -985,61 +1098,68 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
 
         self.ev_types = utils.get_unique_ids(self.data, id="event_type")
         if "pulse" in self.ev_types:
-            self.start_time = float(utils.select_from_df(self.data, expression="event_type = pulse").iloc[0].onset)
+            self.start_time = float(utils.select_from_df(
+                self.data, expression="event_type = pulse").iloc[0].onset)
         else:
             self.start_time = 0
 
         utils.verbose(f" 1st 't' @{round(self.start_time,2)}s", self.verbose)
 
         # select all events after start time with `ev_onset`
-        self.trimmed = utils.select_from_df(self.data, expression=(f"event_type = {self.ev_onset}","&",f"onset > {self.start_time}"))
+        self.trimmed = utils.select_from_df(self.data, expression=(
+            f"event_type = {self.ev_onset}", "&", f"onset > {self.start_time}"))
 
         # check for more conditions
-        if isinstance(self.expr, (tuple,str)):
+        if isinstance(self.expr, (tuple, str)):
             utils.verbose(f" Adding filters: {self.expr}", self.verbose)
-            self.trimmed = utils.select_from_df(self.trimmed, expression=self.expr)
-            
+            self.trimmed = utils.select_from_df(
+                self.trimmed, expression=self.expr)
+
         # get the correct phase
-        self.trimmed = utils.select_from_df(self.trimmed, expression=f"phase = {phase_onset}")
-        rm_cols = ["index","level_0"]
+        self.trimmed = utils.select_from_df(
+            self.trimmed, expression=f"phase = {phase_onset}")
+        rm_cols = ["index", "level_0"]
         for col in rm_cols:
             if col in list(self.trimmed.columns):
                 self.trimmed.drop([col], axis=1, inplace=True)
 
         # get onset times
-        self.onset_times = self.trimmed['onset'].values[...,np.newaxis]
+        self.onset_times = self.trimmed['onset'].values[..., np.newaxis]
         self.n_trials = np.unique(self.trimmed["onset"].values).shape[0]
 
         skip_duration = False
-        if isinstance(duration, (float,int)):
+        if isinstance(duration, (float, int)):
             self.durations = np.full_like(self.onset_times, float(duration))
-        elif duration == None:
+        elif duration is None:
             skip_duration = True
         else:
-            self.durations = self.trimmed[self.duration_col].values[...,np.newaxis]
+            self.durations = self.trimmed[self.duration_col].values[..., np.newaxis]
 
         try:
             self.condition = self.trimmed['condition'].values[..., np.newaxis]
-        except:
-            self.condition = np.full_like(self.onset_times, self.ev_onset, dtype=object)
+        except Exception:
+            self.condition = np.full_like(
+                self.onset_times, self.ev_onset, dtype=object)
             if self.condition.ndim < 2:
-                self.condition = self.condition[...,np.newaxis]
+                self.condition = self.condition[..., np.newaxis]
 
-        
         # get dataframe with responses
         if "response" in np.unique(self.data["event_type"]):
-            self.response_df = self.data.loc[(self.data['event_type'] == "response") & (self.data['response'] != 'space')]
+            self.response_df = self.data.loc[(self.data['event_type'] == "response") & (
+                self.data['response'] != 'space')]
 
-            if len(self.response_df)>0:
+            if len(self.response_df) > 0:
                 # filter out button responses before first trigger
-                self.response_df = utils.select_from_df(self.response_df, expression=f"onset > {self.start_time}")
+                self.response_df = utils.select_from_df(
+                    self.response_df, expression=f"onset > {self.start_time}")
 
                 self.nr_resp = self.response_df.shape[0]
-                utils.verbose(f" Extracting {self.key_press} button(s)", self.verbose)
+                utils.verbose(
+                    f" Extracting {self.key_press} button(s)", self.verbose)
 
                 # loop through them
                 self.button_df = []
-                
+
                 self.single_button = True
                 if len(self.key_press) > 1:
                     self.single_button = False
@@ -1047,7 +1167,7 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
                 for button in self.key_press:
 
                     # get the onset times
-                    self.response_times = self.response_df['onset'].values[...,np.newaxis]
+                    self.response_times = self.response_df['onset'].values[..., np.newaxis]
 
                     # store responses in separate dataframe
                     self.response_times -= (self.start_time + delete_time)
@@ -1063,9 +1183,9 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
                     tmp["event_type"] = ev_name
 
                     self.tmp_df = self.index_onset(
-                        tmp, 
+                        tmp,
                         task=task,
-                        subject=self.sub, 
+                        subject=self.sub,
                         run=run)
 
                     self.button_df.append(self.tmp_df)
@@ -1073,27 +1193,30 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
                 if len(self.button_df) > 0:
                     self.button_df = pd.concat(self.button_df)
             else:
-                utils.verbose(f" No button presses found", self.verbose)
+                utils.verbose(" No button presses found", self.verbose)
 
         # check if we should include other events
         if isinstance(self.add_events, str):
             self.add_events = [self.add_events]
 
         if isinstance(self.event_names, str):
-            self.event_names = [self.event_names]            
+            self.event_names = [self.event_names]
 
         if isinstance(self.add_events, list):
             if isinstance(self.event_names, list):
                 if len(self.event_names) != len(self.add_events):
-                    raise ValueError(f"Length ({len(self.add_events)}) of added events {self.add_events} does not equal the length ({len(self.event_names)}) of requested event names {self.event_names}")
+                    raise ValueError(
+                        f"""Length ({len(self.add_events)}) of added events {self.add_events} does not equal the length
+                        ({len(self.event_names)}) of requested event names {self.event_names}""")
             else:
                 self.event_names = self.add_events.copy()
 
-            for ix,ev in enumerate(self.add_events):
-                ev_times = np.array([ii for ii in np.unique(self.data[ev].values)])
+            for ix, ev in enumerate(self.add_events):
+                ev_times = np.array(
+                    [ii for ii in np.unique(self.data[ev].values)])
 
                 # filter for nan (https://stackoverflow.com/a/11620982)
-                ev_times = ev_times[~np.isnan(ev_times)][...,np.newaxis]
+                ev_times = ev_times[~np.isnan(ev_times)][..., np.newaxis]
 
                 # create condition
                 ev_names = np.full(ev_times.shape, self.event_names[ix])
@@ -1105,15 +1228,18 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
         # check if we should add duration (can't be used in combination with add_events)
         if not skip_duration:
             if isinstance(self.add_events, list):
-                raise TypeError(f"Cannot do this operation because I don't know the durations for the added events. Please consider using 'stim_duration!={self.stim_duration}' or 'add_events=None'")
-            self.onset = np.hstack((self.onset_times, self.condition, self.durations))
+                raise TypeError(
+                    f"""Cannot do this operation because I don't know the durations for the added events. Please consider using
+                    'stim_duration!={self.stim_duration}' or 'add_events=None'""")
+            self.onset = np.hstack(
+                (self.onset_times, self.condition, self.durations))
         else:
             self.onset = np.hstack((self.onset_times, self.condition))
 
-        if isinstance(self.add_cols, (str,list)):
+        if isinstance(self.add_cols, (str, list)):
             if isinstance(self.add_cols, str):
                 self.add_cols = [self.add_cols]
-            
+
             utils.verbose(f" Adding {self.add_cols} to onsets", self.verbose)
             add_cols = []
             for i in self.add_cols:
@@ -1121,15 +1247,17 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
             add_cols = np.hstack(add_cols)
             self.onset = np.hstack([self.onset, add_cols])
 
-        # sort array based on onset times (https://stackoverflow.com/a/2828121)        
-        self.onset = self.onset[self.onset[:,0].argsort()]
+        # sort array based on onset times (https://stackoverflow.com/a/2828121)
+        self.onset = self.onset[self.onset[:, 0].argsort()]
 
         # correct for start time of experiment and deleted time due to removal of inital volumes
         self.onset[:, 0] = self.onset[:, 0]-(self.start_time + delete_time)
 
-        utils.verbose(f" Cutting {round(self.start_time + delete_time,2)}s from onsets", self.verbose)
+        utils.verbose(
+            f" Cutting {round(self.start_time + delete_time,2)}s from onsets", self.verbose)
         if not skip_duration:
-            utils.verbose(f" Avg duration = {round(self.durations.mean(),2)}s", self.verbose)
+            utils.verbose(
+                f" Avg duration = {round(self.durations.mean(),2)}s", self.verbose)
 
         # make dataframe
         columns = ['onset', 'event_type']
@@ -1142,11 +1270,13 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
         # check if we should do reaction times
         if self.RTs:
             if not isinstance(self.RT_relative_to, str):
-                raise ValueError(f"Need a reference column to calculate reaction times (RTs), not '{self.RT_relative_to}'")
+                raise ValueError(
+                    f"Need a reference column to calculate reaction times (RTs), not '{self.RT_relative_to}'")
 
             # get response dataframe
-            self.response_df = self.data.loc[(self.data['event_type'] == "response") & (self.data['response'] != 'space')]
-            
+            self.response_df = self.data.loc[(self.data['event_type'] == "response") & (
+                self.data['response'] != 'space')]
+
             # get target dataframe
             self.target_df = self.data.loc[~pd.isnull(self.data.target_onset)]
 
@@ -1159,16 +1289,19 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
             self.rts = []
             self.unique_targets = np.unique(self.target_df["trial_nr"].values)
             self.n_targets = self.unique_targets.shape[0]
-            self.n_responses = len(np.unique(self.response_df["trial_nr"].values))
-            
+            self.n_responses = len(
+                np.unique(self.response_df["trial_nr"].values))
+
             for trial in self.unique_targets:
 
                 # get target onset
-                trial_targ = self.target_df.loc[(self.target_df["trial_nr"] == trial)]
+                trial_targ = self.target_df.loc[(
+                    self.target_df["trial_nr"] == trial)]
                 targ_onset = trial_targ["target_onset"].values[0]
 
                 # check if there's a response within window regardless of whether response occured in trial ID
-                resp = self.response_df.query(f"{targ_onset} < onset < {targ_onset+self.response_window}")
+                resp = self.response_df.query(
+                    f"{targ_onset} < onset < {targ_onset+self.response_window}")
 
                 if len(resp) > 0:
                     # found response
@@ -1178,7 +1311,7 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
                         rt = resp_time-targ_onset
                         self.rts.append(rt)
 
-                    self.n_hits+=1
+                    self.n_hits += 1
 
             if len(self.rts) >= 1:
                 self.rts = np.array(self.rts)
@@ -1192,13 +1325,14 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
                 self.n_miss = self.n_targets
 
             # track false alarms
-            self.unique_responses = np.unique(self.response_df["trial_nr"].values)
+            self.unique_responses = np.unique(
+                self.response_df["trial_nr"].values)
 
             # track false alarms
             if self.n_responses > self.n_targets:
                 self.n_fa = self.n_responses-self.n_targets
             else:
-                self.n_fa = 0    
+                self.n_fa = 0
 
             # track correct rejections
             if self.n_fa > 0:
@@ -1217,22 +1351,29 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
                 self.n_cr)
 
             if hasattr(self, 'sdt_'):
-                utils.verbose(f" Hits:\t{round(self.sdt_['hit'],2)}\t({self.n_hits}/{self.n_targets})", self.verbose)
-                utils.verbose(f" FA:\t{round(self.sdt_['fa'],2)}\t({self.n_fa}/{self.n_targets})", self.verbose)
-                utils.verbose(f" D':\t{round(self.sdt_['d'],2)}\t(0=guessing;1=good;2=awesome)", self.verbose)
-                utils.verbose(f" Average reaction time (RT) = {round(self.rts.mean(),2)}s (relative to '{self.RT_relative_to}').", self.verbose)
-            
+                utils.verbose(
+                    f" Hits:\t{round(self.sdt_['hit'],2)}\t({self.n_hits}/{self.n_targets})", self.verbose)
+                utils.verbose(
+                    f" FA:\t{round(self.sdt_['fa'],2)}\t({self.n_fa}/{self.n_targets})", self.verbose)
+                utils.verbose(
+                    f" D':\t{round(self.sdt_['d'],2)}\t(0=guessing;1=good;2=awesome)", self.verbose)
+                utils.verbose(
+                    f" Average reaction time (RT) = {round(self.rts.mean(),2)}s (relative to '{self.RT_relative_to}').",
+                    self.verbose)
+
             # parse into dataframe
-            self.accuracy_df = self.index_accuracy(self.sdt_, subject=self.sub, run=run)
+            self.accuracy_df = self.index_accuracy(
+                self.sdt_, subject=self.sub, run=run)
             self.rts_df = self.array_to_df(
-                self.rts, 
-                columns=["RTs"], 
-                subject=self.sub, 
+                self.rts,
+                columns=["RTs"],
+                subject=self.sub,
                 run=run,
                 key="RTs")
 
             # keep track of response during trial
-            self.response_during_trial = np.full((self.n_trials),-self.cov_amplitude)
+            self.response_during_trial = np.full(
+                (self.n_trials), -self.cov_amplitude)
             self.cov_times = []
             for stim in range(self.n_trials):
 
@@ -1245,11 +1386,13 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
                 # look if there's an actual response to stimulus
                 trial = self.trial_onset.trial_nr
                 if trial in self.unique_targets:
-                    trial_targ = self.target_df.loc[(self.target_df["trial_nr"] == trial)]
+                    trial_targ = self.target_df.loc[(
+                        self.target_df["trial_nr"] == trial)]
                     targ_onset = trial_targ[self.RT_relative_to].values[0]
 
                     # check if there's a response within window regardless of whether response occured in trial ID
-                    resp = self.response_df.query(f"{targ_onset} < onset < {targ_onset+self.response_window}")
+                    resp = self.response_df.query(
+                        f"{targ_onset} < onset < {targ_onset+self.response_window}")
 
                     # response during trial
                     if len(resp) > 0:
@@ -1259,14 +1402,16 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
 
                 self.cov_times.append(append_time)
 
-            # for stimuli without responses, we'll create a dummy onset time consisting of the response time of the closest button press DURING stimulus relative to the onset of stimulus
+            # for stimuli without responses, we'll create a dummy onset time consisting of the response time of the closest
+            # button press DURING stimulus relative to the onset of stimulus
             for stim in range(self.n_trials):
-                
+
                 # we have -1 for stimuli without response time
                 if self.response_during_trial[stim] < 0:
-                    
+
                     # find closest trial with button press
-                    closest_trial = utils.find_nearest(self.response_during_trial[stim:], self.cov_amplitude)[0]
+                    closest_trial = utils.find_nearest(
+                        self.response_during_trial[stim:], self.cov_amplitude)[0]
                     closest_trial += stim
 
                     # get reaction time of this stim
@@ -1277,7 +1422,8 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
                     # deal with button presses BEFORE stimulus onset
                     if rt == 0:
                         # invert array for last element
-                        closest_trial = utils.find_nearest(self.response_during_trial[::-1][-stim:], self.cov_amplitude)[0]
+                        closest_trial = utils.find_nearest(
+                            self.response_during_trial[::-1][-stim:], self.cov_amplitude)[0]
                         closest_trial = (stim-closest_trial)-1
 
                         # get reaction time of this stim
@@ -1287,8 +1433,6 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
 
                     if rt == 0:
                         raise ValueError("RT=0, something odd's going on here")
-
-                    # print(f" stim #{stim}\tClosest trial WITH response = {closest_trial}: {round(trial_onset,2)}\t| BPR relative to stim onset = {round(rt,2)}")
 
                     # shift mock response onset with this RT
                     # print(f"Adding {rt} to trial #{stim+1}")
@@ -1306,43 +1450,44 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
                 }
             )
 
-            for key,val in zip(
-                ["event_type","subject","run"],
-                ["response",self.sub,run]):
+            for key, val in zip(
+                ["event_type", "subject", "run"],
+                    ["response", self.sub, run]):
                 self.cov_df[key] = val
 
         # inset onsets
         self.onset_df = self.index_onset(
-            self.onset, 
+            self.onset,
             task=task,
-            columns=columns, 
-            subject=self.sub, 
+            columns=columns,
+            subject=self.sub,
             run=run)
 
         # add response covariate column  THIS IS A SHORTCUT FOR NOW!
         if self.resp_as_cov:
-            self.onset_df["cov"] = self.cov_amplitude #self.response_during_trial
+            # self.response_during_trial
+            self.onset_df["cov"] = self.cov_amplitude
 
     def index_onset(
-        self,
-        array, 
-        columns=None, 
-        subject=1, 
-        run=1, 
-        task=None,
-        set_index=False):
-        
-        if isinstance(array,dict):
+            self,
+            array,
+            columns=None,
+            subject=1,
+            run=1,
+            task=None,
+            set_index=False):
+
+        if isinstance(array, dict):
             df = pd.DataFrame(array, index=[0])
         elif isinstance(array, pd.DataFrame):
             df = array.copy()
         else:
             df = pd.DataFrame(array, columns=columns)
-            
-        df['subject']       = subject
-        df['run']           = run
-        df['event_type']    = df['event_type'].astype(str)
-        df['onset']         = df['onset'].astype(float)
+
+        df['subject'] = subject
+        df['run'] = run
+        df['event_type'] = df['event_type'].astype(str)
+        df['onset'] = df['onset'].astype(float)
 
         if self.index_task:
             if isinstance(task, str):
@@ -1352,29 +1497,29 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
 
         # check if we got duration
         try:
-            df['duration'] = df['duration'].astype(float)  
-        except:
+            df['duration'] = df['duration'].astype(float)
+        except Exception:
             pass
 
         if set_index:
             return df.set_index(self.onset_index)
         else:
-            return df        
+            return df
 
     @staticmethod
     def array_to_df(
-        array, 
-        columns=None, 
-        subject=1,
-        key="RTs", 
-        run=1, 
-        set_index=False):
-        
+            array,
+            columns=None,
+            subject=1,
+            key="RTs",
+            run=1,
+            set_index=False):
+
         if isinstance(array, dict):
             df = pd.DataFrame(array)
         else:
             df = pd.DataFrame(array, columns=columns)
-            
+
         df['subject'] = subject
         df['run'] = run
         df[key] = df[key].astype(float)
@@ -1382,23 +1527,23 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
         if set_index:
             return df.set_index(['subject', 'run'])
         else:
-            return df        
+            return df
 
     @staticmethod
     def index_accuracy(array, columns=None, subject=1, run=1, set_index=False):
-        
+
         if isinstance(array, dict):
             df = pd.DataFrame(array, index=[0])
         else:
             df = pd.DataFrame(array, columns=columns)
-            
-        df['subject']   = subject
-        df['run']       = run
+
+        df['subject'] = subject
+        df['run'] = run
 
         if set_index:
             return df.set_index(['subject', 'run'])
         else:
-            return df                   
+            return df
 
     def get_onset_df(self, index=False):
         """Return the indexed DataFrame containing onset times"""
@@ -1422,7 +1567,7 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
         if index:
             return self.accuracy_df.set_index(['subject', 'run'])
         else:
-            return self.accuracy_df             
+            return self.accuracy_df
 
     def get_responses(self, index=False):
         """Return the indexed DataFrame containing reaction times"""
@@ -1435,20 +1580,21 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
         if index:
             return ret_df.set_index(['subject', 'run'])
         else:
-            return ret_df  
+            return ret_df
 
     def onsets_to_fsl(
-        self, 
-        fmt='3-column', 
-        amplitude=1, 
-        duration=None,
-        output_dir=None,
-        output_base=None,
-        from_event=True):
-
+            self,
+            fmt='3-column',
+            amplitude=1,
+            duration=None,
+            output_dir=None,
+            output_base=None,
+            from_event=True):
         """onsets_to_fsl
 
-        This function creates a text file with a single column containing the onset times of a given condition. Such a file can be used for SPM or FSL modeling, but it should be noted that the onset times have been corrected for the deleted volumes at the beginning. So make sure your inputting the correct functional data in these cases.
+        This function creates a text file with a single column containing the onset times of a given condition. Such a file
+        can be used for SPM or FSL modeling, but it should be noted that the onset times have been corrected for the deleted
+        volumes at the beginning. So make sure your inputting the correct functional data in these cases.
 
         Parameters
         ----------
@@ -1463,12 +1609,15 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
         output_base: str
             basename for output file(s); should include full path. '<_task-{task}>_run-{run}_ev-{ev}.txt' will be appended
         from_event: bool
-            take the event name as specified in the onset dataframe. By default, this is true. In some cases where your events consists of float numbers, it's sometimes easier to number them consecutively. In that case, specify `from_event=False`
+            take the event name as specified in the onset dataframe. By default, this is true. In some cases where your events
+            consists of float numbers, it's sometimes easier to number them consecutively. In that case, specify
+            from_event=False`
 
         Returns
         ----------
         str
-            for each subject, task, and run, a text file for all events present in the onset dataframe (if only 1 task was present, this will be omitted)
+            for each subject, task, and run, a text file for all events present in the onset dataframe (if only 1 task was
+            present, this will be omitted)
         """
 
         onsets = self.df_onsets.copy()
@@ -1491,29 +1640,33 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
             # we got task in dataframe
             if separate_task:
                 for task in tasks:
-                    
+
                     # get task-specific onsets
-                    task_df = utils.select_from_df(df, expression=f"task = {task}")
+                    task_df = utils.select_from_df(
+                        df, expression=f"task = {task}")
 
                     # get runs within task
                     n_runs = self.get_runs(task_df)
                     for run in n_runs:
-                        onsets_per_run = utils.select_from_df(task_df, expression=f"run = {run}")
+                        onsets_per_run = utils.select_from_df(
+                            task_df, expression=f"run = {run}")
                         events_per_run = self.get_events(onsets_per_run)
 
                         for ix, ev in enumerate(events_per_run):
 
-                            onsets_per_event = utils.select_from_df(onsets_per_run, expression=f"event_type = {events_per_run[ix]}")
-                            
+                            onsets_per_event = utils.select_from_df(
+                                onsets_per_run, expression=f"event_type = {events_per_run[ix]}")
+
                             if from_event:
                                 ev_tag = f"ev-{ev}"
                             else:
                                 ev_tag = f"ev-{ix+1}"
 
-                            if output_base == None:
+                            if output_base is None:
                                 if not isinstance(output_dir, str):
                                     if isinstance(self.tsv_file, list):
-                                        outdir = os.path.dirname(self.tsv_file[0])
+                                        outdir = os.path.dirname(
+                                            self.tsv_file[0])
                                     elif isinstance(self.tsv_file, str):
                                         outdir = os.path.dirname(self.tsv_file)
                                     else:
@@ -1525,8 +1678,8 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
                                 if not os.path.exists(outdir):
                                     os.makedirs(outdir, exist_ok=True)
 
-
-                                fname = opj(outdir, f"task-{task}_run-{run}_{ev_tag}.txt")
+                                fname = opj(
+                                    outdir, f"task-{task}_run-{run}_{ev_tag}.txt")
                             else:
                                 fname = f"{output_base}_task-{task}_run-{run}_{ev_tag}.txt"
 
@@ -1538,35 +1691,43 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
                                 if 'duration' in list(onsets_per_event.columns):
                                     duration_arr = onsets_per_event['duration'].values[..., np.newaxis]
                                 else:
-                                    if not isinstance(duration, (int,float)):
-                                        duration_arr = np.full_like(onsets_per_event, duration)
+                                    if not isinstance(duration, (int, float)):
+                                        duration_arr = np.full_like(
+                                            onsets_per_event, duration)
                                     else:
-                                        duration_arr = np.ones_like(onsets_per_event)
+                                        duration_arr = np.ones_like(
+                                            onsets_per_event)
 
-                                amplitude_arr = np.full_like(event_onsets, amplitude)
-                                three_col = np.hstack((event_onsets, duration_arr, amplitude_arr))
+                                amplitude_arr = np.full_like(
+                                    event_onsets, amplitude)
+                                three_col = np.hstack(
+                                    (event_onsets, duration_arr, amplitude_arr))
 
                                 print(f"Writing {fname}; {three_col.shape}")
-                                np.savetxt(fname, three_col, delimiter='\t', fmt='%1.3f')
+                                np.savetxt(fname, three_col,
+                                           delimiter='\t', fmt='%1.3f')
                             else:
-                                np.savetxt(fname, event_onsets, delimiter='\t', fmt='%1.3f')
+                                np.savetxt(fname, event_onsets,
+                                           delimiter='\t', fmt='%1.3f')
 
             else:
                 n_runs = self.get_runs(df)
                 for run in n_runs:
-                    onsets_per_run = utils.select_from_df(df, expression=f"run = {run}")
+                    onsets_per_run = utils.select_from_df(
+                        df, expression=f"run = {run}")
                     events_per_run = self.get_events(onsets_per_run)
 
                     for ix, ev in enumerate(events_per_run):
 
-                        onsets_per_event = utils.select_from_df(onsets_per_run, expression=f"event_type = {events_per_run[ix]}")
+                        onsets_per_event = utils.select_from_df(
+                            onsets_per_run, expression=f"event_type = {events_per_run[ix]}")
 
                         if from_event:
                             ev_tag = f"ev-{ev}"
                         else:
                             ev_tag = f"ev-{ix+1}"
-                        
-                        if output_base == None:
+
+                        if output_base is None:
                             if not isinstance(output_dir, str):
                                 if isinstance(self.tsv_file, list):
                                     outdir = os.path.dirname(self.tsv_file[0])
@@ -1589,24 +1750,30 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
                             if 'duration' in list(onsets_per_event.columns):
                                 duration_arr = onsets_per_event['duration'].values[..., np.newaxis]
                             else:
-                                if not isinstance(duration, (int,float)):
-                                    duration_arr = np.full_like(onsets_per_event, duration)
+                                if not isinstance(duration, (int, float)):
+                                    duration_arr = np.full_like(
+                                        onsets_per_event, duration)
                                 else:
-                                    duration_arr = np.ones_like(onsets_per_event)
+                                    duration_arr = np.ones_like(
+                                        onsets_per_event)
 
-                            amplitude_arr = np.full_like(event_onsets, amplitude)
-                            three_col = np.hstack((event_onsets, duration_arr, amplitude_arr))
+                            amplitude_arr = np.full_like(
+                                event_onsets, amplitude)
+                            three_col = np.hstack(
+                                (event_onsets, duration_arr, amplitude_arr))
 
                             print(f"Writing {fname}; {three_col.shape}")
-                            np.savetxt(fname, three_col, delimiter='\t', fmt='%1.3f')
+                            np.savetxt(fname, three_col,
+                                       delimiter='\t', fmt='%1.3f')
                         else:
-                            np.savetxt(fname, event_onsets, delimiter='\t', fmt='%1.3f')
+                            np.savetxt(fname, event_onsets,
+                                       delimiter='\t', fmt='%1.3f')
 
     @staticmethod
     def get_subjects(df):
         try:
             df = df.reset_index()
-        except:
+        except Exception:
             pass
 
         return np.unique(df['subject'].values)
@@ -1615,7 +1782,7 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
     def get_runs(df):
         try:
             df = df.reset_index()
-        except:
+        except Exception:
             pass
 
         return np.unique(df['run'].values)
@@ -1624,16 +1791,20 @@ class ParseExpToolsFile(ParseEyetrackerFile,SetAttributes):
     def get_events(df):
         try:
             df = df.reset_index()
-        except:
+        except Exception:
             pass
 
         return np.unique(df['event_type'].values)
 
+
 class ParsePhysioFile():
 
     """ParsePhysioFile
-    
-    In similar style to :class:`linescanning.utils.ParseExpToolsFile` and :class:`linescanning.utils.ParseFuncFile`, we use this class to read in physiology-files created with the PhysIO-toolbox (https://www.tnu.ethz.ch/en/software/tapas/documentations/physio-toolbox) (via `call_spmphysio` for instance). Using the *.mat*-file created with `PhysIO`, we can also attempt to extract `heart rate variability` measures. If this file cannot be found, this operation will be skipped
+
+    In similar style to :class:`linescanning.utils.ParseExpToolsFile` and :class:`linescanning.utils.ParseFuncFile`, we use
+    this class to read in physiology-files created with the PhysIO-toolbox (https://www.tnu.ethz.ch/en/software/tapas/
+    documentations/physio-toolbox) (via `call_spmphysio` for instance). Using the *.mat*-file created with `PhysIO`, we can
+    also attempt to extract `heart rate variability` measures. If this file cannot be found, this operation will be skipped
 
     Parameters
     ----------
@@ -1648,7 +1819,8 @@ class ParsePhysioFile():
     TR: float
         repetition time to correct onset times for deleted volumes
     orders: list
-        list of orders used to create the regressor files (see `call_spmphysio`, but default = [2,2,2,]). This one is necessary to create the correct column names for the dataframe
+        list of orders used to create the regressor files (see `call_spmphysio`, but default = [2,2,2,]). This one is
+        necessary to create the correct column names for the dataframe
     deleted_first_timepoints: int, optional
         number of volumes deleted at the beginning of the timeseries
     deleted_last_timepoints: int, optional
@@ -1670,42 +1842,43 @@ class ParsePhysioFile():
     """
 
     def __init__(
-        self, 
-        physio_file, 
-        physio_mat=None, 
-        subject=1, 
-        run=1, 
-        TR=0.105, 
-        orders=[3,4,1], 
-        deleted_first_timepoints=0, 
-        deleted_last_timepoints=0, 
-        use_bids=False, 
-        verbose=True,
-        **kwargs):
+            self,
+            physio_file,
+            physio_mat=None,
+            subject=1,
+            run=1,
+            TR=0.105,
+            orders=[3, 4, 1],
+            deleted_first_timepoints=0,
+            deleted_last_timepoints=0,
+            use_bids=False,
+            verbose=True,
+            **kwargs):
 
-        self.physio_file                = physio_file
-        self.physio_mat                 = physio_mat
-        self.sub                        = subject
-        self.run                        = run
-        self.TR                         = TR
-        self.orders                     = orders
-        self.deleted_first_timepoints   = deleted_first_timepoints
-        self.deleted_last_timepoints    = deleted_last_timepoints
-        self.physio_mat                 = physio_mat
-        self.use_bids                   = use_bids
-        self.verbose                    = verbose
+        self.physio_file = physio_file
+        self.physio_mat = physio_mat
+        self.sub = subject
+        self.run = run
+        self.TR = TR
+        self.orders = orders
+        self.deleted_first_timepoints = deleted_first_timepoints
+        self.deleted_last_timepoints = deleted_last_timepoints
+        self.physio_mat = physio_mat
+        self.use_bids = use_bids
+        self.verbose = verbose
         self.__dict__.update(kwargs)
 
         utils.verbose("\nPHYSIO", self.verbose)
-        
-        self.physio_cols = [f'c_{i}' for i in range(self.orders[0])] + [f'r_{i}' for i in range(self.orders[1])] + [f'cr_{i}' for i in range(self.orders[2])]
+
+        self.physio_cols = [f'c_{i}' for i in range(self.orders[0])] + [f'r_{i}' for i in range(
+            self.orders[1])] + [f'cr_{i}' for i in range(self.orders[2])]
 
         if isinstance(self.physio_file, str):
             self.physio_file = [self.physio_file]
 
         if isinstance(self.physio_mat, str):
             self.physio_mat = [self.physio_mat]
-                
+
         if isinstance(self.physio_file, list):
 
             df_physio = []
@@ -1724,45 +1897,49 @@ class ParsePhysioFile():
 
                 # check if deleted_first_timepoints is list or not
                 delete_first = check_input_is_list(
-                    self, 
+                    self,
                     var="deleted_first_timepoints",
                     list_element=run,
                     matcher="func_file")
 
                 # check if deleted_last_timepoints is list or not
                 delete_last = check_input_is_list(
-                    self, 
-                    var="deleted_last_timepoints", 
+                    self,
+                    var="deleted_last_timepoints",
                     list_element=run,
                     matcher="func_file")
 
-                if self.physio_mat != None:
+                if self.physio_mat is not None:
                     if isinstance(self.physio_mat, list):
                         if len(self.physio_mat) == len(self.physio_file):
                             mat_file = self.physio_mat[run]
                         else:
-                            raise ValueError(f"Length of mat-files ({len(self.physio_mat)}) does not match length of physio-files ({len(self.physio_mat)})")
+                            raise ValueError(
+                                f"""Length of mat-files ({len(self.physio_mat)}) does not match length of physio-files
+                                ({len(self.physio_mat)})""")
                     else:
-                        raise ValueError("Please specify a list of mat-files of equal lengths to that of the list of physio files")
+                        raise ValueError(
+                            "Please specify a list of mat-files of equal lengths to that of the list of physio files")
                 else:
                     mat_file = None
 
                 self.preprocess_physio_file(
-                    func, 
+                    func,
                     physio_mat=mat_file,
                     deleted_first_timepoints=delete_first,
                     deleted_last_timepoints=delete_last)
 
                 df_physio.append(self.get_physio(index=False))
 
-            self.df_physio = pd.concat(df_physio).set_index(['subject', 'run', 't'])
-        
+            self.df_physio = pd.concat(df_physio).set_index(
+                ['subject', 'run', 't'])
+
     def preprocess_physio_file(
-        self, 
-        physio_tsv, 
-        physio_mat=None, 
-        deleted_first_timepoints=0, 
-        deleted_last_timepoints=0):
+            self,
+            physio_tsv,
+            physio_mat=None,
+            deleted_first_timepoints=0,
+            deleted_last_timepoints=0):
 
         self.physio_data = pd.read_csv(
             physio_tsv,
@@ -1773,32 +1950,36 @@ class ParsePhysioFile():
             usecols=list(range(0, len(self.physio_cols))))
 
         self.physio_df = pd.DataFrame(self.physio_data)
-        self.physio_df.drop(self.physio_df.tail(deleted_last_timepoints).index,inplace=True)
+        self.physio_df.drop(self.physio_df.tail(
+            deleted_last_timepoints).index, inplace=True)
         self.physio_df.columns = self.physio_cols
 
         # Try to get the heart rate
-        if physio_mat != None:
+        if physio_mat is not None:
 
             self.mat = io.loadmat(physio_mat)
             try:
                 self.hr = self.mat['physio']['ons_secs'][0][0][0][0][12]
-            except:
+            except Exception:
                 print(" WARNING: no heart rate trace found..")
-            
+
             try:
                 self.rvt = self.mat['physio']['ons_secs'][0][0][0][0][13]
-            except:
+            except Exception:
                 print(" WARNING: no respiration trace found..")
 
             # trim beginning and end
             for trace in ['hr', 'rvt']:
                 if hasattr(self, trace):
                     if deleted_last_timepoints != 0:
-                        self.physio_df[trace] = getattr(self, trace)[deleted_first_timepoints:-deleted_last_timepoints,:]
+                        self.physio_df[trace] = getattr(
+                            self, trace)[deleted_first_timepoints:-deleted_last_timepoints, :]
                     else:
-                        self.physio_df[trace] = getattr(self, trace)[deleted_first_timepoints:, :]
+                        self.physio_df[trace] = getattr(
+                            self, trace)[deleted_first_timepoints:, :]
 
-        self.physio_df['subject'], self.physio_df['run'], self.physio_df['t'] = self.sub, self.run, list(self.TR*np.arange(self.physio_df.shape[0]))
+        self.physio_df['subject'], self.physio_df['run'], self.physio_df['t'] = self.sub, self.run, list(
+            self.TR*np.arange(self.physio_df.shape[0]))
 
     def get_physio(self, index=True):
         if index:
@@ -1811,7 +1992,9 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
 
     """ParseFuncFile
 
-    Class for parsing func-files created with Luisa's reconstruction. It can do filtering, conversion to percent signal change, and create power spectra. It is supposed to look similar to :class:`linescanning.utils.ParseExpToolsFile` to make it easy to translate between the functional data and experimental data.
+    Class for parsing func-files created with Luisa's reconstruction. It can do filtering, conversion to percent signal
+    change, and create power spectra. It is supposed to look similar to :class:`linescanning.utils.ParseExpToolsFile` to make
+    it easy to translate between the functional data and experimental data.
 
     Parameters
     ----------
@@ -1824,9 +2007,11 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
     baseline: float, int, optional
         Duration of the baseline used to calculate the percent-signal change. This method is the default over `psc_nilearn`
     baseline_units: str, optional
-        Units of the baseline. Use `seconds`, `sec`, or `s` to imply that `baseline` is in seconds. We'll convert it to volumes internally. If `deleted_first_timepoints` is specified, `baseline` will be corrected for that as well.
+        Units of the baseline. Use `seconds`, `sec`, or `s` to imply that `baseline` is in seconds. We'll convert it to
+        volumes internally. If `deleted_first_timepoints` is specified, `baseline` will be corrected for that as well.
     psc_nilearn: bool, optional
-        Use nilearn method of calculating percent signal change. This method uses the mean of the entire timecourse, rather than the baseline period. Overwrites `baseline` and `baseline_units`. Default is False.
+        Use nilearn method of calculating percent signal change. This method uses the mean of the entire timecourse, rather
+        than the baseline period. Overwrites `baseline` and `baseline_units`. Default is False.
     standardize: str, optional
         method of standardization (e.g., "zscore" or "psc")
     low_pass: bool, optional
@@ -1836,29 +2021,39 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
     TR: float, optional
         repetition time to correct onset times for deleted volumes
     deleted_first_timepoints: int, list, optional
-        number of volumes deleted at the beginning of the timeseries. Can be specified for each individual run if `func_file` is a list
+        number of volumes deleted at the beginning of the timeseries. Can be specified for each individual run if `func_file`
+        is a list
     deleted_last_timepoints: int, list, optional
-        number of volumes deleted at the end of the timeseries. Can be specified for each individual run if `func_file` is a list
+        number of volumes deleted at the end of the timeseries. Can be specified for each individual run if `func_file` is a
+        list
     window_size: int, optional
         size of window for rolling median and Savitsky-Golay filter
     poly_order: int, optional
         The order of the polynomial used to fit the samples. polyorder must be less than window_length.
     use_bids: bool, optional
-        If true, we'll read BIDS-components such as 'sub', 'run', 'task', etc from the input file and use those as indexers, rather than sequential 1,2,3.
+        If true, we'll read BIDS-components such as 'sub', 'run', 'task', etc from the input file and use those as indexers,
+        rather than sequential 1,2,3.
     verbose: bool, optional
         Print details to the terminal, default is False
     retroicor: bool, optional
-        WIP: implementation of retroicor, requires the specification of `phys_file` and `phys_mat` containing the output from the PhysIO-toolbox
+        WIP: implementation of retroicor, requires the specification of `phys_file` and `phys_mat` containing the output from
+        the PhysIO-toolbox
      n_components: int, optional
         Number of components to use for WM/CSF PCA during ICA
     select_component: int, optional
-        If `verbose=True` and `ICA=True`, we'll create a scree-plot of the PCA components. With this flag, you can re-run this call but regress out only this particular component. [Deprecated: `filter_confs` is much more effective]
+        If `verbose=True` and `ICA=True`, we'll create a scree-plot of the PCA components. With this flag, you can re-run this
+        call but regress out only this particular component. [Deprecated: `filter_confs` is much more effective]
     filter_confs: float, optional
-        High-pass filter the components from the components during ICA. This seems to be pretty effective. Default is 0.2Hz.        
+        High-pass filter the components from the components during ICA. This seems to be pretty effective. Default is
+        0.2Hz.
     save_as: str, optional
         Directory + basename for several figures that can be created during the process
     transpose: bool, optional
-        The data needs to be in the format of <time,voxels>. We'll be trying to force the input data into this format, but sometimes this breaks. This flag serves as an opportunity to flip whatever the default is for a particular input file (e.g., `gii`, `npy`, or `np.ndarray`), so that your final dataframe has the format it needs to have. For gifti-input, we transpose by default. `transpose=True` turns this transposing *off*. For `npy`-inputs, we do **NOT** transpose (we assume the numpy arrays are already in <time,voxels> format). `transpose=True` will transpose this input.
+        The data needs to be in the format of <time,voxels>. We'll be trying to force the input data into this format, but
+        sometimes this breaks. This flag serves as an opportunity to flip whatever the default is for a particular input file
+        (e.g., `gii`, `npy`, or `np.ndarray`), so that your final dataframe has the format it needs to have. For gifti-input,
+        we transpose by default. `transpose=True` turns this transposing *off*. For `npy`-inputs, we do **NOT** transpose (we
+        assume the numpy arrays are already in <time,voxels> format). `transpose=True` will transpose this input.
 
     Example
     ----------
@@ -1870,109 +2065,108 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
     """
 
     def __init__(
-        self, 
-        func_file, 
-        subject=1, 
-        run=1,
-        filter_strategy="hp",
-        TR=0.105, 
-        lb=0.01,
-        deleted_first_timepoints=0, 
-        deleted_last_timepoints=0, 
-        window_size=11,
-        poly_order=3,
-        attribute_tag=None,
-        hdf_key="df",
-        tsv_file=None,
-        edf_file=None,
-        phys_file=None,
-        phys_mat=None,
-        use_bids=True,
-        button=False,
-        verbose=True,
-        retroicor=False,
-        ica=False,
-        n_components=5,
-        func_tag=None,
-        select_component=None,
-        standardization="psc",
-        filter_confs=0.2,
-        keep_comps=None,
-        ses1_2_ls=None,
-        run_2_run=None,
-        save_as=None,
-        gm_range=[355, 375],
-        tissue_thresholds=[0.7,0.7,0.7],
-        save_ext="svg",
-        transpose=False,
-        baseline=20,
-        baseline_units="seconds",
-        psc_nilearn=False,
-        foldover="FH",
-        **kwargs):
+            self,
+            func_file,
+            subject=1,
+            run=1,
+            filter_strategy="hp",
+            TR=0.105,
+            lb=0.01,
+            deleted_first_timepoints=0,
+            deleted_last_timepoints=0,
+            window_size=11,
+            poly_order=3,
+            attribute_tag=None,
+            hdf_key="df",
+            tsv_file=None,
+            edf_file=None,
+            phys_file=None,
+            phys_mat=None,
+            use_bids=True,
+            button=False,
+            verbose=True,
+            retroicor=False,
+            ica=False,
+            n_components=5,
+            func_tag=None,
+            select_component=None,
+            standardization="psc",
+            filter_confs=0.2,
+            keep_comps=None,
+            ses1_2_ls=None,
+            run_2_run=None,
+            save_as=None,
+            gm_range=[355, 375],
+            tissue_thresholds=[0.7, 0.7, 0.7],
+            save_ext="svg",
+            transpose=False,
+            baseline=20,
+            baseline_units="seconds",
+            psc_nilearn=False,
+            foldover="FH",
+            **kwargs):
 
-        self.sub                        = subject
-        self.run                        = run
-        self.TR                         = TR
-        self.lb                         = lb
-        self.deleted_first_timepoints   = deleted_first_timepoints
-        self.deleted_last_timepoints    = deleted_last_timepoints
-        self.window_size                = window_size
-        self.poly_order                 = poly_order
-        self.attribute_tag              = attribute_tag
-        self.hdf_key                    = hdf_key
-        self.button                     = button
-        self.func_file                  = func_file
-        self.tsv_file                   = tsv_file
-        self.edf_file                   = edf_file
-        self.phys_file                  = phys_file
-        self.phys_mat                   = phys_mat
-        self.use_bids                   = use_bids
-        self.verbose                    = verbose
-        self.retroicor                  = retroicor
-        self.foldover                   = foldover
-        self.func_tag                   = func_tag
-        self.n_components               = n_components
-        self.select_component           = select_component
-        self.filter_confs               = filter_confs
-        self.standardization            = standardization
-        self.ses1_2_ls                  = ses1_2_ls
-        self.run_2_run                  = run_2_run
-        self.save_as                    = save_as
-        self.gm_range                   = gm_range
-        self.tissue_thresholds          = tissue_thresholds
-        self.save_ext                   = save_ext
-        self.filter_strategy            = filter_strategy
-        self.transpose                  = transpose
-        self.baseline                   = baseline
-        self.baseline_units             = baseline_units
-        self.psc_nilearn                = psc_nilearn
-        self.ica                        = ica
-        self.keep_comps                 = keep_comps
+        self.sub = subject
+        self.run = run
+        self.TR = TR
+        self.lb = lb
+        self.deleted_first_timepoints = deleted_first_timepoints
+        self.deleted_last_timepoints = deleted_last_timepoints
+        self.window_size = window_size
+        self.poly_order = poly_order
+        self.attribute_tag = attribute_tag
+        self.hdf_key = hdf_key
+        self.button = button
+        self.func_file = func_file
+        self.tsv_file = tsv_file
+        self.edf_file = edf_file
+        self.phys_file = phys_file
+        self.phys_mat = phys_mat
+        self.use_bids = use_bids
+        self.verbose = verbose
+        self.retroicor = retroicor
+        self.foldover = foldover
+        self.func_tag = func_tag
+        self.n_components = n_components
+        self.select_component = select_component
+        self.filter_confs = filter_confs
+        self.standardization = standardization
+        self.ses1_2_ls = ses1_2_ls
+        self.run_2_run = run_2_run
+        self.save_as = save_as
+        self.gm_range = gm_range
+        self.tissue_thresholds = tissue_thresholds
+        self.save_ext = save_ext
+        self.filter_strategy = filter_strategy
+        self.transpose = transpose
+        self.baseline = baseline
+        self.baseline_units = baseline_units
+        self.psc_nilearn = psc_nilearn
+        self.ica = ica
+        self.keep_comps = keep_comps
         self.__dict__.update(kwargs)
 
         # sampling rate and nyquist freq
         self.fs = 1/self.TR
         self.fn = self.fs/2
 
-        if self.phys_file != None: 
-                                                        
+        if self.phys_file is not None:
+
             ParsePhysioFile.__init__(
-                self, 
-                self.phys_file, 
-                physio_mat=self.phys_mat, 
+                self,
+                self.phys_file,
+                physio_mat=self.phys_mat,
                 use_bids=self.use_bids,
                 TR=self.TR,
                 deleted_first_timepoints=self.deleted_first_timepoints,
                 deleted_last_timepoints=self.deleted_last_timepoints,
                 **kwargs)
-    
 
         utils.verbose("\nFUNCTIONAL", self.verbose)
-        
+
         if isinstance(self.func_file, (str, np.ndarray)):
             self.func_file = [self.func_file]
-        
+
         # store settings
         self.func_settings = {}
         self.incl_settings = [
@@ -2009,47 +2203,52 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
 
         for key in self.incl_settings:
             self.func_settings[key] = getattr(self, key)
-        
+
         # check if we should index task
         self.index_task = False
-        self.index_list = ["subject","run","t"]
+        self.index_list = ["subject", "run", "t"]
         if self.use_bids:
             self.task_ids = utils.get_ids(self.func_file, bids="task")
 
             if len(self.task_ids) > 1:
                 self.index_task = True
-                self.index_list = ["subject","task","run","t"]
-        
+                self.index_list = ["subject", "task", "run", "t"]
+
         # start boilerplate
         self.func_pre_desc = """
 Functional data preprocessing
 
-# For each of the {num_bold} BOLD run(s) found per subject (across all tasks and sessions), the following preprocessing was performed.
+# For each of the {num_bold} BOLD run(s) found per subject (across all tasks and sessions), the following preprocessing was
+performed.
 # """.format(num_bold=len(self.func_file))
 
         if isinstance(self.func_file, list):
 
             # initiate some dataframes
-            self.df_psc     = []    # psc-data (filtered or not)
-            self.df_raw     = []    # raw-data (filtered or not)
-            self.df_retro   = []    # z-score data (retroicor'ed, `if retroicor=True`)
-            self.df_r2      = []    # r2 for portions of retroicor-regressors (e.g., 'all', 'cardiac', etc)
-            self.df_zscore  = []    # zscore-d data
-            self.df_ica     = []    # ica'ed data    
-            self.ica_objs   = []    # keep track of all ICA objects
+            self.df_psc = []    # psc-data (filtered or not)
+            self.df_raw = []    # raw-data (filtered or not)
+            # z-score data (retroicor'ed, `if retroicor=True`)
+            self.df_retro = []
+            # r2 for portions of retroicor-regressors (e.g., 'all', 'cardiac', etc)
+            self.df_r2 = []
+            self.df_zscore = []    # zscore-d data
+            self.df_ica = []    # ica'ed data
+            self.ica_objs = []    # keep track of all ICA objects
 
             # reports
             for run_id, func in enumerate(self.func_file):
-                
+
                 if isinstance(func, str):
                     utils.verbose(f"Preprocessing {func}", self.verbose)
                 elif isinstance(func, np.ndarray):
-                    utils.verbose(f"Preprocessing array {run_id+1} in list", self.verbose)
-                    
+                    utils.verbose(
+                        f"Preprocessing array {run_id+1} in list", self.verbose)
+
                     # override use_bids. Can't be use with numpy arrays
                     self.use_bids = False
                 else:
-                    raise ValueError(f"Unknown input type '{type(func)}'. Must be string or numpy-array")
+                    raise ValueError(
+                        f"Unknown input type '{type(func)}'. Must be string or numpy-array")
 
                 self.run = run_id+1
                 self.ses = None
@@ -2063,52 +2262,54 @@ Functional data preprocessing
 
                 # set base name based on presence of bids tags
                 self.base_name = f"sub-{self.sub}"
-                if isinstance(self.ses, (str,float,int)):
+                if isinstance(self.ses, (str, float, int)):
                     self.base_name += f"_ses-{self.ses}"
 
                 if isinstance(self.task, str):
-                    self.base_name += f"_task-{self.task}" 
+                    self.base_name += f"_task-{self.task}"
 
                 # check if deleted_first_timepoints is list or not
                 delete_first = check_input_is_list(
-                    self, 
-                    var="deleted_first_timepoints", 
+                    self,
+                    var="deleted_first_timepoints",
                     list_element=run_id,
                     matcher="func_file")
 
                 # check if deleted_last_timepoints is list or not
                 delete_last = check_input_is_list(
-                    self, 
-                    var="deleted_last_timepoints", 
+                    self,
+                    var="deleted_last_timepoints",
                     list_element=run_id,
                     matcher="func_file")
 
                 # check if baseline is list or not
                 baseline = check_input_is_list(
-                    self, 
-                    var="baseline", 
+                    self,
+                    var="baseline",
                     list_element=run_id,
-                    matcher="func_file")           
+                    matcher="func_file")
 
-                utils.verbose(f" Filtering strategy: '{self.filter_strategy}'", self.verbose)
-                utils.verbose(f" Standardization strategy: '{self.standardization}'", self.verbose)
+                utils.verbose(
+                    f" Filtering strategy: '{self.filter_strategy}'", self.verbose)
+                utils.verbose(
+                    f" Standardization strategy: '{self.standardization}'", self.verbose)
 
                 self.preprocess_func_file(
-                    func, 
-                    run=self.run, 
+                    func,
+                    run=self.run,
                     task=self.task,
                     deleted_first_timepoints=delete_first,
                     deleted_last_timepoints=delete_last,
                     baseline=baseline,
                     **kwargs
                 )
-                
+
                 if self.standardization == "psc":
                     self.df_psc.append(
                         self.get_data(
-                            index=False, 
-                            filter_strategy=self.filter_strategy, 
-                            dtype='psc', 
+                            index=False,
+                            filter_strategy=self.filter_strategy,
+                            dtype='psc',
                             ica=self.ica
                         )
                     )
@@ -2116,8 +2317,8 @@ Functional data preprocessing
                 elif self.standardization == "zscore":
                     self.df_zscore.append(
                         self.get_data(
-                            index=False, 
-                            filter_strategy=self.filter_strategy, 
+                            index=False,
+                            filter_strategy=self.filter_strategy,
                             dtype='zscore',
                             ica=False
                         )
@@ -2125,8 +2326,8 @@ Functional data preprocessing
 
                 self.df_raw.append(
                     self.get_data(
-                        index=False, 
-                        filter_strategy=None, 
+                        index=False,
+                        filter_strategy=None,
                         dtype='raw'))
 
                 if self.retroicor:
@@ -2136,9 +2337,9 @@ Functional data preprocessing
                 if self.ica:
                     self.df_ica.append(
                         self.get_data(
-                            index=False, 
-                            filter_strategy=self.filter_strategy, 
-                            dtype=self.standardization, 
+                            index=False,
+                            filter_strategy=self.filter_strategy,
+                            dtype=self.standardization,
                             ica=True
                         )
                     )
@@ -2156,32 +2357,36 @@ Functional data preprocessing
 
             if self.retroicor:
                 try:
-                    self.df_func_retroicor = pd.concat(self.df_retro).set_index(self.index_list)
+                    self.df_func_retroicor = pd.concat(
+                        self.df_retro).set_index(self.index_list)
                     self.df_physio_r2 = pd.concat(self.df_r2)
-                except:
-                    raise ValueError("RETROICOR did not complete successfully..")
+                except Exception:
+                    raise ValueError(
+                        "RETROICOR did not complete successfully..")
 
-            if self.ica:           
-                
+            if self.ica:
+
                 # check if elements of list contain dataframes
                 if all(elem is None for elem in self.df_ica):
-                    utils.verbose("WARNING: ICA did not execute properly. All runs have 'None'", True)
+                    utils.verbose(
+                        "WARNING: ICA did not execute properly. All runs have 'None'", True)
                 else:
                     try:
-                        self.df_func_ica = pd.concat(self.df_ica).set_index(self.index_list)
-                    except:
-                        self.df_func_ica = pd.concat(self.df_ica)                    
+                        self.df_func_ica = pd.concat(
+                            self.df_ica).set_index(self.index_list)
+                    except Exception:
+                        self.df_func_ica = pd.concat(self.df_ica)
 
         # now that we have nicely formatted functional data, initialize the ParseExpToolsFile-class
-        if self.tsv_file != None: 
+        if self.tsv_file is not None:
             ParseExpToolsFile.__init__(
                 self,
-                self.tsv_file, 
-                subject=self.sub, 
-                deleted_first_timepoints=self.deleted_first_timepoints, 
-                TR=self.TR, 
-                edfs=self.edf_file, 
-                funcs=self.func_file, 
+                self.tsv_file,
+                subject=self.sub,
+                deleted_first_timepoints=self.deleted_first_timepoints,
+                TR=self.TR,
+                edfs=self.edf_file,
+                funcs=self.func_file,
                 use_bids=self.use_bids,
                 button=self.button,
                 verbose=self.verbose,
@@ -2189,21 +2394,18 @@ Functional data preprocessing
                 **kwargs
             )
 
-            if hasattr(self, "desc_eye"):
-                self.desc_func += self.desc_eye
-    
     def preprocess_func_file(
-        self, 
-        func_file, 
-        run=1, 
+        self,
+        func_file,
+        run=1,
         task=None,
-        deleted_first_timepoints=0, 
+        deleted_first_timepoints=0,
         deleted_last_timepoints=0,
         baseline=None,
         **kwargs
-        ):
+    ):
 
-        #----------------------------------------------------------------------------------------------------------------------------------------------------
+        # ----------------------------------------------------------------------------------------------------------------------------------------------------
         # BASIC DATA LOADING
 
         # Load in datasets with tag "wcsmtSNR"
@@ -2215,15 +2417,15 @@ Functional data preprocessing
                 self.ts_wcsmtSNR = io.loadmat(func_file)
 
                 # decide which key to read from the .mat file
-                if self.func_tag == None:
+                if self.func_tag is None:
                     self.tag = list(self.ts_wcsmtSNR.keys())[-1]
                 else:
                     self.tag = self.func_tag
 
                 # select data
-                self.ts_wcsmtSNR    = self.ts_wcsmtSNR[self.tag]
-                self.ts_complex     = self.ts_wcsmtSNR
-                self.ts_magnitude   = np.abs(self.ts_wcsmtSNR)
+                self.ts_wcsmtSNR = self.ts_wcsmtSNR[self.tag]
+                self.ts_complex = self.ts_wcsmtSNR
+                self.ts_magnitude = np.abs(self.ts_wcsmtSNR)
 
             elif func_file.endswith('gii'):
                 self.gif_obj = ParseGiftiFile(func_file)
@@ -2239,7 +2441,7 @@ Functional data preprocessing
                     self.ts_magnitude = np.load(func_file).T
 
             elif func_file.endswith("nii") or func_file.endswith("gz"):
-                
+
                 # read niimg
                 nimg = nb.load(func_file)
                 fdata = nimg.get_fdata()
@@ -2253,8 +2455,9 @@ Functional data preprocessing
                 # cifti nii's are already 2D
                 if fdata.ndim > 2:
                     self.orig_dim = fdata.shape
-                    xdim,ydim,zdim,time_points = fdata.shape
-                    self.ts_magnitude = fdata.reshape(xdim*ydim*zdim, time_points)
+                    xdim, ydim, zdim, time_points = fdata.shape
+                    self.ts_magnitude = fdata.reshape(
+                        xdim*ydim*zdim, time_points)
                 else:
                     self.ts_magnitude = fdata.copy().T
 
@@ -2262,21 +2465,23 @@ Functional data preprocessing
                 with open(func_file, 'rb') as handle:
                     df = pickle.load(handle)
                     setattr(self, f"data_{self.standardization}_df", df)
-                    setattr(self, f"data_raw_df", df)
+                    setattr(self, "data_raw_df", df)
 
                 self.stop_process = True
         elif isinstance(func_file, np.ndarray):
             self.ts_magnitude = func_file.copy()
-            
+
         else:
-            raise NotImplementedError(f"Input type {type(func_file)} not supported")
+            raise NotImplementedError(
+                f"Input type {type(func_file)} not supported")
 
         if not self.stop_process:
             # check baseline
             if not self.psc_nilearn:
-                if self.baseline_units in ["seconds","s","sec"]:
+                if self.baseline_units in ["seconds", "s", "sec"]:
                     baseline_vols_old = int(np.round(baseline*self.fs, 0))
-                    utils.verbose(f" Baseline is {baseline} seconds, or {baseline_vols_old} TRs", self.verbose)
+                    utils.verbose(
+                        f" Baseline is {baseline} seconds, or {baseline_vols_old} TRs", self.verbose)
                 else:
                     baseline_vols_old = baseline
                     utils.verbose(f" Baseline is {baseline} TRs", self.verbose)
@@ -2290,99 +2495,105 @@ Functional data preprocessing
 
             # trim beginning and end
             if deleted_last_timepoints != 0:
-                self.desc_trim = f""" {deleted_first_timepoints} were removed from the beginning of the functional data."""
-                self.ts_corrected = self.ts_magnitude[:,deleted_first_timepoints:-deleted_last_timepoints]
+                self.ts_corrected = self.ts_magnitude[:,
+                                                      deleted_first_timepoints:-deleted_last_timepoints]
             else:
-                self.desc_trim = ""
-                self.ts_corrected = self.ts_magnitude[:,deleted_first_timepoints:]
+                self.ts_corrected = self.ts_magnitude[:,
+                                                      deleted_first_timepoints:]
 
-            utils.verbose(f" Cutting {deleted_first_timepoints} volumes from beginning{txt} | {deleted_last_timepoints} volumes from end", self.verbose)
-            self.vox_cols = [f'vox {x}' for x in range(self.ts_corrected.shape[0])]
+            utils.verbose(
+                f" Cutting {deleted_first_timepoints} vols from beginning{txt} | {deleted_last_timepoints} vols from end",
+                self.verbose)
+            self.vox_cols = [f'vox {x}' for x in range(
+                self.ts_corrected.shape[0])]
 
-            #----------------------------------------------------------------------------------------------------------------------------------------------------
+            # ----------------------------------------------------------------------------------------------------------------------------------------------------
             # STANDARDIZATION OF UNFILTERED DATA & CREATE DATAFRAMES
 
             # dataframe of raw, unfiltered data
             self.data_raw = self.ts_corrected.copy()
             self.data_raw_df = self.index_func(
-                self.data_raw, 
-                columns=self.vox_cols, 
-                subject=self.sub, 
+                self.data_raw,
+                columns=self.vox_cols,
+                subject=self.sub,
                 task=task,
-                run=run, 
+                run=run,
                 TR=self.TR,
                 set_index=True)
 
             # dataframe of unfiltered PSC-data
             self.data_psc = utils.percent_change(
-                self.data_raw, 
-                1, 
+                self.data_raw,
+                1,
                 baseline=baseline_vols,
                 nilearn=self.psc_nilearn
             )
 
             self.data_psc_df = self.index_func(
                 self.data_psc,
-                columns=self.vox_cols, 
+                columns=self.vox_cols,
                 subject=self.sub,
                 task=task,
-                run=run, 
-                TR=self.TR, 
-                set_index=True)
-
-            # dataframe of unfiltered z-scored data
-            self.data_zscore = (self.data_raw-self.data_raw.mean(axis=1, keepdims=True))/self.data_raw.std(axis=1, keepdims=True)
-            self.data_zscore_df = self.index_func(
-                self.data_zscore,
-                columns=self.vox_cols, 
-                subject=self.sub, 
-                task=task,
-                run=run, 
+                run=run,
                 TR=self.TR,
                 set_index=True)
 
-            #----------------------------------------------------------------------------------------------------------------------------------------------------
+            # dataframe of unfiltered z-scored data
+            self.data_zscore = (self.data_raw-self.data_raw.mean(axis=1,
+                                keepdims=True))/self.data_raw.std(axis=1, keepdims=True)
+            self.data_zscore_df = self.index_func(
+                self.data_zscore,
+                columns=self.vox_cols,
+                subject=self.sub,
+                task=task,
+                run=run,
+                TR=self.TR,
+                set_index=True)
+
+            # ----------------------------------------------------------------------------------------------------------------------------------------------------
             # HIGH PASS FILTER
             self.clean_tag = None
             if self.filter_strategy != "raw":
 
-                self.desc_filt = f"""DCT-high pass filter [removes low frequencies <{self.lb} Hz] was applied. """
+                utils.verbose(
+                    f" DCT-high pass filter [removes low frequencies <{self.lb} Hz] to correct low-frequency drifts.",
+                    self.verbose)
 
-                utils.verbose(f" DCT-high pass filter [removes low frequencies <{self.lb} Hz] to correct low-frequency drifts.", self.verbose)
-
-                self.hp_raw, self._cosine_drift = preproc.highpass_dct(self.data_raw, lb=self.lb, TR=self.TR)
+                self.hp_raw, self._cosine_drift = preproc.highpass_dct(
+                    self.data_raw, lb=self.lb, TR=self.TR)
                 self.hp_raw_df = self.index_func(
                     self.hp_raw,
-                    columns=self.vox_cols, 
-                    subject=self.sub, 
+                    columns=self.vox_cols,
+                    subject=self.sub,
                     task=task,
-                    run=run, 
+                    run=run,
                     TR=self.TR,
                     set_index=True)
 
                 # dataframe of high-passed PSC-data (set NaN to 0)
                 self.hp_psc = np.nan_to_num(utils.percent_change(
                     self.hp_raw,
-                    1, 
+                    1,
                     baseline=baseline_vols,
                     nilearn=self.psc_nilearn))
-                    
+
                 self.hp_psc_df = self.index_func(
                     self.hp_psc,
-                    columns=self.vox_cols, 
+                    columns=self.vox_cols,
                     subject=self.sub,
-                    run=run, 
+                    run=run,
                     task=task,
-                    TR=self.TR, 
+                    TR=self.TR,
                     set_index=True)
 
                 # dataframe of high-passed z-scored data
-                self.hp_zscore = (self.hp_raw-self.hp_raw.mean(axis=1, keepdims=True))/self.hp_raw.std(axis=1, keepdims=True)
+                self.hp_zscore = (self.hp_raw-self.hp_raw.mean(axis=1,
+                                  keepdims=True))/self.hp_raw.std(axis=1, keepdims=True)
                 self.hp_zscore_df = self.index_func(
                     self.hp_zscore,
-                    columns=self.vox_cols, 
-                    subject=self.sub, 
-                    run=run, 
+                    columns=self.vox_cols,
+                    subject=self.sub,
+                    run=run,
                     TR=self.TR,
                     task=task,
                     set_index=True)
@@ -2400,26 +2611,27 @@ Functional data preprocessing
                 if hasattr(self, "clean_data"):
                     self.tmp_df = self.index_func(
                         self.clean_data,
-                        columns=self.vox_cols, 
-                        subject=self.sub, 
+                        columns=self.vox_cols,
+                        subject=self.sub,
                         task=task,
-                        run=run, 
+                        run=run,
                         TR=self.TR,
                         set_index=True
                     )
 
                     setattr(self, f"hp_{self.clean_tag}_df", self.tmp_df)
-                    
+
                     # multiply by SD and add mean
-                    self.tmp_raw = (self.clean_data * self.zscore_SD) + self.zscore_M
+                    self.tmp_raw = (self.clean_data *
+                                    self.zscore_SD) + self.zscore_M
                     setattr(self, f"hp_{self.clean_tag}_raw", self.tmp_raw)
 
                     self.tmp_raw_df = self.index_func(
                         self.tmp_raw,
-                        columns=self.vox_cols, 
-                        subject=self.sub, 
+                        columns=self.vox_cols,
+                        subject=self.sub,
                         task=task,
-                        run=run, 
+                        run=run,
                         TR=self.TR,
                         set_index=True)
 
@@ -2428,7 +2640,7 @@ Functional data preprocessing
                     # make percent signal
                     self.hp_tmp_psc = np.nan_to_num(utils.percent_change(
                         self.tmp_raw,
-                        1, 
+                        1,
                         baseline=baseline_vols,
                         nilearn=self.psc_nilearn))
 
@@ -2436,50 +2648,47 @@ Functional data preprocessing
 
                     self.hp_tmp_psc_df = self.index_func(
                         self.hp_tmp_psc,
-                        columns=self.vox_cols, 
-                        subject=self.sub, 
+                        columns=self.vox_cols,
+                        subject=self.sub,
                         task=task,
-                        run=run, 
+                        run=run,
                         TR=self.TR,
-                        set_index=True)            
-                    
-                    setattr(self, f"hp_{self.clean_tag}_psc_df", self.hp_tmp_psc_df)
+                        set_index=True)
 
-                    if self.clean_tag == "ica":
-                        self.desc_filt += self.ica_obj.__desc__
+                    setattr(
+                        self, f"hp_{self.clean_tag}_psc_df", self.hp_tmp_psc_df)
 
-                    self.desc_filt += f"""
-Output from {self.clean_tag} was then converted back to un-zscored data by multipying by the standard deviation and adding the mean back. """
-
-                #----------------------------------------------------------------------------------------------------------------------------------------------------
+                # ----------------------------------------------------------------------------------------------------------------------------------------------------
                 # LOW PASS FILTER
                 if "lp" in self.filter_strategy:
-
-                    self.desc_filt += f"""
-The data was then low-pass filtered using a Savitsky-Golay filter [removes high frequences] (window={self.window_size}, order={self.poly_order}). """
 
                     if self.ica:
                         info = f" Using {self.clean_tag}-data for low-pass filtering"
                         data_for_filtering = self.get_data(
-                            index=True, 
-                            filter_strategy="hp", 
-                            dtype=self.standardization, 
+                            index=True,
+                            filter_strategy="hp",
+                            dtype=self.standardization,
                             ica=self.ica
                         ).T.values
                         out_attr = f"lp_{self.clean_tag}_{self.standardization}"
                     elif hasattr(self, f"hp_{self.standardization}"):
                         info = " Using high-pass filtered data for low-pass filtering"
-                        data_for_filtering = getattr(self, f"hp_{self.standardization}")
+                        data_for_filtering = getattr(
+                            self, f"hp_{self.standardization}")
                         out_attr = f"lp_{self.standardization}"
                     else:
                         info = " Using unfiltered data for low-pass filtering"
-                        data_for_filtering = getattr(self, f"data_{self.standardization}")
+                        data_for_filtering = getattr(
+                            self, f"data_{self.standardization}")
                         out_attr = f"lp_data_{self.standardization}"
 
                     utils.verbose(info, self.verbose)
-                    utils.verbose(f" Savitsky-Golay low-pass filter [removes high frequences] (window={self.window_size}, order={self.poly_order})", self.verbose)
+                    utils.verbose(
+                        f" Savitsky-Golay low-pass filter [removes high freqs] (w={self.window_size}, o={self.poly_order})",
+                        self.verbose)
 
-                    tmp_filtered = preproc.lowpass_savgol(data_for_filtering, window_length=self.window_size, polyorder=self.poly_order)
+                    tmp_filtered = preproc.lowpass_savgol(
+                        data_for_filtering, window_length=self.window_size, polyorder=self.poly_order)
 
                     tmp_filtered_df = self.index_func(
                         tmp_filtered,
@@ -2494,36 +2703,33 @@ The data was then low-pass filtered using a Savitsky-Golay filter [removes high 
                     setattr(self, f'{out_attr}_df', tmp_filtered_df.copy())
 
             else:
-                self.desc_filt = ""
                 self.clean_tag = None
 
             # get basic qualities
             self.basic_qa(
-                self.ts_corrected, 
+                self.ts_corrected,
                 run=run,
             )
 
-            # final
-            self.desc_func = self.func_pre_desc + self.desc_trim + self.desc_filt
-
     def to_nifti(self, func, fname=None):
-        
+
         func_res = func.reshape(self.orig_dim)
         print(func_res.shape)
         niimg = nb.Nifti1Image(func_res, affine=self.affine, header=self.hdr)
-    
+
         if isinstance(fname, str):
             niimg.to_filename(fname)
             return fname
         else:
             return niimg
-        
+
     def run_ica(self, task=None, save_as=None):
-        utils.verbose(f" Running FastICA with {self.n_components} components", self.verbose)
+        utils.verbose(
+            f" Running FastICA with {self.n_components} components", self.verbose)
         self.ica_obj = preproc.ICA(
             self.hp_zscore_df,
             subject=f"sub-{self.sub}",
-            ses=self.ses, 
+            ses=self.ses,
             run=self.run,
             task=task,
             n_components=self.n_components,
@@ -2536,10 +2742,10 @@ The data was then low-pass filtered using a Savitsky-Golay filter [removes high 
         )
 
         # regress
-        self.ica_obj.regress()        
+        self.ica_obj.regress()
 
     def basic_qa(self, data, run=1, make_figure=False):
-        
+
         # tsnr
         tsnr_pre = utils.calculate_tsnr(data, -1)
         mean_tsnr_pre = float(np.nanmean(np.ravel(tsnr_pre)))
@@ -2563,72 +2769,74 @@ The data was then low-pass filtered using a Savitsky-Golay filter [removes high 
             "color": colors
         }
         if self.verbose:
-            if self.clean_tag == None:
+            if self.clean_tag is None:
                 info = "no cleaning"
             else:
                 info = f"before '{self.clean_tag}'"
 
-            utils.verbose(f" tSNR [{info}]: {round(mean_tsnr_pre,2)}\t| variance: {round(mean_var_pre,2)}", self.verbose)
+            utils.verbose(
+                f" tSNR [{info}]: {round(mean_tsnr_pre,2)}\t| variance: {round(mean_var_pre,2)}", self.verbose)
 
         if self.clean_tag in ["ica"]:
 
             # get aCompCor/ICA'ed tSNR
-            tsnr_post = utils.calculate_tsnr(getattr(self, f"hp_{self.clean_tag}_raw"),-1)
+            tsnr_post = utils.calculate_tsnr(
+                getattr(self, f"hp_{self.clean_tag}_raw"), -1)
             mean_tsnr_post = float(np.nanmean(np.ravel(tsnr_post)))
 
             # variance
-            var_post = np.var(getattr(self, f"hp_{self.clean_tag}_raw"), axis=-1)
+            var_post = np.var(
+                getattr(self, f"hp_{self.clean_tag}_raw"), axis=-1)
             mean_var_post = float(var_post.mean())
 
             # sort out plotting stuff
             tsnr_inputs += [tsnr_post]
             var_inputs += [var_post]
             colors = [colors, "#D95F02"]
-            tsnr_lbl = [f'no {self.clean_tag} [{round(mean_tsnr_pre,2)}]', f'{self.clean_tag} [{round(mean_tsnr_post,2)}]']
-            var_lbl = [f'no {self.clean_tag} [{round(mean_var_pre,2)}]', f'{self.clean_tag} [{round(mean_var_post,2)}]']            
+            tsnr_lbl = [
+                f'no {self.clean_tag} [{round(mean_tsnr_pre,2)}]', f'{self.clean_tag} [{round(mean_tsnr_post,2)}]']
+            var_lbl = [
+                f'no {self.clean_tag} [{round(mean_var_pre,2)}]', f'{self.clean_tag} [{round(mean_var_post,2)}]']
             tsnr_lines = {
-                "pos": [mean_tsnr_pre,mean_tsnr_post],
+                "pos": [mean_tsnr_pre, mean_tsnr_post],
                 "color": colors
             }
 
             var_lines = {
-                "pos": [mean_var_pre,mean_var_post],
+                "pos": [mean_var_pre, mean_var_post],
                 "color": colors
             }
 
-            utils.verbose(f" tSNR [after '{self.clean_tag}']:  {round(mean_tsnr_post,2)}\t| variance: {round(mean_var_post,2)}", self.verbose)
+            utils.verbose(
+                f" tSNR [after '{self.clean_tag}']:  {round(mean_tsnr_post,2)}\t| variance: {round(mean_var_post,2)}",
+                self.verbose)
 
         if make_figure:
             # initiate figure
-            fig = plt.figure(figsize=(24,7))
-            gs = fig.add_gridspec(1,3, width_ratios=[10,10,10])
+            fig = plt.figure(figsize=(24, 7))
+            gs = fig.add_gridspec(1, 3, width_ratios=[10, 10, 10])
 
             # imshow for apparent motion
             ax1 = fig.add_subplot(gs[0])
             ax1.imshow(np.rot90(data.T), aspect=8/1)
-            ax1.set_xlabel("volumes", fontsize=16)
-            ax1.set_ylabel("voxels", fontsize=16)
-            ax1.set_title("Stability of position", fontsize=16)
-            
-            defs = plotting.Defaults()
-            ax1.tick_params(
-                width=defs.tick_width, 
-                length=defs.tick_length,
-                labelsize=defs.label_size)
 
-            vox_ticks = [0,data.shape[0]//2,data.shape[0]]
-            ax1.set_xticks([0,data.shape[-1]])
-            ax1.set_yticks(vox_ticks)
-
-            for axis in ['top', 'bottom', 'left', 'right']:
-                ax1.spines[axis].set_linewidth(0.5)
+            vox_ticks = [0, data.shape[0]//2, data.shape[0]]
+            ax1 = plotting.conform_ax_to_obj(
+                ax1,
+                x_label="volumes",
+                y_label="voxels",
+                title="Stability of position",
+                font_size=16,
+                x_ticks=[0, data.shape[-1]],
+                y_ticks=vox_ticks
+            )
 
             # line plot for tSNR over voxels
             ax2 = fig.add_subplot(gs[1])
             plotting.LazyLine(
                 tsnr_inputs,
                 axs=ax2,
-                title=f"tSNR across the line",
+                title="tSNR across the line",
                 font_size=16,
                 linewidth=2,
                 color=colors,
@@ -2643,7 +2851,7 @@ The data was then low-pass filtered using a Savitsky-Golay filter [removes high 
             plotting.LazyLine(
                 var_inputs,
                 axs=ax3,
-                title=f"Variance across the line",
+                title="Variance across the line",
                 font_size=16,
                 linewidth=2,
                 color=colors,
@@ -2656,15 +2864,16 @@ The data was then low-pass filtered using a Savitsky-Golay filter [removes high 
             )
 
     def get_data(
-        self, 
+        self,
         filter_strategy=None,
-        index=False, 
+        index=False,
         dtype="psc",
         ica=False
-        ):
+    ):
 
-        if dtype not in ["psc","zscore","raw"]:
-            raise ValueError(f"Requested data type '{dtype}' is not supported. Use 'psc', 'zscore', or 'raw'")
+        if dtype not in ["psc", "zscore", "raw"]:
+            raise ValueError(
+                f"Requested data type '{dtype}' is not supported. Use 'psc', 'zscore', or 'raw'")
 
         return_data = None
         allowed = [None, "raw", "hp", "lp"]
@@ -2674,48 +2883,50 @@ The data was then low-pass filtered using a Savitsky-Golay filter [removes high 
         else:
             tag = dtype
 
-        if filter_strategy == None or filter_strategy == "raw":
+        if filter_strategy is None or filter_strategy == "raw":
             attr = f"data_{tag}_df"
         elif filter_strategy == "lp":
             attr = f"lp_{tag}_df"
         elif filter_strategy == "hp":
             attr = f"hp_{tag}_df"
         else:
-            raise ValueError(f"Unknown attribute '{filter_strategy}'. Must be one of: {allowed}")
+            raise ValueError(
+                f"Unknown attribute '{filter_strategy}'. Must be one of: {allowed}")
 
         if hasattr(self, attr):
             # print(f" Fetching attribute: {attr}")
             return_data = getattr(self, attr)
         else:
-            raise ValueError(f"{self} does not have an attribute called '{attr}'")
+            raise ValueError(
+                f"{self} does not have an attribute called '{attr}'")
 
         if isinstance(return_data, pd.DataFrame):
             if index:
                 try:
                     return return_data.set_index(['subject', 'run', 't'])
-                except:
+                except Exception:
                     return return_data
             else:
                 return return_data
 
     def index_func(
-        self,
-        array, 
-        columns=None, 
-        subject=1, 
-        run=1, 
-        task=None,
-        TR=0.105, 
-        set_index=False):
-    
-        if columns == None:
+            self,
+            array,
+            columns=None,
+            subject=1,
+            run=1,
+            task=None,
+            TR=0.105,
+            set_index=False):
+
+        if columns is None:
             df = pd.DataFrame(array.T)
         else:
             df = pd.DataFrame(array.T, columns=columns)
-        
-        df['subject']   = subject
-        df['run']       = run
-        df['t']         = list(TR*np.arange(df.shape[0]))
+
+        df['subject'] = subject
+        df['run'] = run
+        df['t'] = list(TR*np.arange(df.shape[0]))
 
         if self.index_task:
             if isinstance(task, str):
@@ -2728,13 +2939,21 @@ The data was then low-pass filtered using a Savitsky-Golay filter [removes high 
         else:
             return df
 
-class Dataset(ParseFuncFile,SetAttributes):
+
+class Dataset(ParseFuncFile, SetAttributes):
     """Dataset
 
-    Main class for retrieving, formatting, and preprocessing of all datatypes including fMRI (2D), eyetracker (.edf), physiology (.log [WIP]), and experiment files derived from `Exptools2` (.tsv). If you leave `subject` and `run` empty, these elements will be derived from the file names. So if you have BIDS-like files, leave them empty and the dataframe will be created for you with the correct subject/run IDs. 
+    Main class for retrieving, formatting, and preprocessing of all datatypes including fMRI (2D), eyetracker (.edf),
+    physiology (.log [WIP]), and experiment files derived from `Exptools2` (.tsv). If you leave `subject` and `run` empty,
+    these elements will be derived from the file names. So if you have BIDS-like files, leave them empty and the dataframe
+    will be created for you with the correct subject/run IDs.
 
-    Inherits from :class:`linescanning.dataset.ParseFuncFile`, so all arguments from that class are available and are passed on via `kwargs`. Only `func_file` and `verbose` are required. The first one is necessary because if the input is an **h5**-file, we'll set the attributes accordingly. Otherwise :class:`linescanning.dataset.ParseFuncFile` is invoked. `verbose` is required for aesthetic reasons. Given that :class:`linescanning.dataset.ParseFuncFile` inherits in turn from :class:`linescanning.dataset.ParseExpToolsFile`, you can pass the arguments for that class here as well.
-    
+    Inherits from :class:`linescanning.dataset.ParseFuncFile`, so all arguments from that class are available and are passed
+    on via `kwargs`. Only `func_file` and `verbose` are required. The first one is necessary because if the input is an
+    **h5**-file, we'll set the attributes accordingly. Otherwise :class:`linescanning.dataset.ParseFuncFile` is invoked.
+    `verbose` is required for aesthetic reasons. Given that :class:`linescanning.dataset.ParseFuncFile` inherits in turn from
+    :class:`linescanning.dataset.ParseExpToolsFile`, you can pass the arguments for that class here as well.
+
     Parameters
     ----------
     func_file: str, list
@@ -2748,7 +2967,7 @@ class Dataset(ParseFuncFile,SetAttributes):
     >>> func_dir = "/some/dir"
     >>> exp     = utils.get_file_from_substring("tsv", func_dir)
     >>> funcs   = utils.get_file_from_substring("bold.mat", func_dir)
-    >>> # 
+    >>> #
     >>> # only cut from SR-runs
     >>> delete_first = 100
     >>> delete_last = 0
@@ -2768,14 +2987,14 @@ class Dataset(ParseFuncFile,SetAttributes):
     """
 
     def __init__(
-        self, 
-        func_file,  
-        verbose=False,         
-        **kwargs):
+            self,
+            func_file,
+            verbose=False,
+            **kwargs):
 
         self.verbose = verbose
         utils.verbose("DATASET", self.verbose)
-        
+
         # set attributes
         SetAttributes.__init__(self)
 
@@ -2788,15 +3007,15 @@ class Dataset(ParseFuncFile,SetAttributes):
         else:
             ParseFuncFile.__init__(
                 self,
-                func_file, 
-                verbose=self.verbose, 
+                func_file,
+                verbose=self.verbose,
                 **kwargs)
 
         utils.verbose("\nDATASET: created", self.verbose)
 
     def fetch_fmri(self, strip_index=False, dtype=None):
 
-        if dtype == None:
+        if dtype is None:
             if hasattr(self, "ica"):
                 if self.ica:
                     dtype = "ica"
@@ -2804,42 +3023,46 @@ class Dataset(ParseFuncFile,SetAttributes):
                 dtype = self.standardization
             else:
                 dtype = "psc"
-        
+
         if dtype == "psc":
             attr = 'df_func_psc'
         elif dtype == "retroicor":
             attr = 'df_func_retroicor'
-        elif dtype == "raw" or dtype == None:
+        elif dtype == "raw" or dtype is None:
             attr = 'df_func_raw'
         elif dtype == "zscore":
             attr = 'df_func_zscore'
         elif dtype == "ica":
             attr = 'df_func_ica'
         else:
-            raise ValueError(f"Unknown option '{dtype}'. Must be 'psc', 'retroicor', or 'zscore'")
+            raise ValueError(
+                f"Unknown option '{dtype}'. Must be 'psc', 'retroicor', or 'zscore'")
 
         if hasattr(self, attr):
-            
-            utils.verbose(f"Fetching dataframe from attribute '{attr}'", self.verbose)
-                
+
+            utils.verbose(
+                f"Fetching dataframe from attribute '{attr}'", self.verbose)
+
             df = getattr(self, attr)
             if strip_index:
-                return df.reset_index().drop(labels=['subject', 'run', 't'], axis=1) 
+                return df.reset_index().drop(labels=['subject', 'run', 't'], axis=1)
             else:
                 return df
         else:
             utils.verbose(f"Could not find '{attr}' attribute", True)
-            
+
     def fetch_onsets(self, strip_index=False, button=True):
         if hasattr(self, 'df_onsets'):
             if strip_index:
-                df =  self.df_onsets.reset_index().drop(labels=list(self.df_onsets.index.names), axis=1)
+                df = self.df_onsets.reset_index().drop(
+                    labels=list(self.df_onsets.index.names), axis=1)
             else:
                 df = self.df_onsets
 
             # filter out button
             if not button:
-                df = utils.select_from_df(df, expression="event_type != response")
+                df = utils.select_from_df(
+                    df, expression="event_type != response")
 
             return df
 
@@ -2894,29 +3117,30 @@ class Dataset(ParseFuncFile,SetAttributes):
             raise ValueError("No output file specified")
         else:
             self.h5_file = input_file
-        
+
         if not os.path.exists(self.h5_file):
             raise FileNotFoundError(f"Could not find file: '{self.h5_file}'")
-        
+
         utils.verbose(f"Reading from {self.h5_file}", self.verbose)
         hdf_store = pd.HDFStore(self.h5_file)
         hdf_keys = hdf_store.keys()
         for key in hdf_keys:
             key = key.strip("/")
-            
+
             try:
                 setattr(self, key, hdf_store.get(key))
                 utils.verbose(f" Set attribute: {key}", self.verbose)
-            except:
-                utils.verbose(f" Could not set attribute '{key}'", self.verbose)
+            except Exception:
+                utils.verbose(
+                    f" Could not set attribute '{key}'", self.verbose)
 
-        hdf_store.close()         
+        hdf_store.close()
 
     def to_hdf(
-        self, 
-        h5_file=None, 
-        overwrite=False, 
-        ):
+        self,
+        h5_file=None,
+        overwrite=False,
+    ):
 
         # make the directory
         if not os.path.exists(os.path.dirname(self.h5_file)):
@@ -2931,16 +3155,19 @@ class Dataset(ParseFuncFile,SetAttributes):
         utils.verbose(f"Saving to {self.h5_file}", self.verbose)
         for attr in self.all_attributes:
             if hasattr(self, attr):
-                
+
                 add_df = getattr(self, attr)
                 # try regular storing
                 if isinstance(add_df, pd.DataFrame):
                     try:
-                        add_df.to_hdf(self.h5_file, key=attr, append=True, mode='a', format='t')
-                        utils.verbose(f" Stored attribute: {attr}", self.verbose)
-                    except:
+                        add_df.to_hdf(self.h5_file, key=attr,
+                                      append=True, mode='a', format='t')
+                        utils.verbose(
+                            f" Stored attribute: {attr}", self.verbose)
+                    except Exception:
                         # send error message
-                        utils.verbose(f" Could not store attribute '{attr}'", self.verbose)
+                        utils.verbose(
+                            f" Could not store attribute '{attr}'", self.verbose)
 
         # define json file
         self.json_file = self.h5_file.split(".")[0]+".json"
@@ -2949,7 +3176,7 @@ class Dataset(ParseFuncFile,SetAttributes):
 
         # Serializing json
         json_object = json.dumps(self.func_settings, indent=4)
-        
+
         # Writing to sample.json
         with open(self.json_file, "w") as outfile:
             outfile.write(json_object)
@@ -2957,7 +3184,7 @@ class Dataset(ParseFuncFile,SetAttributes):
         utils.verbose("Done", self.verbose)
 
         store = pd.HDFStore(self.h5_file)
-        store.close()    
+        store.close()
 
     def to4D(self, fname=None, desc=None, dtype=None, mask=None):
 
@@ -2967,23 +3194,27 @@ class Dataset(ParseFuncFile,SetAttributes):
         subj_list = self.get_subjects(df)
         file_counter = 0
         for sub in subj_list:
-            
+
             # get subject-specific data
-            data_per_subj = utils.select_from_df(df, expression=f"subject = {sub}")
+            data_per_subj = utils.select_from_df(
+                df, expression=f"subject = {sub}")
 
             # get run IDs
             n_runs = self.get_runs(df)
             for run in n_runs:
 
                 # get run-specific data
-                data_per_run = utils.select_from_df(data_per_subj, expression=f"run = {run}")
+                data_per_run = utils.select_from_df(
+                    data_per_subj, expression=f"run = {run}")
 
-                # get corresponding reference image from self.func_file either based on index (if use_bids=False), or based on BIDS-elements (use_bids=True)
+                # get corresponding reference image from self.func_file either based on index (if use_bids=False), or based on
+                # BIDS-elements (use_bids=True)
                 if self.use_bids:
-                    ref_img = utils.get_file_from_substring([f'sub-{sub}', f'run-{run}'], self.func_file)
+                    ref_img = utils.get_file_from_substring(
+                        [f'sub-{sub}', f'run-{run}'], self.func_file)
                 else:
                     ref_img = self.func_file[file_counter]
-                
+
                 utils.verbose(f"Ref img = {ref_img}", self.verbose)
                 if isinstance(ref_img, nb.Nifti1Image):
                     ref_img = ref_img
@@ -2991,10 +3222,12 @@ class Dataset(ParseFuncFile,SetAttributes):
                     if ref_img.endswith("gz") or ref_img.endswith("nii"):
                         ref_img = nb.load(ref_img)
                     else:
-                        raise TypeError(f"Unknown reference type '{ref_img}'. Must be a string pointing to 'nii' or 'nii.gz' file")
+                        raise TypeError(
+                            f"Unknown reference type '{ref_img}'. Must be a string pointing to 'nii' or 'nii.gz' file")
                 else:
-                    raise ValueError("'ref_img' must either be string pointing to nifti image or a nb.Nifti1Image object")
-                
+                    raise ValueError(
+                        "'ref_img' must either be string pointing to nifti image or a nb.Nifti1Image object")
+
                 # get information of reference image
                 dims = ref_img.get_fdata().shape
                 aff = ref_img.affine
@@ -3004,32 +3237,40 @@ class Dataset(ParseFuncFile,SetAttributes):
                 data_per_run = data_per_run.values
                 # time is initially first axis, so transpose
                 if data_per_run.shape[-1] != dims[-1]:
-                    utils.verbose(f"Data shape = {data_per_run.shape}; transposing..", self.verbose)
+                    utils.verbose(
+                        f"Data shape = {data_per_run.shape}; transposing..", self.verbose)
                     data_per_run = data_per_run.T
                 else:
-                    utils.verbose(f"Data shape = {data_per_run.shape}; all good..", self.verbose)
+                    utils.verbose(
+                        f"Data shape = {data_per_run.shape}; all good..", self.verbose)
 
-                utils.verbose(f"Final shape = {data_per_run.shape}", self.verbose)
+                utils.verbose(
+                    f"Final shape = {data_per_run.shape}", self.verbose)
 
                 # check if we have mask
                 if isinstance(mask, nb.Nifti1Image) or isinstance(mask, str) or isinstance(mask, list):
-                    
-                    utils.verbose("Masking with given mask-object", self.verbose)
+
+                    utils.verbose(
+                        "Masking with given mask-object", self.verbose)
                     if isinstance(mask, nb.Nifti1Image):
                         mask = mask
                     elif isinstance(mask, str):
                         if mask.endswith("gz") or mask.endswith("nii"):
                             mask = nb.load(mask)
                         else:
-                            raise TypeError(f"Unknown reference type '{mask}'. Must be a string pointing to 'nii' or 'nii.gz' file")
+                            raise TypeError(
+                                f"Unknown reference type '{mask}'. Must be a string pointing to 'nii' or 'nii.gz' file")
                     elif isinstance(mask, list):
                         # select mask based on BIDS-components or index
                         if self.use_bids:
-                            mask = utils.get_file_from_substring([f'sub-{sub}', f'run-{run}'], mask)
+                            mask = utils.get_file_from_substring(
+                                [f'sub-{sub}', f'run-{run}'], mask)
                         else:
                             mask = mask[file_counter]
                     else:
-                        raise TypeError(f"Unknown input '{type(mask)}', must be nibabel.Nifti1Image-object or string pointing to nifti-image")
+                        raise TypeError(
+                            f"""Unknown input '{type(mask)}', must be nibabel.Nifti1Image-object or string pointing to
+                            nifti-image""")
 
                     # mask array
                     mask_data = mask.get_fdata()
@@ -3038,7 +3279,7 @@ class Dataset(ParseFuncFile,SetAttributes):
                     data_masked = np.zeros_like(data_per_run)
 
                     # fill zeroed array with brandata
-                    data_masked[brain_idc,:] = data_per_run[brain_idc,:]
+                    data_masked[brain_idc, :] = data_per_run[brain_idc, :]
 
                     # overwrite
                     data_per_run = data_masked.copy()
@@ -3059,15 +3300,17 @@ class Dataset(ParseFuncFile,SetAttributes):
                         fname = f"{fname}_run-{run}.nii.gz"
 
                 utils.verbose(f"Writing {fname}", self.verbose)
-                nb.Nifti1Image(data_per_run, affine=aff, header=hdr).to_filename(fname)
+                nb.Nifti1Image(data_per_run, affine=aff,
+                               header=hdr).to_filename(fname)
 
                 file_counter += 1
+
 
 class DatasetCollector():
     def __init__(self, dataset_objects):
 
         self.datasets = dataset_objects
-        if len(self.datasets) != None:
+        if len(self.datasets) is not None:
             self.data = []
             self.onsets = []
             for dataset in self.datasets:
@@ -3085,6 +3328,8 @@ class DatasetCollector():
                 self.onsets = pd.concat(self.onsets)
 
 # this is basically a wrapper around pybest.utils.load_gifti
+
+
 class ParseGiftiFile():
 
     def __init__(self, gifti_file, set_tr=None, *gii_args, **gii_kwargs):
@@ -3097,12 +3342,13 @@ class ParseGiftiFile():
             self.gifti_file = None
             self.data = gifti_file
         else:
-            raise ValueError("Input must be a string ending with '.gii' or a numpy array")
-    
+            raise ValueError(
+                "Input must be a string ending with '.gii' or a numpy array")
+
         # get TR
         self.set_tr = set_tr
-        
-        if isinstance(self.set_tr, (int,float)):
+
+        if isinstance(self.set_tr, (int, float)):
             self.meta_obj = self.set_metadata(tr=self.set_tr)
             self.TR_ms = float(self.meta_dict['TimeStep'])
             self.TR_sec = float(self.meta_dict['TimeStep']) / 1000
@@ -3113,7 +3359,8 @@ class ParseGiftiFile():
         else:
             if len(self.f_gif.darrays[0].metadata) > 0:
                 self.TR_ms = float(self.f_gif.darrays[0].metadata['TimeStep'])
-                self.TR_sec = float(self.f_gif.darrays[0].metadata['TimeStep']) / 1000                
+                self.TR_sec = float(
+                    self.f_gif.darrays[0].metadata['TimeStep']) / 1000
 
     def set_metadata(self, tr=None):
         self.meta_dict = {'TimeStep': str(float(tr))}
@@ -3121,7 +3368,8 @@ class ParseGiftiFile():
 
     def get_tr(self, units="sec"):
         if units not in ["sec", "ms"]:
-            raise ValueError(f"units must be one of 'sec' or 'ms', not '{units}'")
+            raise ValueError(
+                f"units must be one of 'sec' or 'ms', not '{units}'")
 
         if hasattr(self, f"TR_{units}"):
             return getattr(self, f"TR_{units}")
@@ -3129,26 +3377,26 @@ class ParseGiftiFile():
             return None
 
     def write_file(
-        self, 
-        filename, 
-        tr=None,
-        *gii_args,
-        **gii_kwargs):
-        
+            self,
+            filename,
+            tr=None,
+            *gii_args,
+            **gii_kwargs):
+
         metadata = None
-        if not isinstance(tr, (int,float)):
+        if not isinstance(tr, (int, float)):
             if hasattr(self, "meta_obj"):
                 metadata = self.meta_obj
         else:
             metadata = self.set_metadata(tr=tr)
             self.TR_ms = tr
             self.TR_sec = tr/1000
-            
+
         # copy old data and combine it with metadata
         darray = nb.gifti.GiftiDataArray(
-            self.data, 
-            meta=metadata, 
-            *gii_args, 
+            self.data,
+            meta=metadata,
+            *gii_args,
             **gii_kwargs)
 
         # store in new gifti image object
@@ -3156,6 +3404,6 @@ class ParseGiftiFile():
 
         # add data to this object
         gifti_image.add_gifti_data_array(darray)
-        
+
         # save in same file name
         nb.save(gifti_image, filename)

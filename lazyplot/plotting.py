@@ -19,7 +19,8 @@ class Defaults():
     pad_title: int
         Set the distance between the title and the plot. Default = 20
     title_size: int
-        Set the font size of titles. Default = 22; you can set it equal to font_size (or any other size) by specifying "font_size".
+        Set the font size of titles. Default = 22; you can set it equal to font_size (or any other size) by specifying
+        "font_size".
     font_size: int
         Set the font size of axis labels/titles. Default = 18
     label_size: int
@@ -31,7 +32,7 @@ class Defaults():
     axis_width: float
         Set the line-width of axes. Default = 0.5
     line_width: int
-        Line widths for either all graphs (then *int*) or a *list* with the number of elements as requested graphs, default = 1.
+        Line widths for either all graphs (then *int*) or a *list* with the number of elements as requested graphs, default=1.
     line_style: str
         Set the style of data in line-plots. Default = "solid"
     sns_offset: int
@@ -41,7 +42,8 @@ class Defaults():
     sns_bottom: bool
         Trim specifically the x-axis of plots. Default = False
     sns_ori: str, optional
-        Default orientation for bar-plots. Default is up-right (vertical). Allowed options are "v" or "h". :class:`lazyplot.plotting.LazyBar()`
+        Default orientation for bar-plots. Default is up-right (vertical). Allowed options are "v" or "h".
+        :class:`lazyplot.plotting.LazyBar()`
     sns_rot: int, float, optional
         Rotation of labels in bar plot. Specific to :class:`lazyplot.plotting.LazyBar()`
     xkcd: bool
@@ -63,20 +65,24 @@ class Defaults():
     y_label: str, optional
         Label of y-axis, by default None
     labels: str, list, optional
-        String (if 1 timeseries) or list (with the length of `ts`) of colors, by default None. Labels for the timeseries to be used in the legend
+        String (if 1 timeseries) or list (with the length of `ts`) of colors, by default None. Labels for the timeseries to be
+        used in the legend
     title: str, dict, optional
         String of dictionary collecting the following keys representing information about the title:
 
         >>> title = {
         >>>     'title' "some title",   # title text
         >>>     'color': 'k',           # color (default = 'k')
-        >>>     'fontweight': "bold"    # fontweight (default = 'normal'), can be any of the matplotib fontweight options (e.g., 'italic', 'bold', 'normal' etc.)
+        >>>     'fontweight': "bold"    # fontweight (default = 'normal'), can be any of the matplotib fontweight options
+        (e.g., 'italic', 'bold', 'normal' etc.)
         >>> }
 
     color: str, list, optional
-        String (if 1 timeseries) or list (with the length of `ts`) of colors, by default None. If nothing is specified, we'll use `cmap` to create a color palette
+        String (if 1 timeseries) or list (with the length of `ts`) of colors, by default None. If nothing is specified, we'll
+        use `cmap` to create a color palette
     save_as: str, list, optional
-        Save the plot, by default None. If you want to use figures in Inkscape, save them as PDFs to retain high resolution; specify a list of strings to save the plot with multiple extensions
+        Save the plot, by default None. If you want to use figures in Inkscape, save them as PDFs to retain high resolution;
+        specify a list of strings to save the plot with multiple extensions
     y_lim: list, optional
         List for `self._set_ylim`
     x_lim: list, optional
@@ -95,7 +101,8 @@ class Defaults():
         >>>     'ls': '--'      # linestyle
         >>> }
 
-        You can get the settings above by specifying *add_hline='default'*. Now also accepts *add_hline='mean'* for single inputs
+        You can get the settings above by specifying *add_hline='default'*. Now also accepts *add_hline='mean'* for single
+        inputs
     add_vline: dict, optional
         Dictionary for a vertical line through the plot, by default None. Same keys as `add_hline`
     dpi: int, optional
@@ -410,7 +417,7 @@ class Defaults():
             if np.isscalar(yerr) or len(yerr) == len(tc):
                 if not np.isscalar(yerr):
                     if all([np.isnan(i) for i in yerr]):
-                        raise TypeError(f"Error contains only NaNs")
+                        raise TypeError("Error contains only NaNs")
                 ymin = tc - yerr
                 ymax = tc + yerr
             elif len(yerr) == 2:
@@ -432,18 +439,18 @@ class Defaults():
             **kwargs):
 
         # set bunch of defaults
-        if not "linewidth" in list(
-                kwargs.keys()) and not "lw" in list(kwargs.keys()):
+        if "linewidth" not in list(
+                kwargs.keys()) and "lw" not in list(kwargs.keys()):
             kwargs["lw"] = self.line_width
 
-        if not "color" in list(kwargs.keys()):
+        if "color" not in list(kwargs.keys()):
             kwargs["ecolor"] = "k"
 
-        if not "zorder" in list(kwargs.keys()):
+        if "zorder" not in list(kwargs.keys()):
             kwargs["zorder"] = 0
 
-        if not "linestyle" in list(
-                kwargs.keys()) and not "ls" in list(kwargs.keys()):
+        if "linestyle" not in list(
+                kwargs.keys()) and "ls" not in list(kwargs.keys()):
             kwargs["ls"] = "None"
 
         if isinstance(x, (pd.Series, pd.DataFrame)):
@@ -467,8 +474,8 @@ class Defaults():
 
     def _set_legend_labels(self, ax, labels=None):
         if isinstance(labels, (list, np.ndarray)):
-            if not "font_size" in list(self.legend_kwargs.keys(
-            )) and not "fontsize" in list(self.legend_kwargs.keys()):
+            if "font_size" not in list(self.legend_kwargs.keys(
+            )) and "fontsize" not in list(self.legend_kwargs.keys()):
                 self.legend_kwargs["fontsize"] = self.label_size
 
             ax.legend(
@@ -548,9 +555,9 @@ class Defaults():
                             test_attr[key] = default_dict[key]
 
                     # enforce list so we only need to call functions once
-                    if not "pos" in list(test_attr.keys()):
+                    if "pos" not in list(test_attr.keys()):
                         raise ValueError(
-                            f"Need the 'pos' key to denote position..")
+                            "Need the 'pos' key to denote position..")
                     else:
                         if isinstance(test_attr['pos'], (int, float)):
                             test_attr['pos'] = [test_attr['pos']]
@@ -600,17 +607,25 @@ class LazyPRF(Defaults):
     alpha: float, optional
         Opacity for imshow
     shrink_factor: float, optional
-        When the background of the image is white, we create a black border around the Circle patch. If this is equal to `vf_extent`, the border is cut off at some points. This factor shrinks the radius of the Circle, so that we can have a nice border. When set to 0.9, it becomes sort of like a target. This is relevant for **all** non-`magma` color maps that you insert, specifically a :func:`lazyplot.utils.make_binary_cm` object
+        When the background of the image is white, we create a black border around the Circle patch. If this is equal to
+        `vf_extent`, the border is cut off at some points. This factor shrinks the radius of the Circle, so that we can have a
+        nice border. When set to 0.9, it becomes sort of like a target. This is relevant for **all** non-`magma` color maps
+        that you insert, specifically a :func:`lazyplot.utils.make_binary_cm` object
     full_axis: bool, optional
-        If `True`, the entire axis of `vf_extent` will be used for the ticks (more detailed). If `False`, a truncated/trimmed version will be returned (looks cleaner). Default = False
+        If `True`, the entire axis of `vf_extent` will be used for the ticks (more detailed). If `False`, a truncated/trimmed
+        version will be returned (looks cleaner). Default = False
     axis_off: bool, optional
-        If `True` the x/y axis will be maintained, and the `vf_extent` will be given as ticks. If `False`, axis will be turned off. If `axis_off=True`, then `full_axis` and other label/axis parameters are ignored. Default = True
+        If `True` the x/y axis will be maintained, and the `vf_extent` will be given as ticks. If `False`, axis will be turned
+        off. If `axis_off=True`, then `full_axis` and other label/axis parameters are ignored. Default = True
     vf_only: bool, optional
-        Only show the outline of the the visual field, without pRF. You still need to specify the pRF as we'll `imshow` an empty array with the same shape rather than the pRF. Default = False
+        Only show the outline of the the visual field, without pRF. You still need to specify the pRF as we'll `imshow` an
+        empty array with the same shape rather than the pRF. Default = False
     line_width: float, optional
-        Width of the outer border of the visual field if `cmap` is not *viridis* or *magma* (these color maps are quite default, and do not require an extra border like :func:`lazyplot.utils.make_binary_cm`-objects do). Default is 0.5.
+        Width of the outer border of the visual field if `cmap` is not *viridis* or *magma* (these color maps are quite
+        default, and do not require an extra border like :func:`lazyplot.utils.make_binary_cm`-objects do). Default is 0.5.
     cross_width: float, optional
-        Width of the cross denoting the x/y axis. Default is 0.5, but can be increased if `cmap` is not *viridis* or *magma* to enhance visibility
+        Width of the cross denoting the x/y axis. Default is 0.5, but can be increased if `cmap` is not *viridis* or *magma*
+        to enhance visibility
     z_lines: int, optional
         Set the order of the vertical/horizontal lines. Default is **on top** of the pRF (1)
     z_prf: int, optional
@@ -784,16 +799,20 @@ class LazyPRF(Defaults):
 class LazyLine(Defaults):
     """LazyLine
 
-    Class for plotting because I'm lazy and I don't want to go through the ``matplotlib`` motion everything I quickly want to visualize something. This class makes that a lot easier. It allows single inputs, lists with multiple timecourses, labels, error shadings, and much more.
+    Class for plotting because I'm lazy and I don't want to go through the ``matplotlib`` motion everything I quickly want to
+    visualize something. This class makes that a lot easier. It allows single inputs, lists with multiple timecourses, labels,
+    error shadings, and much more.
 
     Parameters
     ----------
     ts: list, numpy.ndarray
-        Input data. Can either be a single list, or a list of multiple numpy arrays. If you want labels, custom colors, or error bars, these inputs must come in lists of similar length as ``ts``!
+        Input data. Can either be a single list, or a list of multiple numpy arrays. If you want labels, custom colors, or
+        error bars, these inputs must come in lists of similar length as ``ts``!
     xx: list, numpy.ndarray, optional
         X-axis array
     error: list, numpy.ndarray, optional
-        Error data with the same length/shape as the input timeseries, by default None. Can be either a numpy.ndarray for 1 timeseries, or a list of numpy.ndarrays for multiple timeseries
+        Error data with the same length/shape as the input timeseries, by default None. Can be either a numpy.ndarray for 1
+        timeseries, or a list of numpy.ndarrays for multiple timeseries
     error_alpha: float, optional
         Opacity level for error shadings, by default 0.3
     cmap: str, optional
@@ -801,15 +820,23 @@ class LazyLine(Defaults):
     figsize: tuple, optional
         Figure dimensions as per usual matplotlib conventions, by default (25,5)
     markers: str, list, optional
-        Use markers during plotting. A single option will be applied to all elements in ``ts``. A separate list for each element of ``ts`` is also accepted. If one array in ``ts`` should not have markers, use `None`. E.g., if `len(ts) == 3`, and we want only the first timecourse to have markers use: ``markers=['.',None,None]``
+        Use markers during plotting. A single option will be applied to all elements in ``ts``. A separate list for each
+        element of ``ts`` is also accepted. If one array in ``ts`` should not have markers, use `None`.
+        E.g., if `len(ts) == 3`, and we want only the first timecourse to have markers use: ``markers=['.',None,None]``
     markersize: str, list, optional
-        Specify marker sizes during plotting. A single option will be applied to all elements in ``ts``. A separate list for each element of ``ts`` is also accepted. If one array in ``ts`` should not have markers, use `None`. E.g., if ``len(ts) == 3``, and we want only the first timecourse to have markers use: ``markers=['.',None,None]``
+        Specify marker sizes during plotting. A single option will be applied to all elements in ``ts``. A separate list for
+        each element of ``ts`` is also accepted. If one array in ``ts`` should not have markers, use `None`.
+        E.g., if ``len(ts) == 3``, and we want only the first timecourse to have markers use: ``markers=['.',None,None]``
     markerfc: str, list, optional
-        Specify marker facecolor during plotting. A single option will be applied to all elements in ``ts``. A separate list for each element of ``ts`` is also accepted
+        Specify marker facecolor during plotting. A single option will be applied to all elements in ``ts``. A separate list
+        for each element of ``ts`` is also accepted
     markerec: str, list, optional
-        Specify marker edgecolor during plotting. A single option will be applied to all elements in ``ts``. A separate list for each element of ``ts`` is also accepted
+        Specify marker edgecolor during plotting. A single option will be applied to all elements in ``ts``. A separate list
+        for each element of ``ts`` is also accepted
     plot_kw: dict, optional
-        Further plotting options passed to ``matplotlib.pyplot.plot``, such as ``markerfacecolor`` (removes fill from markers, leaving only the edges), and ``markeredgewidth`` (sets the width of the marker outline). These options are passed to **every** elements in ``ts``.
+        Further plotting options passed to ``matplotlib.pyplot.plot``, such as ``markerfacecolor`` (removes fill from markers,
+        leaving only the edges), and ``markeredgewidth`` (sets the width of the marker outline). These options are passed to
+        **every** elements in ``ts``.
     x_ticks: list, optional
         Locations where to put the ticks on the x-axis
     y_ticks: list, optional
@@ -830,7 +857,8 @@ class LazyLine(Defaults):
     <lazyplot.plotting.LazyLine at 0x7f839b0289d0>
 
     >>> # plot multiple timecourses, add labels, and save file
-    >>> plotting.LazyLine([ts, ts1, ts2, ts3, ts4], figsize=(20, 5), save_as="test_LazyLine.pdf", labels=['vol=0', 'vol=0.3', 'vol=0.5', 'vol=0.8', 'vol=1.0'])
+    >>> plotting.LazyLine([ts, ts1, ts2, ts3, ts4], figsize=(20, 5), save_as="test_LazyLine.pdf", labels=['vol=0', 'vol=0.3',
+    'vol=0.5', 'vol=0.8', 'vol=1.0'])
     <lazyplot.plotting.LazyLine at 0x7f839b2177c0>
 
     >>> # add horizontal line at y=0
@@ -997,7 +1025,8 @@ class LazyLine(Defaults):
                 if isinstance(self.line_width, list):
                     if len(self.line_width) != len(self.array):
                         raise ValueError(
-                            f"Length of line width lenghts {len(self.line_width)} does not match length of data list ({len(self.array)}")
+                            f"""Length of line width lenghts {len(self.line_width)} does not match length of data list
+                            ({len(self.array)}""")
 
                     use_width = self.line_width[idx]
                 elif isinstance(self.line_width, (int, float)):
@@ -1009,7 +1038,8 @@ class LazyLine(Defaults):
                 if isinstance(self.line_style, list):
                     if len(self.line_style) != len(self.array):
                         raise ValueError(
-                            f"Length of line width lenghts {len(self.line_style)} does not match length of data list ({len(self.array)}")
+                            f"""Length of line width lenghts {len(self.line_style)} does not match length of data list
+                            ({len(self.array)}""")
 
                     use_style = self.line_style[idx]
                 elif isinstance(self.line_style, str):
@@ -1148,18 +1178,21 @@ class LazyLine(Defaults):
 class LazyCorr(Defaults):
     """LazyCorr
 
-    Wrapper around seaborn's regplot. Plot data and a linear regression model fit. In addition to creating the plot, you can also run a regression or correlation using pingouin by setting the corresponding argument to ``True``.
+    Wrapper around seaborn's regplot. Plot data and a linear regression model fit. In addition to creating the plot, you can
+    also run a regression or correlation using pingouin by setting the corresponding argument to ``True``.
 
     Parameters
     ----------
     data: pd.DataFrame, optional
-        Input DataFrame. In this case, use strings representing column names for ``x``, ``y``, and ``color_by``. Internally, the dataframe is parsed into arrays so that it's compatible with matplotlib's scatter-/ color-by functions
+        Input DataFrame. In this case, use strings representing column names for ``x``, ``y``, and ``color_by``. Internally,
+        the dataframe is parsed into arrays so that it's compatible with matplotlib's scatter-/ color-by functions
     x: str, np.ndarray, list
         First variable to include in plot/regression. Can be a list/array representing data, or a column name from ``data``
     y: str, np.ndarray, list
         Second variable to include in plot/regression. Can be a list/array representing data, or a column name from ``data``
     color_by: str, np.ndarray, list
-        Color the points according to a separate array. Can be a list/array representing data, or a column name from ``data``. Default color map for this is 'viridis', and can be changed by passing arguments to `scatter_kwargs`
+        Color the points according to a separate array. Can be a list/array representing data, or a column name from ``data``.
+        Default color map for this is 'viridis', and can be changed by passing arguments to `scatter_kwargs`
     color: str, list, optional
         String representing a color, by default "#ccccccc" to color the regression fit
     figsize: tuple, optional
@@ -1331,8 +1364,9 @@ class LazyCorr(Defaults):
         else:
             meth_txt = ""
 
+        r, m, v, p = res["test"], res["metric"], res["value"], res["p"]
         utils.verbose(
-            f"Test={res['test']}{meth_txt}{col_txt} | {res['metric']}={round(res['value'],self.result_dec)},\tp={round(res['p'],self.result_dec)}",
+            f"Test={r}{meth_txt}{col_txt} | {m}={round(v,self.result_dec)},\tp={round(p,self.result_dec)}",
             True)
 
         if return_result:
@@ -1518,18 +1552,23 @@ class LazyBar():
 
     """LazyBar
 
-    Wrapper around :func:`seaborn.barplot` to follow the same aesthetics of the other Lazy* functions. It is strongly recommended to use a dataframe for this function to make the formatting somewhat easier, but you can input arrays for `x` and `y`. You can round the edges of the bar using `fancy=True`.
+    Wrapper around :func:`seaborn.barplot` to follow the same aesthetics of the other Lazy* functions. It is strongly
+    recommended to use a dataframe for this function to make the formatting somewhat easier, but you can input arrays for `x`
+    and `y`. You can round the edges of the bar using `fancy=True`.
 
     Parameters
     ----------
     data: pd.DataFrame, optional
         Input dataframe, by default None
     x: str, list, np.ndarray, optional
-        Variable for the x-axis, by default None. Can be a column name from `data`, or a list/np.ndarray with labels for input `y`.
+        Variable for the x-axis, by default None. Can be a column name from `data`, or a list/np.ndarray with labels for input
+        `y`.
     y: str, list, np.ndarray, optional
-        Variable for the y-axis, by default None. Can be a column name from `data`, or a list/np.ndarray. If `x` is not specified, indices from 0 to `y.shape` will be used to construct the input dataframe.
+        Variable for the y-axis, by default None. Can be a column name from `data`, or a list/np.ndarray. If `x` is not
+        specified, indices from 0 to `y.shape` will be used to construct the input dataframe.
     labels: list, np.ndarray, optional
-        custom labels that can be used when `x` denotes a column name in dataframe `data`. The replacing labels should have the same length as the labels that are being overwritten.
+        custom labels that can be used when `x` denotes a column name in dataframe `data`. The replacing labels should have
+        the same length as the labels that are being overwritten.
     axs: <AxesSubplot:>, optional
         Subplot axis to put the plot on, by default None
     add_points: bool, optional
@@ -1537,29 +1576,38 @@ class LazyBar():
     points_color: str, tuple, optional
         Color of the points if you do not have nested categories, by default None
     points_palette: list, sns.palettes._ColorPalette, optional
-        Color palette for the points if you have nested categories (e.g., multiple variables per subject so you can color the individual subjects' data points), by default None
+        Color palette for the points if you have nested categories (e.g., multiple variables per subject so you can color the
+        individual subjects' data points), by default None
     points_cmap: str, optional
         Color map for the points if you did not specify `points_palette`, by default "viridis"
     points_legend: bool, optional
-        Add legend of the data points (if you have nested categories), by default False. The functionality of these interchangeable legends (`bar_legend` and `points_legend`) is quite tricky, so user discretion is advised.
+        Add legend of the data points (if you have nested categories), by default False. The functionality of these
+        interchangeable legends (`bar_legend` and `points_legend`) is quite tricky, so user discretion is advised.
     points_alpha: float, optional
         Alpha of the points, by default 1. Sometimes useful to adjust if you have LOADS of data points
     error: str, optional
-        Type of error bar to use for the bar, by default "sem". Can be {'sem'|'se'} or {'std'|'sd'. Internally, we'll check if there's enough samples to calculate errors from, otherwise `error` will be set to `None`
+        Type of error bar to use for the bar, by default "sem". Can be {'sem'|'se'} or {'std'|'sd'. Internally, we'll check if
+        there's enough samples to calculate errors from, otherwise `error` will be set to `None`
     fancy: bool, optional
-        Flag to round the edges of the bars, by default False. By default, the rounding is scaled by the min/max of the plot, regardless whether `lim` was specified. This ensures equal rounding across inputs. The other `fancy`-arguments below are a bit vague, so leaving them default will ensure nice rounding of the bars
+        Flag to round the edges of the bars, by default False. By default, the rounding is scaled by the min/max of the plot,
+        regardless whether `lim` was specified. This ensures equal rounding across inputs. The other `fancy`-arguments below
+        are a bit vague, so leaving them default will ensure nice rounding of the bars
     fancy_rounding: float, optional
         Amount of rounding, by default 0.15
     fancy_pad: float, optional
         Vague variable, by default -0.004
     fancy_aspect: float, optional
-        Vague variable, by default None. If None, the rounding is scaled by the min/max of the plot, regardless whether `lim` was specified.
+        Vague variable, by default None. If None, the rounding is scaled by the min/max of the plot, regardless whether `lim`
+        was specified.
     fancy_denom: int, optional
-        Scaling factor for `fancy_aspect`, by default 4 (which works well for data where the max value is ~50). Use higher values (e.g., 6) if your data range is large
+        Scaling factor for `fancy_aspect`, by default 4 (which works well for data where the max value is ~50). Use higher
+        values (e.g., 6) if your data range is large
     bar_legend: bool, optional
-        Legend for the bars, rather than points, by default False. The functionality of these interchangeable legends (`bar_legend` and `points_legend`) is quite tricky, so user discretion is advised.
+        Legend for the bars, rather than points, by default False. The functionality of these interchangeable legends
+        (`bar_legend` and `points_legend`) is quite tricky, so user discretion is advised.
     strip_kw, dict, optional
-        Additional kwargs passed on to seaborn's stripplot. Several factors are being set via regular arguments in the function, such as `dodge`, `palette`, `color`, and `hue`.
+        Additional kwargs passed on to seaborn's stripplot. Several factors are being set via regular arguments in the
+        function, such as `dodge`, `palette`, `color`, and `hue`.
 
     Example
     ----------
@@ -1975,7 +2023,6 @@ class LazyBar():
                         **self.connect_kw
                     )
 
-
         # set tick params
         self.kw_defaults._set_tick_params(self.ff)
 
@@ -2157,10 +2204,10 @@ class LazyBar():
 
         # fill in legend
         if self.add_legend:
-            
+
             if isinstance(self.lbl_legend, list):
                 labels = self.lbl_legend
-            
+
             # brute force
             if len(handles) == 0:
                 handles = list(self.ff.patches)
@@ -2171,7 +2218,6 @@ class LazyBar():
                 **self.legend_kw
             )
 
-                    
         else:
             self.legend = self.ff.legend([], [], frameon=False)
 
@@ -2195,7 +2241,8 @@ class LazyHist(Defaults):
     data: numpy.ndarray
         Input data for histogram
     kde: bool, optional
-        Add kernel density plot to histogram with seaborn (https://seaborn.pydata.org/generated/seaborn.kdeplot.html). Default is False
+        Add kernel density plot to histogram with seaborn (https://seaborn.pydata.org/generated/seaborn.kdeplot.html). Default
+        is False
     hist: bool, optional
         Add histogram to plot. Default is True
     fill: bool, optional
@@ -2351,11 +2398,11 @@ class LazyHist(Defaults):
         if self.kde:
 
             # turn off legend by default
-            if not "legend" in list(self.kde_kwargs):
+            if "legend" not in list(self.kde_kwargs):
                 self.kde_kwargs["legend"] = False
 
             if not self.hist:
-                if not "color" in list(self.kde_kwargs):
+                if "color" not in list(self.kde_kwargs):
                     self.kde_kwargs["color"] = self.color
 
             self.ff = sns.kdeplot(
@@ -2439,7 +2486,10 @@ def conform_ax_to_obj(
         **lazy_args):
     """conform_ax_to_obj
 
-    Function to conform any plot to the aesthetics of this plotting module. Can be used when a plot is created with functions other than :class:`lazyplot.plotting.LazyLine`, :class:`lazyplot.plotting.LazyCorr`, :class:`lazyplot.plotting.LazyHist`, or any other function specified in this file. Assumes `ax` is a `matplotlib.axes._subplots.AxesSubplot` object, and `obj` a `lazyplot.plotting.Lazy*`-object.
+    Function to conform any plot to the aesthetics of this plotting module. Can be used when a plot is created with functions
+    other than :class:`lazyplot.plotting.LazyLine`, :class:`lazyplot.plotting.LazyCorr`, :class:`lazyplot.plotting.LazyHist`,
+    or any other function specified in this file. Assumes `ax` is a `matplotlib.axes._subplots.AxesSubplot` object, and `obj`
+    a `lazyplot.plotting.Lazy*`-object.
 
     Parameters
     ----------
@@ -2448,7 +2498,8 @@ def conform_ax_to_obj(
     obj: lazyplot.plotting.Lazy*
         linecanning-specified plotting object containing the information with which `ax` will be conformed
     **lazy_args: dict, optional
-        other elements defined in :class:`lazyplot.plotting.Defaults`, such as `font_size`, `label_size`, or `axis_width`. Overwrites elements in `obj`, if passed
+        other elements defined in :class:`lazyplot.plotting.Defaults`, such as `font_size`, `label_size`, or `axis_width`.
+        Overwrites elements in `obj`, if passed
 
     Returns
     ----------
@@ -2734,7 +2785,8 @@ def fig_annot(
         else:
             if len(x_corr) != len(ax_list) - 1:
                 raise ValueError(
-                    f"List with 'x_corr'-values must match list with axes-1. x_corr contains {len(x_corr)} elements, while {len(ax_list)-1} axes are specified")
+                    f"""List with 'x_corr'-values must match list with axes-1. x_corr contains {len(x_corr)} elements,
+                    while {len(ax_list)-1} axes are specified""")
             use_x_pos = x_corr[ix - 1]
 
         if ix == 0:
@@ -2746,7 +2798,8 @@ def fig_annot(
         if isinstance(y, list):
             if len(y) != len(ax_list):
                 raise ValueError(
-                    f"List with y-values must match list with axes. y contains {len(y)} elements, while {len(ax_list)} axes are specified")
+                    f"""List with y-values must match list with axes. y contains {len(y)} elements,
+                    while {len(ax_list)} axes are specified""")
             y_pos = y[ix]
         else:
             y_pos = y
@@ -3070,60 +3123,65 @@ try:
 except BaseException:
     pass
 
+
 def make_wm_pial_ticks(
-    data, 
-    start=0, 
-    end=100, 
+    data,
+    start=0,
+    end=100,
     step=25,
     force_int=True
-    ):
-    x_ticks = [0,data.shape[0]//4, data.shape[0]//2,(data.shape[0]//2+data.shape[0]//4),data.shape[0]]
-    x_labels = list(np.arange(start,end*1.1, step=step))
+):
+    x_ticks = [0, data.shape[0]//4, data.shape[0]//2,
+               (data.shape[0]//2+data.shape[0]//4), data.shape[0]]
+    x_labels = list(np.arange(start, end*1.1, step=step))
 
     if len(x_ticks) != len(x_labels):
-        raise ValueError(f"Length of ticks ({len(x_ticks)}) {x_ticks} != length of labels ({len(x_labels)}) {x_labels}")
-    
+        raise ValueError(
+            f"Length of ticks ({len(x_ticks)}) {x_ticks} != length of labels ({len(x_labels)}) {x_labels}")
+
     if force_int:
-        x_labels = [int(round(i,0)) for i in x_labels]
-        
+        x_labels = [int(round(i, 0)) for i in x_labels]
+
     return {
         "ticks": x_ticks,
         "labels": x_labels
     }
 
+
 def annotate_cortical_ribbon(
     axs,
-    pial_pos=(0.02,0.92), 
-    wm_pos=(0.02,0.02), 
-    lbls=["pial","wm"], 
+    pial_pos=(0.02, 0.92),
+    wm_pos=(0.02, 0.02),
+    lbls=["pial", "wm"],
     **kwargs
-    ):
+):
 
-    if not "xycoords" in list(kwargs.keys()):
+    if "xycoords" not in list(kwargs.keys()):
         kwargs["xycoords"] = "axes fraction"
 
-    for pos,tag in zip([pial_pos,wm_pos],lbls):
+    for pos, tag in zip([pial_pos, wm_pos], lbls):
         axs.annotate(
             tag,
             pos,
             **kwargs
         )
 
+
 def add_axvspan(
-    axs, 
-    loc=(0,2), 
+    axs,
+    loc=(0, 2),
     color="#cccccc",
-    alpha=0.3, 
+    alpha=0.3,
     ymin=0,
     ymax=1,
     **kwargs
-    ):
+):
 
     axs.axvspan(
-        *loc, 
+        *loc,
         ymin=ymin,
-        ymax=ymax, 
-        alpha=alpha, 
+        ymax=ymax,
+        alpha=alpha,
         color=color,
         **kwargs
     )

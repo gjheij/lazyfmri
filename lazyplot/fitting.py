@@ -22,7 +22,8 @@ class CurveFitter():
     """CurveFitter
 
     Simple class to perform a quick curve fitting procedure on ``y_data``.
-    You can either specify your own function with ``func``, or select a polynomial of order ``order`` (currently up until 3rd-order is included).
+    You can either specify your own function with ``func``, or select a polynomial of order ``order`` (currently up until
+    3rd-order is included).
     Internally uses ``lmfit.Model`` to perform the fitting, allowing for access to confidence intervals.
 
     Parameters
@@ -243,7 +244,7 @@ class InitFitter():
         ]
 
         for key, val in zip(self.final_index, self.final_elements):
-            if not key in list(self.onsets.columns):
+            if key not in list(self.onsets.columns):
                 self.onsets[key] = val
 
         self.drop_cols = []
@@ -300,7 +301,7 @@ class InitFitter():
             self.final_elements = [1, 1, self.time]
 
         for key, val in zip(self.final_index, self.final_elements):
-            if not key in list(self.func.columns):
+            if key not in list(self.func.columns):
                 self.func[key] = val
 
         self.drop_cols = []
@@ -457,7 +458,7 @@ class InitFitter():
             self.get_basisset_timecourses()
 
         utils.verbose(
-            f"Deriving parameters from basis sets with 'HRFMetrics'",
+            "Deriving parameters from basis sets with 'HRFMetrics'",
             self.verbose)
         subj_ids = utils.get_unique_ids(self.sub_basis, id="subject")
 
@@ -599,7 +600,8 @@ class InitFitter():
         if len(not_shared) > 0:
             if len(not_shared) > 1:
                 raise ValueError(
-                    f"Found multiple ({len(not_shared)}) column names in the dataframe, but I'm expecting only 1 to not match.. These column names are extra: {not_shared}")
+                    f"""Found multiple ({len(not_shared)}) column names in the dataframe, but I'm expecting only 1 to not
+                    match.. These column names are extra: {not_shared}""")
             else:
                 return not_shared[0]
         else:
@@ -745,14 +747,21 @@ class InitFitter():
 class ParameterFitter(InitFitter):
     """ParameterFitter
 
-    Wrapper class around :class:`lazyplot.fitting.FitHRFparams` to estimate HRF shapes using an optimizer procedure. We insert the double gamma HRF with 8 parameters as starting point, and let the optimizer find the best parameters. To check whether the HRF is actually negative, it tries both positive and negative HRFs and compares the variance explained. The sign with the highest variance explained is chosen as the final HRF shape. See :class:`lazyplot.fitting.FitHRFparams` for more available flags that can be used. The final output will have the same format at :class:`lazyplot.fitting.NideconvFitter` to promote exchangeability.
+    Wrapper class around :class:`lazyplot.fitting.FitHRFparams` to estimate HRF shapes using an optimizer procedure. We insert
+    the double gamma HRF with 8 parameters as starting point, and let the optimizer find the best parameters. To check whether
+    the HRF is actually negative, it tries both positive and negative HRFs and compares the variance explained. The sign
+    withthe highest variance explained is chosen as the final HRF shape. See :class:`lazyplot.fitting.FitHRFparams` for more
+    available flags that can be used. The final output will have the same format at
+    :class:`lazyplot.fitting.NideconvFitter` to promote exchangeability.
 
     Parameters
     ----------
     func: pd.DataFrame
-        Dataframe as per the output of :func:`linescanning.dataset.Datasets.fetch_fmri()`, containing the fMRI data indexed on subject, run, and t.
+        Dataframe as per the output of :func:`linescanning.dataset.Datasets.fetch_fmri()`, containing the fMRI data indexed on
+        subject, run, and t.
     onsets: pd.DataFrame
-        Dataframe as per the output of :func:`linescanning.dataset.Datasets.fetch_onsets()`, containing the onset timings data indexed on subject, run, and event_type.
+        Dataframe as per the output of :func:`linescanning.dataset.Datasets.fetch_onsets()`, containing the onset timings data
+        indexed on subject, run, and event_type.
     TR: float, optional
         Repetition time, by default 0.105. Use to calculate the sampling frequency (1/TR)
     merge: bool, optional
@@ -871,7 +880,8 @@ class ParameterFitter(InitFitter):
                     "&",
                     f"run = {run}"
                 )
-                self.run_func = utils.select_from_df(self.orig_func, expression=expr)
+                self.run_func = utils.select_from_df(
+                    self.orig_func, expression=expr)
 
                 # loop through events
                 for ev in self.ev_ids:
@@ -899,11 +909,12 @@ class ParameterFitter(InitFitter):
                     # get profiles and full timecourse predictions
                     df = self.rf.hrf_profiles.copy()
                     pr = self.rf.predictions.copy()
-                    
+
                     es = self.rf.estimates.copy()
                     es["vox"] = list(self.func.columns)
-                    es.set_index(["subject", "event_type","run","vox"], inplace=True)
-                    
+                    es.set_index(["subject", "event_type",
+                                 "run", "vox"], inplace=True)
+
                     # append
                     self.ddict_ev["predictions"].append(pr)
                     self.ddict_ev["profiles"].append(df)
@@ -920,26 +931,35 @@ class ParameterFitter(InitFitter):
         self.tc_subjects.columns = self.func.columns
         self.ev_predictions.columns = self.func.columns
 
-        self.grouper = self.tc_subjects.groupby(level=['event_type', 'covariate', 'time'])
+        self.grouper = self.tc_subjects.groupby(
+            level=['event_type', 'covariate', 'time'])
         self.tc_condition = self.grouper.mean()
         self.sem_condition = self.grouper.sem()
         self.std_condition = self.grouper.std()
 
         self.time = utils.get_unique_ids(self.tc_condition, id="time")
 
+
 class NideconvFitter(InitFitter):
     """NideconvFitter
 
-    Wrapper class around :class:`nideconv.GroupResponseFitter` to promote reprocudibility, avoid annoyances with pandas indexing, and flexibility when performing multiple deconvolutions in an analysis. Works fluently with :class:`linescanning.dataset.Dataset` and :func:`linescanning.utils.select_from_df`. Because our data format generally involved ~720 voxels, we can specify the range which represents the grey matter ribbon around our target vertex, e.g., `[355,364]`, and select the subset of the main functional dataframe to use as input for this class (see also example).
+    Wrapper class around :class:`nideconv.GroupResponseFitter` to promote reprocudibility, avoid annoyances with pandas
+    indexing, and flexibility when performing multiple deconvolutions in an analysis. Works fluently with
+    :class:`linescanning.dataset.Dataset` and :func:`linescanning.utils.select_from_df`. Because our data format generally
+    involved ~720 voxels, we can specify the range which represents the grey matter ribbon around our target vertex, e.g.,
+    `[355,364]`, and select the subset of the main functional dataframe to use as input for this class (see also example).
 
-    Main inputs are the dataframe with fMRI-data, the onset timings, followed by specific settings for the deconvolution. Rigde-regression is not yet available as method, because 2D-dataframes aren't supported yet. This is a work-in-progress.
+    Main inputs are the dataframe with fMRI-data, the onset timings, followed by specific settings for the deconvolution.
+    Ridge-regression is not yet available as method, because 2D-dataframes aren't supported yet. This is a work-in-progress.
 
     Parameters
     ----------
     func: pd.DataFrame
-        Dataframe as per the output of :func:`linescanning.dataset.Datasets.fetch_fmri()`, containing the fMRI data indexed on subject, run, and t.
+        Dataframe as per the output of :func:`linescanning.dataset.Datasets.fetch_fmri()`, containing the fMRI data indexed on
+        subject, run, and t.
     onsets: pd.DataFrame
-        Dataframe as per the output of :func:`linescanning.dataset.Datasets.fetch_onsets()`, containing the onset timings data indexed on subject, run, and event_type.
+        Dataframe as per the output of :func:`linescanning.dataset.Datasets.fetch_onsets()`, containing the onset timings data
+        indexed on subject, run, and event_type.
     TR: float, optional
         Repetition time, by default 0.105. Use to calculate the sampling frequency (1/TR)
     confounds: pd.DataFrame, optional
@@ -947,7 +967,8 @@ class NideconvFitter(InitFitter):
     basis_sets: str, optional
         Type of basis sets to use, by default "fourier". Should be 'fourier' or 'fir'.
     fit_type: str, optional
-        Type of minimization strategy to employ, by default "ols". Should be 'ols' or 'ridge' (though the latter isn't implemented properly yet)
+        Type of minimization strategy to employ, by default "ols". Should be 'ols' or 'ridge' (though the latter isn't
+        implemented properly yet)
     n_regressors: int, optional
         Number of regressors to use, by default 9; set `n_regressors="tr"` to synchronize the number of regressors with the TR
     add_intercept: bool, optional
@@ -955,11 +976,14 @@ class NideconvFitter(InitFitter):
     verbose: bool, optional
         _description_, by default False
     lump_events: bool, optional
-        If ple are  in the onset dataframe, we can lump the events together and consider all onset times as 1 event, by default False
+        If ple are  in the onset dataframe, we can lump the events together and consider all onset times as 1 event, by
+        default False
     interval: list, optional
         Interval to fit the regressors over, by default [0,12]
     covariates: dict, optional
-        dictionary of covariates for each of the events in onsets. That is, the keys are the names of the covariates, the values are 1D numpy arrays of length identical to onsets; these are the covariate values of each of the events in onsets.
+        dictionary of covariates for each of the events in onsets. That is, the keys are the names of the covariates, the
+        values are 1D numpy arrays of length identical to onsets; these are the covariate values of each of the events in
+        onsets.
 
     Example
     ----------
@@ -1003,9 +1027,8 @@ class NideconvFitter(InitFitter):
 
     * `plot_average_per_event`: for each event, average over the voxels present in the dataframe
     * `plot_average_per_voxel`: for each voxel, plot the response to each event
-    * `plot_hrf_across_depth`: for each voxel, fetch the peak HRF response and fit a 3rd-order polynomial to the points (utilizes :class:`linescanning.utils.CurveFitter`)
-
-    See also https://linescanning.readthedocs.io/en/latest/examples/nideconv.html for more details.
+    * `plot_hrf_across_depth`: for each voxel, fetch the peak HRF response and fit a 3rd-order polynomial to the points
+    (utilizes :class:`lazyplot.fitting.CurveFitter`)
     """
 
     def __init__(
@@ -1145,7 +1168,8 @@ class NideconvFitter(InitFitter):
 
                         if len(els) != 3:
                             raise TypeError(
-                                f"Format of this input must be 'tr <operation> <value>' (WITH SPACES), not '{self.n_regressors}'. Example: 'tr x 2' will use 2 regressors per TR")
+                                f"""Format of this input must be 'tr <operation> <value>' (WITH SPACES), not
+                                '{self.n_regressors}'. Example: 'tr x 2' will use 2 regressors per TR""")
 
                         op = utils.str2operator(els[1])
                         val = float(els[-1])
@@ -1334,9 +1358,9 @@ class NideconvFitter(InitFitter):
 
                     # betas
                     b1 = utils.select_from_df(
-                        betas, expression=f"event type = confounds")
+                        betas, expression="event type = confounds")
                     b2 = utils.select_from_df(
-                        ev_beta, expression=f"regressor = {reg}")
+                        ev_beta, expression="regressor = {reg}")
                     bet1 = pd.concat([b1, b2])
 
                 else:
@@ -1565,7 +1589,7 @@ class NideconvFitter(InitFitter):
         old_idx = list(df.index.names)
 
         tmp = df.copy()
-        if not "run" in old_idx:
+        if "run" not in old_idx:
             tmp = df.reset_index()
             old_idx.insert(loc, "run")
             tmp["run"] = 1
@@ -1645,7 +1669,7 @@ class NideconvFitter(InitFitter):
 
         else:
 
-            utils.verbose(f"Setting up models ridge-regression", self.verbose)
+            utils.verbose("Setting up models ridge-regression", self.verbose)
 
             # get subjects
             try:
@@ -1845,12 +1869,15 @@ class NideconvFitter(InitFitter):
             **kwargs):
         """plot_average_per_event
 
-        Plot the average across runs and voxels for each event in your data. Allows the option to have time-to-peak or full-width half max (FWHM) plots as insets. This makes the most sense if you have multiple events, otherwise you have 1 bar..
+        Plot the average across runs and voxels for each event in your data. Allows the option to have time-to-peak or
+        full-width half max (FWHM) plots as insets. This makes the most sense if you have multiple events, otherwise you have
+        1 bar..
 
         Parameters
         ----------
         add_offset: bool, optional
-            Shift the HRFs to have the baseline at zero, by default True. Theoretically, this should already happen if your baseline is estimated properly, but for visualization and quantification purposes this is alright
+            Shift the HRFs to have the baseline at zero, by default True. Theoretically, this should already happen if your
+            baseline is estimated properly, but for visualization and quantification purposes this is alright
         axs: <AxesSubplot:>, optional
             Matplotlib axis to store the figure on, by default None
         title: str, optional
@@ -1864,15 +1891,18 @@ class NideconvFitter(InitFitter):
         ttp_lines: bool, optional
             Plot lines on the original axis with HRFs to indicate the maximum amplitude, by default False
         ttp_labels: list, optional
-            Which labels to use for the inset axis; this can be different than your event names (e.g., if you want to round numbers), by default None
+            Which labels to use for the inset axis; this can be different than your event names (e.g., if you want to round
+            numbers), by default None
         events: list, optional
-            List that decides the order of the events to plot, by default None. By default, it takes the event names, but sometimes you want to flip around the order.
+            List that decides the order of the events to plot, by default None. By default, it takes the event names, but
+            sometimes you want to flip around the order.
         fwhm: bool, optional
             Plot the full-width half-max (FWHM) on the inset axis, by default False
         fwhm_lines: bool, optional
             Plot lines on the original axis with HRFs to indicate the maximum amplitude, by default False
         fwhm_labels: list, optional
-            Which labels to use for the inset axis; this can be different than your event names (e.g., if you want to round numbers), by default None
+            Which labels to use for the inset axis; this can be different than your event names (e.g., if you want to round
+            numbers), by default None
         inset_ttp: list, optional
             Where to put your TTP-axis, by default [0.75, 0.65, 0.3]. Height will be scaled by the number of events
         inset_fwhm: list, optional
@@ -2125,7 +2155,7 @@ class NideconvFitter(InitFitter):
             # heights need to be adjusted for by axis length
             if not isinstance(hrf_axs, mpl.axes._axes.Axes):
                 raise ValueError(
-                    f"Need an axes-object containing HRF profiles to draw lines on")
+                    "Need an axes-object containing HRF profiles to draw lines on")
 
             ylim = hrf_axs.get_ylim()
             tot = sum(list(np.abs(ylim)))
@@ -2236,12 +2266,16 @@ class NideconvFitter(InitFitter):
             **kwargs):
         """plot_average_per_voxel
 
-        Plot the average across runs for each voxel in your dataset. Generally, this plot is used to plot HRFs across depth. If you have multiple events, we'll create a grid of `n_cols` wide (from which the rows are derived), with the HRFs for each event in the subplot. The legend will be put in the first subplot. If you only have 1 event, you can say `n_cols=None` to put the average across events for all voxels in 1 plot
+        Plot the average across runs for each voxel in your dataset. Generally, this plot is used to plot HRFs across depth.
+        If you have multiple events, we'll create a grid of `n_cols` wide (from which the rows are derived), with the HRFs for
+        each event in the subplot. The legend will be put in the first subplot. If you only have 1 event, you can say
+        `n_cols=None` to put the average across events for all voxels in 1 plot.
 
         Parameters
         ----------
         add_offset: bool, optional
-            Shift the HRFs to have the baseline at zero, by default True. Theoretically, this should already happen if your baseline is estimated properly, but for visualization and quantification purposes this is alright
+            Shift the HRFs to have the baseline at zero, by default True. Theoretically, this should already happen if your
+            baseline is estimated properly, but for visualization and quantification purposes this is alright
         axs: <AxesSubplot:>, optional
             Matplotlib axis to store the figure on, by default None
         n_cols: int, optional
@@ -2253,7 +2287,8 @@ class NideconvFitter(InitFitter):
         make_figure: bool, optional
             Actually create the plot or just fetch the data across depth, by default True
         labels: list, optional
-            Which labels to use for the inset axis; this can be different than your event names (e.g., if you want to round numbers), by default None
+            Which labels to use for the inset axis; this can be different than your event names (e.g., if you want to round
+            numbers), by default None
         save_as: str, optional
             Save to file, by default None
         sharey: bool, optional
@@ -2456,7 +2491,9 @@ class NideconvFitter(InitFitter):
             **kwargs):
         """plot_hrf_across_depth
 
-        Plot the magnitude of the HRF across depth as points with a seaborn regplot through it. The points can be colored with `color` according to the HRF from :func:`linescanning.fitting.NideconvFitter.plot_average_across_voxels`, or they can be given 1 uniform color. The linear fit can be colored using `ci_color`, for which the default is light gray.
+        Plot the magnitude of the HRF across depth as points with a seaborn regplot through it. The points can be colored with
+        `color` according to the HRF from :func:`linescanning.fitting.NideconvFitter.plot_average_across_voxels`, or they can
+        be given 1 uniform color. The linear fit can be colored using `ci_color`, for which the default is light gray.
 
         Parameters
         ----------
@@ -2475,7 +2512,8 @@ class NideconvFitter(InitFitter):
         save_as: str, optional
             Save as file, by default None
         invert: bool, optional
-            By default, we'll assume your input data represents voxels from CSF to WM. This flag can flip that around, by default False
+            By default, we'll assume your input data represents voxels from CSF to WM. This flag can flip that around, by
+            default False
 
         Example
         ----------
@@ -2664,14 +2702,19 @@ class CVDeconv(InitFitter):
             TR=0.105):
         """CVDeconv
 
-        Wrapper class around :class:`nideconv.NideconvFitter` to run deconvolution in a cross-validated r2-framework. Inputs are similar to :class:`nideconv.NideconvFitter`. The basic gist of the class is to find all possible run-specific combinations, average those, and run deconvolution. This is repeated until all combinations have been used, resulting in a final dataframe containing the r2-values for each subject.
+        Wrapper class around :class:`nideconv.NideconvFitter` to run deconvolution in a cross-validated r2-framework. Inputs
+        are similar to :class:`nideconv.NideconvFitter`. The basic gist of the class is to find all possible run-specific
+        combinations, average those, and run deconvolution. This is repeated until all combinations have been used, resulting
+        in a final dataframe containing the r2-values for each subject.
 
         Parameters
         ----------
         func: pd.DataFrame
-            Dataframe as per the output of :func:`linescanning.dataset.Datasets.fetch_fmri()`, containing the fMRI data indexed on subject, run, and t.
+            Dataframe as per the output of :func:`linescanning.dataset.Datasets.fetch_fmri()`, containing the fMRI data
+            indexed on subject, run, and t.
         onsets: pd.DataFrame
-            Dataframe as per the output of :func:`linescanning.dataset.Datasets.fetch_onsets()`, containing the onset timings data indexed on subject, run, and event_type.
+            Dataframe as per the output of :func:`linescanning.dataset.Datasets.fetch_onsets()`, containing the onset timings
+            data indexed on subject, run, and event_type.
         TR: float, optional
             Repetition time, by default 0.105. Use to calculate the sampling frequency (1/TR)
 
@@ -2710,14 +2753,14 @@ class CVDeconv(InitFitter):
         self.run_ids = utils.get_unique_ids(self.func, id="run")
         if len(self.run_ids) <= 2:
             raise ValueError(
-                f"Crossvalidating is somewhat pointless with with fewer than 3 runs..")
+                "Crossvalidating is somewhat pointless with with fewer than 3 runs..")
 
         # get all possible combination of runs
         return utils.unique_combinations(self.run_ids, l=split)
 
     def single_fitter(self, func, onsets, **kwargs):
 
-        if not "fit" in list(kwargs.keys()):
+        if "fit" not in list(kwargs.keys()):
             kwargs["fit"] = True
 
         # run single fitter and fetch timecourses
@@ -2872,7 +2915,12 @@ class HRFMetrics():
     ):
         """HRFMetrics
 
-        Main class for extracting various parameters from a given profiles. Optimized for the hemodynamic response function (HRF) but is agnostic to the type of input. It will therefore try to extract parameters from any shape of profile. Input can be a `pd.DataFrame` or `numpy.array`. Internally, a DataFrame will be created to facilitate usage across various operations. By default, parameters will be derived from the largest peak in the profile. This can be positive or negative. If you want to force the parameters to reflect a positive response, use the `force_pos` flag. Conversely, if you want to enfore negative values, use `force_neg`. This can be set for each column in the dataframe using lists.
+        Main class for extracting various parameters from a given profiles. Optimized for the hemodynamic response function
+        (HRF) but is agnostic to the type of input. It will therefore try to extract parameters from any shape of profile.
+        Input can be a `pd.DataFrame` or `numpy.array`. Internally, a DataFrame will be created to facilitate usage across
+        various operations. By default, parameters will be derived from the largest peak in the profile. This can be positive
+        or negative. If you want to force the parameters to reflect a positive response, use the `force_pos` flag. Conversely,
+        if you want to enfore negative values, use `force_neg`. This can be set for each column in the dataframe using lists.
 
         The following parameters are extracted and formatted into a dataframe:
             - magnitude:        largest response in the profile
@@ -2892,7 +2940,8 @@ class HRFMetrics():
         hrf: pd.DataFrame, np.ndarray
             Input profile. Can be 1D or 2D.
         TR: float, optional
-            If `hrf` is an array, the `TR` should be supplied to create a dataframe with correct time indications, by default None
+            If `hrf` is an array, the `TR` should be supplied to create a dataframe with correct time indications, by default
+            None
         force_pos: list, bool, optional
             Force the output to use a positive outcome, by default False.
         force_neg: list, bool, optional
@@ -2906,15 +2955,21 @@ class HRFMetrics():
         progress: bool, optional
             Print a fancy progress bar using `alive_progress`, by default False
         thr_var: int, float, optional
-            Specify a variance threshold the input profiles must adhere to, by default 0. This avoids that flat timecourses are entered into the extraction
+            Specify a variance threshold the input profiles must adhere to, by default 0. This avoids that flat timecourses
+            are entered into the extraction
         shift: int, float, optional
-            Sometimes profiles contain negative parts. This flag shifts the profile to a certain value first before parameter extraction, by default 0
+            Sometimes profiles contain negative parts. This flag shifts the profile to a certain value first before parameter
+            extraction, by default 0
         vox_as_index: bool, optional
-            If a 2D-dataframe is supplied, the columns can either denote ROIs or voxels. Setting this flag to False will use the original column names, otherwise indices will be used. Default = False.
+            If a 2D-dataframe is supplied, the columns can either denote ROIs or voxels. Setting this flag to False will use
+            the original column names, otherwise indices will be used. Default = False.
         col_name: str, optional
-            If a 2D-dataframe is supplied, an extra index is added. This flag sets the name of that index. Default = "vox". This can be for instance "roi", if you're dealing with ROIs
+            If a 2D-dataframe is supplied, an extra index is added. This flag sets the name of that index. Default = "vox".
+            This can be for instance "roi", if you're dealing with ROIs
         peak: int, optional
-            Define which peak you want to use as reference. This flag requires an integer value from 1 to N. :function:`scipy.signal.find_peaks` is then used to extract peaks from the curve. By default, it will look for the largest peak, whether that's positive or negative.
+            Define which peak you want to use as reference. This flag requires an integer value from 1 to N.
+            :function:`scipy.signal.find_peaks` is then used to extract peaks from the curve. By default, it will look for the
+            largest peak, whether that's positive or negative.
 
         Example
         ----------
@@ -3103,7 +3158,7 @@ class HRFMetrics():
 
             if not isinstance(TR, (int, float)):
                 raise ValueError(
-                    f"Please specify repetition time of this acquisition to construct time axis")
+                    "Please specify repetition time of this acquisition to construct time axis")
 
             time_axis = list(np.arange(0, hrf.shape[0]) * TR)
             hrf = pd.DataFrame({"voxel": hrf})
@@ -3233,7 +3288,7 @@ class HRFMetrics():
                     slope_val = fwhm_t0 = np.nan
                 else:
                     raise TypeError(
-                        f"Could not extract fwhm from profile, so rise slope could not be determined")
+                        "Could not extract fwhm from profile, so rise slope could not be determined")
             else:
                 fwhm_t0 = fwhm_obj["obj"].t0_
                 t0 = fwhm_t0 * window[0]
@@ -3305,9 +3360,6 @@ class HRFMetrics():
                 # extrapolate function to get intercept with 0
                 y = np.full_like(rf, np.nan)
                 y[idcs[0]:idcs[1]] = cv.y_pred
-                a, b = cv.params.get("slope").value, cv.params.get(
-                    "intercept").value
-                x = np.arange(0, len(t_))
                 y_hat = cv.result.eval(x=time)
                 y_hat[mag_ix:] = np.nan
 
@@ -3732,7 +3784,9 @@ class FWHM():
     ):
         """FWHM
 
-        Class to extract the full-width at half-max of a given profile. The profile can either have a positive or negative peak, in which case the `negative`-flag should be set accordingly. The final output is stored in the `fwhm` attribute of the class.
+        Class to extract the full-width at half-max of a given profile. The profile can either have a positive or negative
+        peak, in which case the `negative`-flag should be set accordingly. The final output is stored in the `fwhm` attribute
+        of the class.
 
         Parameters
         ----------
@@ -3743,7 +3797,8 @@ class FWHM():
         negative: bool, optional
             Assume the FWHM needs to be extracted from a negative bump or not
         resample: int, optional
-            Resample the input to a higher grid so that the intersection between the profile and half-max can be drawn more accurately
+            Resample the input to a higher grid so that the intersection between the profile and half-max can be drawn more
+            accurately
         """
 
         self.x = x
@@ -3766,7 +3821,7 @@ class FWHM():
         self.hmx = self.half_max_x(self.use_x, self.use_rf)
 
         if len(self.hmx) < 2:
-            raise ValueError(f"Could not find two points close to half max..")
+            raise ValueError("Could not find two points close to half max..")
 
         self.ts = [i.squeeze()[0] for i in self.hmx]
         self.ts.sort()
@@ -3906,10 +3961,12 @@ def iterative_search(
         interval=[0, 25],
         xtol=1e-4,
         ftol=1e-4,
-        ):
+):
     """iterative_search
 
-    Iterative search function to find the best set of parameters that describe the HRF across a full timeseries. During the optimization, each parameter is adjusted and a new prediction is formed until the variance explained of this prediction is maximized.
+    Iterative search function to find the best set of parameters that describe the HRF across a full timeseries. During the
+    optimization, each parameter is adjusted and a new prediction is formed until the variance explained of this prediction is
+    maximized.
 
     Parameters
     ----------
@@ -3958,9 +4015,9 @@ def iterative_search(
 
     # run for both negative and positive; return parameters of best r2
     res = {}
-    for lbl, np in zip(["pos", "neg"], [False, True]):
+    for lbl, nnp in zip(["pos", "neg"], [False, True]):
         res[lbl] = {}
-        args["negative"] = np
+        args["negative"] = nnp
         output = minimize(
             error_function,
             starting_params,
@@ -3995,7 +4052,8 @@ def iterative_search(
 class FitHRFparams():
     """FitHRFparams
 
-    Similar to Marco's pRF modeling, we can also estimate the best set of parameters that describe the HRF. This has slightly more degrees of freedom compared to using basis sets, but is not as unconstrained as FIR.
+    Similar to Marco's pRF modeling, we can also estimate the best set of parameters that describe the HRF. This has slightly
+    more degrees of freedom compared to using basis sets, but is not as unconstrained as FIR.
 
     Parameters
     ----------
@@ -4150,11 +4208,15 @@ class FitHRFparams():
             force_pos=self.force_pos
         ).return_metrics()
 
-        self.estimates = pd.DataFrame(self.iterative_search_params, columns=["a1", "a2", "b1", "b2", "c", "d1", "d2"])
+        self.estimates = pd.DataFrame(self.iterative_search_params, columns=[
+                                      "a1", "a2", "b1", "b2", "c", "d1", "d2"])
 
-        self.estimates["subject"] = utils.get_unique_ids(self.hrf_profiles, id="subject")[0]
-        self.estimates["run"] = utils.get_unique_ids(self.hrf_profiles, id="run")[0]
-        self.estimates["event_type"] = utils.get_unique_ids(self.hrf_profiles, id="event_type")[0]
+        self.estimates["subject"] = utils.get_unique_ids(
+            self.hrf_profiles, id="subject")[0]
+        self.estimates["run"] = utils.get_unique_ids(
+            self.hrf_profiles, id="run")[0]
+        self.estimates["event_type"] = utils.get_unique_ids(
+            self.hrf_profiles, id="event_type")[0]
 
     def profiles_from_parameters(
             self,
@@ -4209,10 +4271,11 @@ class FitHRFparams():
         self.hrf_profiles["time"] = time_points
         self.hrf_profiles["covariate"] = "intercept"
         self.predictions = pd.DataFrame(predictions.T)
-        self.predictions["t"] = list(np.arange(0, self.data.shape[1]) * self.TR)
+        self.predictions["t"] = list(
+            np.arange(0, self.data.shape[1]) * self.TR)
 
         # read indices from onset dataframe
-        self.prof_indices = ["covariate","time"]
+        self.prof_indices = ["covariate", "time"]
         self.pred_indices = ["t"]
 
         self.custom_indices = []
@@ -4245,9 +4308,11 @@ class Epoch(InitFitter):
     Parameters
     ----------
     func: pd.DataFrame
-        Dataframe as per the output of :func:`linescanning.dataset.Datasets.fetch_fmri()`, containing the fMRI data indexed on subject, run, and t.
+        Dataframe as per the output of :func:`linescanning.dataset.Datasets.fetch_fmri()`, containing the fMRI data indexed on
+        subject, run, and t.
     onsets: pd.DataFrame
-        Dataframe as per the output of :func:`linescanning.dataset.Datasets.fetch_onsets()`, containing the onset timings data indexed on subject, run, and event_type.
+        Dataframe as per the output of :func:`linescanning.dataset.Datasets.fetch_onsets()`, containing the onset timings data
+        indexed on subject, run, and event_type.
     TR: float, optional
         Repetition time, by default 0.105. Use to calculate the sampling frequency (1/TR)
     interval: list, optional
@@ -4386,7 +4451,9 @@ class Epoch(InitFitter):
 
                     if len(time) != len(stim_epoch):
                         print(
-                            f"WARNING: could not extract full epoch around event; onset={round(t,2)}s, t_start={round(t_start,2)}s with {n_sampl} samples ({samples}s). Epoch has {len(stim_epoch)} samples")
+                            f"""WARNING: could not extract full epoch around event; onset={round(t,2)}s,
+                            t_start={round(t_start,2)}s with {n_sampl} samples ({samples}s).
+                            Epoch has {len(stim_epoch)} samples""")
 
                     df_stim_epoch["t"], df_stim_epoch["epoch"], df_stim_epoch["event_type"] = time[:len(
                         stim_epoch)], i, ev
@@ -4532,9 +4599,11 @@ class GLM(InitFitter):
     Parameters
     ----------
     func: pd.DataFrame
-        Dataframe as per the output of :func:`linescanning.dataset.Datasets.fetch_fmri()`, containing the fMRI data indexed on subject, run, and t.
+        Dataframe as per the output of :func:`linescanning.dataset.Datasets.fetch_fmri()`, containing the fMRI data indexed on
+        subject, run, and t.
     onsets: pd.DataFrame
-        Dataframe as per the output of :func:`linescanning.dataset.Datasets.fetch_onsets()`, containing the onset timings data indexed on subject, run, and event_type.
+        Dataframe as per the output of :func:`linescanning.dataset.Datasets.fetch_onsets()`, containing the onset timings data
+        indexed on subject, run, and event_type.
     TR: float, optional
         Repetition time, by default 0.105. Use to calculate the sampling frequency (1/TR)
     interval: list, optional
@@ -5017,7 +5086,7 @@ class GLM(InitFitter):
         # append full model
         if full:
             signals.append(full_preds.iloc[:, vox_nr].values)
-            labels.append(f"full model")
+            labels.append("full model")
             markers.append(None)
             linewidth.append(2)
             colors.append(full_color)
@@ -5044,3 +5113,5 @@ class GLM(InitFitter):
             markers=markers,
             color=colors,
         )
+
+        return pl

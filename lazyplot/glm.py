@@ -3,7 +3,6 @@ from nilearn.glm.first_level import first_level
 from nilearn.glm.first_level import hemodynamic_models
 from nilearn.plotting import (
     plot_contrast_matrix,
-    plot_design_matrix
 )
 import numpy as np
 import matplotlib as mpl
@@ -16,16 +15,20 @@ import seaborn as sns
 class GenericGLM():
     """GenericGLM
 
-    Main class to perform a simple GLM with python. Will do most of the processes internally, and allows you to plot various processes along the way.
+    Main class to perform a simple GLM with python. Will do most of the processes internally, and allows you to plot various
+    processes along the way.
 
     Parameters
     ----------
     onset: pandas.DataFrame
-        Dataframe containing the onset times for all events in an experiment. Specifically design to work smoothly with :func:`lazyplot.utils.ParseExpToolsFile`. You should insert the output from :func:`lazyplot.utils.ParseExpToolsFile.get_onset_df()` as `onset`
+        Dataframe containing the onset times for all events in an experiment. Specifically design to work smoothly with
+        :func:`lazyplot.utils.ParseExpToolsFile`. You should insert the output from
+        :func:`lazyplot.utils.ParseExpToolsFile.get_onset_df()` as `onset`
     data: numpy.ndarray, pandas.DataFrame
         <time,voxels> numpy array or pandas DataFrame; required for creating the appropriate length of the stimulus vectors
     hrf_pars: dict, optional
-        dictionary collecting the parameters required for :func:`lazyplot.glm.double_gamma` (generally the defaults are fine though!)
+        dictionary collecting the parameters required for :func:`lazyplot.glm.double_gamma` (generally the defaults are fine
+        though!)
 
         >>> pars = {'lag': 6,
         >>>         'a2': 12,
@@ -36,13 +39,17 @@ class GenericGLM():
     TR: float
         repetition time of acquisition
     osf: int, optional
-        Oversampling factor used to account for decimal onset times, by default None. The larger this factor, the more accurate decimal onset times will be processed, but also the bigger your upsampled convolved becomes, which means convolving will take longer.
+        Oversampling factor used to account for decimal onset times, by default None. The larger this factor, the more
+        accurate decimal onset times will be processed, but also the bigger your upsampled convolved becomes, which means
+        convolving will take longer.
     type: str, optional
         Use block design of event-related design, by default 'event'. If set to 'block', `block_length` is required.
     block_length: int, optional
         Duration of block in seconds, by default None
     amplitude: int, list, optional
-        Amplitude to be used when creating the stimulus vector, by default None. If nothing is specified, the amplitude will be set to '1', like you would in a regular FSL 1-/3-column file. If you want variable amplitudes for different events for in a simulation, you can specify a list with an equal length to the number of events present in `onset_df`.
+        Amplitude to be used when creating the stimulus vector, by default None. If nothing is specified, the amplitude will
+        be set to '1', like you would in a regular FSL 1-/3-column file. If you want variable amplitudes for different events
+        for in a simulation, you can specify a list with an equal length to the number of events present in `onset_df`.
     regressors: pandas.DataFrame, numpy.ndarray, optional
         Add a bunch of regressors to the design
     make_figure: bool, optional
@@ -54,11 +61,16 @@ class GenericGLM():
     plot_vox: int, optional
         Instead of plotting the best-fitting voxel, specify which voxel to plot the timecourse and fit of, by default None
     plot_event: str, int, list, optional
-        If a larger design matrix was inputted with multiple events, you can specify here the name of the event you'd like to plot the betas from. It also accepts a list of indices of events to plot, so you could plot the first to events by specifying `plot_event=[1,2]`. Remember, the 0th index is the intercept! By default we'll plot the event right after the intercept
+        If a larger design matrix was inputted with multiple events, you can specify here the name of the event you'd like to
+        plot the betas from. It also accepts a list of indices of events to plot, so you could plot the first to events by
+        specifying `plot_event=[1,2]`. Remember, the 0th index is the intercept! By default we'll plot the event right after
+        the intercept
     contrast_matrix: numpy.ndarray, optional
-        contrast array for the event regressors. If none, we'll create a contrast matrix that estimates the effect of each regressor and the baseline
+        contrast array for the event regressors. If none, we'll create a contrast matrix that estimates the effect of each
+        regressor and the baseline
     nilearn: bool, optional
-        use nilearn implementation of `FirstLevelModel` (True) or bare python (False). The later gives easier access to betas, while the former allows implementation of AR-noise models.
+        use nilearn implementation of `FirstLevelModel` (True) or bare python (False). The later gives easier access to betas,
+        while the former allows implementation of AR-noise models.
 
     Returns
     ----------
@@ -101,7 +113,8 @@ class GenericGLM():
 
     Notes
     ----------
-    For `FirstLevelModel` to work with our type of data, I had to add the following to `https://github.com/nilearn/nilearn/blob/main/nilearn/glm/first_level/first_level.py#L683`:
+    For `FirstLevelModel` to work with our type of data, I had to add the following to
+    `https://github.com/nilearn/nilearn/blob/main/nilearn/glm/first_level/first_level.py#L683`:
 
     """
 
@@ -291,7 +304,8 @@ class GenericGLM():
                 self.data = self.data.copy()
             else:
                 raise ValueError(
-                    f"Unknown input type {type(self.data)} for functional data. Must be pd.DataFrame or np.ndarray [time, voxels]")
+                    f"""Unknown input type {type(self.data)} for functional data. Must be pd.DataFrame or np.ndarray
+                    [time, voxels]""")
 
             self.labels, self.results = first_level.run_glm(
                 self.data, self.design, noise_model='ar1')
@@ -453,7 +467,9 @@ def make_stimulus_vector(
         amplitude=None):
     """make_stimulus_vector
 
-    Creates a stimulus vector for each of the conditions found in `onset_df`. You can account for onset times being in decimal using the oversampling factor `osf`. This would return an upsampled stimulus vector which should be convolved with an equally upsampled HRF. This can be ensured by using the same `osf` in :func:`lazyplot.glm.double_gamma`.
+    Creates a stimulus vector for each of the conditions found in `onset_df`. You can account for onset times being in decimal
+    using the oversampling factor `osf`. This would return an upsampled stimulus vector which should be convolved with an
+    equally upsampled HRF. This can be ensured by using the same `osf` in :func:`lazyplot.glm.double_gamma`.
 
     Parameters
     ----------
@@ -470,7 +486,9 @@ def make_stimulus_vector(
     block_length: int, optional
         Duration of block in seconds, by default None
     amplitude: int, list, optional
-        Amplitude to be used when creating the stimulus vector, by default None. If nothing is specified, the amplitude will be set to '1', like you would in a regular FSL 1-/3-column file. If you want variable amplitudes for different events for in a simulation, you can specify a list with an equal length to the number of events present in `onset_df`.
+        Amplitude to be used when creating the stimulus vector, by default None. If nothing is specified, the amplitude will
+        be set to '1', like you would in a regular FSL 1-/3-column file. If you want variable amplitudes for different events
+        for in a simulation, you can specify a list with an equal length to the number of events present in `onset_df`.
 
     Returns
     ----------
@@ -513,7 +531,8 @@ def make_stimulus_vector(
         names_cond = utils.get_unique_ids(onset_df, id="event_type")
     except BaseException:
         raise ValueError(
-            'Could not extract condition names; are you sure you formatted the dataframe correctly? Mostly likely you passed the functional dataframe as onset dataframe. Please switch')
+            """Could not extract condition names; are you sure you formatted the dataframe correctly? Mostly likely you passed
+            the functional dataframe as onset dataframe. Please switch""")
 
     # check if we should use covariate as amplitude
     if isinstance(cov_as_ampl, (bool, list)):
@@ -549,7 +568,8 @@ def make_stimulus_vector(
                         f"Amplitude for event '{names_cond[idx]}' = {round(ampl,2)}")
                 else:
                     raise ValueError(
-                        f"Nr of amplitudes ({ampl_array.shape[0]}) does not match number of conditions ({names_cond.shape[0]})")
+                        f"""Nr of amplitudes ({ampl_array.shape[0]}) does not match number of conditions
+                        ({names_cond.shape[0]})""")
             else:
                 ampl = 1
 
@@ -565,7 +585,8 @@ def make_stimulus_vector(
                     Y[int((ii * osf) / TR)] = use_ampl
                 except BaseException:
                     print(
-                        f"Warning: could not include event {rr} with t = {ii}. Probably experiment continued after functional acquisition")
+                        f"""Warning: could not include event {rr} with t = {ii}. Probably experiment continued after
+                        functional acquisition""")
 
         elif type == 'block':
 
@@ -603,7 +624,8 @@ def define_hrf(
 
         else:
             raise ValueError(
-                f"Invalid option '{hrf_pars}' specified. Must be either 'spm' or 'glover', a list of 3 parameters, a numpy array describing the HRF, or None (for standard double gamma)")
+                f"""Invalid option '{hrf_pars}' specified. Must be either 'spm' or 'glover', a list of 3 parameters, a numpy
+                array describing the HRF, or None (for standard double gamma)""")
 
     elif isinstance(hrf_pars, np.ndarray):
         hrf = [hrf_pars]
@@ -651,14 +673,16 @@ def convolve_hrf(
         **kwargs):
     """convolve_hrf
 
-    Convolve :func:`lazyplot.glm.double_gamma` with :func:`lazyplot.glm.make_stimulus_vector`. There's an option to plot the result in a nice overview figure, though python-wise it's not the prettiest..
+    Convolve :func:`lazyplot.glm.double_gamma` with :func:`lazyplot.glm.make_stimulus_vector`. There's an option to plot the
+    result in a nice overview figure, though python-wise it's not the prettiest..
 
     Parameters
     ----------
     hrf: numpy.ndarray
         HRF across given timepoints with shape (,`x.shape[0]`)
     stim_v: numpy.ndarray, list
-        Stimulus vector as per :func:`lazyplot.glm.make_stimulus_vector` or numpy array containing one stimulus vector (e.g., a *key* from :func:`lazyplot.glm.make_stimulus_vector`)
+        Stimulus vector as per :func:`lazyplot.glm.make_stimulus_vector` or numpy array containing one stimulus vector (e.g.,
+        a *key* from :func:`lazyplot.glm.make_stimulus_vector`)
     TR: float
         repetition time of acquisition
     make_figure: bool, optional
@@ -672,7 +696,8 @@ def convolve_hrf(
     add_array2: numpy.ndarray, optional
         additional **convolved** stimulus vector to be plotted on top of `stim_v`, by default None
     regressors: pandas.DataFrame
-        add a bunch of regressors with shape <time,voxels> to the design matrix. Should be in the dimensions of the functional data, not the oversampled..
+        add a bunch of regressors with shape <time,voxels> to the design matrix. Should be in the dimensions of the functional
+        data, not the oversampled..
 
     Returns
     ----------
@@ -680,7 +705,8 @@ def convolve_hrf(
         if `make_figure=True`, a figure will be displayed
 
     pandas.DataFrame
-        if `osf > 1`, then resampled stimulus vector DataFrame is returned. If not, the convolved stimulus vectors are returned in  a dataframe as is
+        if `osf > 1`, then resampled stimulus vector DataFrame is returned. If not, the convolved stimulus vectors are
+        returned in  a dataframe as is
 
     Example
     ----------
@@ -948,7 +974,6 @@ def fit_first_level(
         data,
         make_figure=False,
         copes=None,
-        xkcd=False,
         plot_vox=None,
         plot_event=1,
         verbose=False,
@@ -961,12 +986,17 @@ def fit_first_level(
         **kwargs):
     """fit_first_level
 
-    First level models are, in essence, linear regression models run at the level of a single session or single subject. The model is applied on a voxel-wise basis, either on the whole brain or within a region of interest. The  timecourse of each voxel is regressed against a predicted BOLD response created by convolving the haemodynamic response function (HRF) with a set of predictors defined within the design matrix (source: https://nilearn.github.io/glm/first_level_model.html)
+    First level models are, in essence, linear regression models run at the level of a single session or single subject. The
+    model is applied on a voxel-wise basis, either on the whole brain or within a region of interest. The  timecourse of each
+    voxel is regressed against a predicted BOLD response created by convolving the haemodynamic response function (HRF) with a
+    set of predictors defined within the design matrix (source: https://nilearn.github.io/glm/first_level_model.html)
 
     Parameters
     ----------
     stim_vector: pandas.DataFrame, numpy.ndarray
-        either the output from :func:`lazyplot.glm.resample_stim_vector` (convolved stimulus vector in fMRI-acquisition time domain) or a pandas.DataFrame containing the full design matrix as per the output of :func:`lazyplot.glm.first_level_matrix`.s
+        either the output from :func:`lazyplot.glm.resample_stim_vector` (convolved stimulus vector in fMRI-acquisition time
+        domain) or a pandas.DataFrame containing the full design matrix as per the output of
+        :func:`lazyplot.glm.first_level_matrix`.
     data: numpy.ndarray
         <time,voxels> numpy array; same input as **data** from :func:`lazyplot.glm.make_stimulus_vector`
     make_figure: bool, optional
@@ -978,7 +1008,10 @@ def fit_first_level(
     plot_vox: int, optional
         Instead of plotting the best-fitting voxel, specify which voxel to plot the timecourse and fit of, by default None
     plot_event: str, int, list, optional
-        If a larger design matrix was inputted with multiple events, you can specify here the name of the event you'd like to plot the betas from. It also accepts a list of indices of events to plot, so you could plot the first to events by specifying `plot_event=[1,2]`. Remember, the 0th index is the intercept! By default we'll plot the event right after the intercept
+        If a larger design matrix was inputted with multiple events, you can specify here the name of the event you'd like to
+        plot the betas from. It also accepts a list of indices of events to plot, so you could plot the first to events by
+        specifying `plot_event=[1,2]`. Remember, the 0th index is the intercept! By default we'll plot the event right after
+        the intercept
 
     Returns
     ----------
@@ -991,8 +1024,10 @@ def fit_first_level(
     Example
     ----------
     >>> from lazyplot.glm import fit_first_level
-    >>> betas_left,x_conv_left = fit_first_level(convolved_stim_vector_left_ds, data, make_figure=True, xkcd=True) # plots first event
-    >>> betas_left,x_conv_left = fit_first_level(convolved_stim_vector_left_ds, data, make_figure=True, xkcd=True, plot_events=[1,2]) # plots first two events
+    >>> betas_left,x_conv_left = fit_first_level(convolved_stim_vector_left_ds, data, make_figure=True, xkcd=True)
+    # plots first event
+    >>> betas_left,x_conv_left = fit_first_level(convolved_stim_vector_left_ds, data, make_figure=True, xkcd=True,
+    plot_events=[1,2]) # plots first two events
     """
 
     utils.verbose("Running GLM", verbose)
@@ -1025,7 +1060,8 @@ def fit_first_level(
 
         if stim_vector.shape[0] != data.shape[0]:
             raise ValueError(
-                f"Unequal shapes between design {stim_vector.shape} and data {data.shape}. Make sure first elements have the same shape")
+                f"""Unequal shapes between design {stim_vector.shape} and data {data.shape}. Make sure first elements have the
+                same shape""")
 
     X_conv = X_matrix.values.copy()
 
@@ -1133,19 +1169,19 @@ def fit_first_level(
         # append full model
         if plot_full:
             signals.append(preds[:, best_vox])
-            labels.append(f"full model")
+            labels.append("full model")
             markers.append(None)
             linewidth.append(1)
             colors.append("k")
 
-        if not "title" in list(kwargs.keys()):
+        if "title" not in list(kwargs.keys()):
             kwargs = utils.update_kwargs(
                 kwargs,
                 "title",
                 f"model fit vox {best_vox+1}/{data.shape[1]} (r2={round(r2[best_vox],4)})",
             )
 
-        pl = plotting.LazyLine(
+        _ = plotting.LazyLine(
             signals,
             y_label="Activity (a.u.)",
             x_label="volumes",
@@ -1286,7 +1322,12 @@ def double_gamma(x, lag=6, a2=12, b1=0.9, b2=0.9, c=0.35, scale=True):
 class Posthoc(plotting.Defaults):
     """Posthoc
 
-    Run posthoc analysis on the output from `pingouin` ANOVA/ANCOVA or just straight up as pairwise t-tests. During intialization, the plotting arguments are internalized from :class:`lazyplot.plotting.Defaults()`. Posthoc test should then be executed using the :func:`lazyplot.glm.Posthoc.run_posthoc()` function, which accepts all arguments that :class:`pingouin.pairwise_tukey()` or :class:`pingouin.pairwise_tests()` accept. You can then choose to have the significance bars plotted on a specified `axs`. Note that this only works for relatively simple tests; there's NO support for complicated (nested) data structures such as repeated-measures.
+    Run posthoc analysis on the output from `pingouin` ANOVA/ANCOVA or just straight up as pairwise t-tests. During
+    intialization, the plotting arguments are internalized from :class:`lazyplot.plotting.Defaults()`. Posthoc test should
+    then be executed using the :func:`lazyplot.glm.Posthoc.run_posthoc()` function, which accepts all arguments that
+    :class:`pingouin.pairwise_tukey()` or :class:`pingouin.pairwise_tests()` accept. You can then choose to have the
+    significance bars plotted on a specified `axs`. Note that this only works for relatively simple tests; there's NO support
+    for complicated (nested) data structures such as repeated-measures.
 
     Parameters
     ----------
@@ -1309,7 +1350,8 @@ class Posthoc(plotting.Defaults):
         super().__init__(**kwargs)
 
     def sort_posthoc(self, df):
-        """sort the output of posthoc tests based on distance so that the longest significance bar spans the largest distance"""
+        """sort the output of posthoc tests based on distance so that the longest significance bar spans the largest
+        distance"""
 
         distances = []
         for contr in range(df.shape[0]):
@@ -1333,7 +1375,8 @@ class Posthoc(plotting.Defaults):
             **kwargs):
         """run_posthoc
 
-        Run the posthoc test. By default, we'll run a `tukey`-test. If the argument is something else, the :class:`pingouin.pairwise_tests()` is invoked.
+        Run the posthoc test. By default, we'll run a `tukey`-test. If the argument is something else, the
+        :class:`pingouin.pairwise_tests()` is invoked.
 
         Parameters
         ----------
@@ -1354,7 +1397,7 @@ class Posthoc(plotting.Defaults):
         try:
             import pingouin as pg
         except BaseException:
-            raise ImportError(f"Could not import 'pingouin'")
+            raise ImportError("Could not import 'pingouin'")
 
         # FDR-corrected post hocs
         nonparam = False
@@ -1417,7 +1460,8 @@ class Posthoc(plotting.Defaults):
             **kwargs):
         """plot_bars
 
-        Function that plots the significance bars given a matplotlib axis. Based on the sorted posthoc output, it'll draw the significance bars from top to bottom (longest significance bar up top).
+        Function that plots the significance bars given a matplotlib axis. Based on the sorted posthoc output, it'll draw the
+        significance bars from top to bottom (longest significance bar up top).
 
         Parameters
         ----------
@@ -1426,17 +1470,21 @@ class Posthoc(plotting.Defaults):
         alpha: float, optional
             Alpha value to consider contrasts significant, by default 0.05
         y_pos: float, optional
-            Starting position of top significance line in axis proportions (1 = top of plot), by default 0.95. While looping through significant contrasts, this factor is reduced with `line_separate_factor`
+            Starting position of top significance line in axis proportions (1 = top of plot), by default 0.95. While looping
+            through significant contrasts, this factor is reduced with `line_separate_factor`
         line_separate_factor: float, optional
             Factor to reduce the y-position of subsequent significance bars with, by default -0.065
         ast_frac: float, optional
-            Distance between significance line and annotation (e.g., asterix denoting significance or 'ns' if `ns_annot==True`), by default 0.2
+            Distance between significance line and annotation (e.g., asterix denoting significance or 'ns' if
+            `ns_annot==True`), by default 0.2
         ns_annot: bool, optional
             Also annotate non-significant contrasts with 'ns', by default False
         ns_frac: bool, optional
-            Additional factor to scale the distance between the significance lines and text as `ast_frac` will yield different results for text and asterixes, by default 5
+            Additional factor to scale the distance between the significance lines and text as `ast_frac` will yield different
+            results for text and asterixes, by default 5
         leg_size: float, optional
-            Size of the overhang from the significance bars. Default = 0.02 and is defined as a fraction of the total limit of the y-axis
+            Size of the overhang from the significance bars. Default = 0.02 and is defined as a fraction of the total limit of
+            the y-axis
         color: str, optional
             Define color. Default is black
         """
@@ -1536,7 +1584,9 @@ class ANOVA(Posthoc):
 
     """ANOVA
 
-    Run an ANOVA with pingouin and subsequently run posthoc test. Allows you to immediately visualize significant results given a matplotlib axis. In contrast to :class:`lazyplot.glm.Posthoc()`, arguments for the ANOVA test are immediately passed on during the initialization stage. If `covar` is passed, we'll run an ANCOVA rather than ANOVA.
+    Run an ANOVA with pingouin and subsequently run posthoc test. Allows you to immediately visualize significant results
+    given a matplotlib axis. In contrast to :class:`lazyplot.glm.Posthoc()`, arguments for the ANOVA test are immediately
+    passed on during the initialization stage. If `covar` is passed, we'll run an ANCOVA rather than ANOVA.
 
     Parameters
     ----------
@@ -1545,7 +1595,8 @@ class ANOVA(Posthoc):
     axs: mpl.axes._axes.Axes, optional
         Axis to plot the lines on, by default None
     posthoc_kw: dict, optional
-        Dictionairy containing arguments that are passed to :func:`lazyplot.glm.Posthoc.plot_bars()`, by default {}. See docs for arguments
+        Dictionairy containing arguments that are passed to :func:`lazyplot.glm.Posthoc.plot_bars()`, by default {}. See docs
+        for arguments
 
     Example
     ----------
@@ -1567,7 +1618,7 @@ class ANOVA(Posthoc):
     >>> print("\n", aov.posthoc_sorted)
 
     >>> # if you have LazyBar-object ready, add the significance bars:
-    >>> aov.plot_bars( 
+    >>> aov.plot_bars(
     >>>     axs=br.ff,
     >>>     ast_frac=0,
     >>>     y_pos=1.15,
@@ -1629,7 +1680,7 @@ class ANOVA(Posthoc):
         try:
             import pingouin as pg
         except BaseException:
-            raise ImportError(f"Could not import 'pingouin'")
+            raise ImportError("Could not import 'pingouin'")
 
         # do stats
         if parametric == "auto":
@@ -1650,7 +1701,7 @@ class ANOVA(Posthoc):
                 parametric = self.norm_test.iloc[0]
 
         if parametric:
-            if "covar" in list (kwargs.keys()):
+            if "covar" in list(kwargs.keys()):
                 ffunc = pg.ancova
             else:
                 ffunc = pg.anova
