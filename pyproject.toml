@@ -46,4 +46,4 @@ dev = ["pytest", "black", "flake8"]
 
 [tool.setuptools]
 packages = ["lazyfmri"]
-package-data = { lazyplot = ["version.py"] }
+package-data = { lazyfmri = ["version.py"] }
