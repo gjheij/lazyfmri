@@ -8,7 +8,7 @@ This is separate to make functions more easily available without installing the 
 ## Installation
 
 ```bash
-pip install lazyfmri
+pip install git+https://github.com/gjheij/lazyfmri
 ```
 
 ## Functionalities
