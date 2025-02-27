@@ -167,8 +167,15 @@ def remove_files(path, string, ext=False):
     for file in filtered_files:
         path_to_file = os.path.join(path, file)
         os.remove(path_to_file)
+    
+def filter_for_nans(array):
+    """filter out NaNs from an array"""
 
-
+    if np.isnan(array).any():
+        return np.nan_to_num(array)
+    else:
+        return array
+    
 def calculate_tsnr(data, ax):
     mean_d = np.mean(data, axis=ax)
     std_d = np.std(data, axis=ax)
