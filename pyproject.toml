@@ -46,4 +46,7 @@ dev = ["pytest", "black", "flake8"]
 
 [tool.setuptools]
 packages = ["lazyfmri"]
-package-data = { lazyfmri = ["version.py"] }
+include-package-data = true
+
+[tool.setuptools.package-data]
+lazyfmri = ["version.py", "data/*", "notebook/*", "misc/*"]
