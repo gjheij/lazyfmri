@@ -5,3 +5,4 @@ lazyplot/__pycache__/
 *.pyc
 *.pyo
 .DS_Store
+build/
