@@ -3835,7 +3835,10 @@ class FWHM():
         else:
             self.half_max = max(self.use_rf) / 2
 
-        self.half_max = self.half_max[0]
+        try:
+            self.half_max = self.half_max[0]
+        except Exception:
+            pass
 
     # def lin_interp(self, x, y, i, half):
     #     return x[i] + (x[i+1] - x[i]) * ((half - y[i]) / (y[i+1] - y[i]))
