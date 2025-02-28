@@ -12,6 +12,147 @@ from PIL import ImageColor
 
 opj = os.path.join
 
+def disassemble_fmriprep_wf(wf_path, subj_ID, prefix="sub-"):
+    """disassemble_fmriprep_wf
+
+    Parses the workflow-folder from fMRIPrep into its constituents to recreate a filename. Searches for the following keys: `['ses', 'task', 'acq', 'run']`.
+
+    Parameters
+    ----------
+    wf_path: str
+        Path to workflow-folder
+    subj_ID: str
+        Subject ID to append to `prefix`
+    prefix: str, optional
+        Forms together with `subj_ID` the beginning of the new filename. By default "sub-"
+
+    Returns
+    ----------
+    str
+        filename based on constituent file parts
+
+    Example
+    ----------
+    >>> from linescanning.utils import disassemble_fmriprep_wf
+    >>> wf_dir = "func_preproc_ses_2_task_pRF_run_1_acq_3DEPI_wf"
+    >>> fname = disassemble_fmriprep_wf(wf_dir, "001")
+    >>> fname
+    'sub-001_ses-2_task-pRF_acq-3DEPI_run-1'
+    """
+    wf_name = [ii for ii in wf_path.split(os.sep) if "func_preproc" in ii][0]
+    wf_elem = wf_name.split("_")
+    fname = [f"{prefix}{subj_ID}"]
+
+    for tag in ['ses', 'task', 'acq', 'run']:
+
+        if tag in wf_elem:
+            idx = wf_elem.index(tag)+1
+            fname.append(f"{tag}-{wf_elem[idx]}")
+
+    fname = "_".join(fname)
+    return fname
+
+def assemble_fmriprep_wf(bold_path, wf_only=False):
+    """assemble_fmriprep_wf
+
+    Parses the bold file into a workflow name for fMRIPrep into its constituents to recreate a filename. Searches for the following keys: `['ses', 'task', 'acq', 'run']`.
+
+    Parameters
+    ----------
+    bold_path: str
+        Path to bold-file
+    wf_only: bool, optional
+        If `sub` tag is found in `bold_path`, we can reconstruct the full workflow folder including preceding `single_subject_<sub_id>_wf`. If you do not want this, set `wf_only` to **False**.
+
+    Returns
+    ----------
+    str
+        filename based on constituent file parts
+
+    Example
+    ----------
+    >>> from linescanning.utils import disassemble_fmriprep_wf
+    >>> bold_file = "sub-008_ses-2_task-SRFi_acq-3DEPI_run-1_desc-preproc_bold.nii.gz"
+    >>> wf_name = assemble_fmriprep_wf(bold_file)
+    >>> wf_name
+    >>> 'single_subject_008_wf/func_preproc_ses_2_task_SRFi_run_1_acq_3DEPI_wf'
+
+    >>> # workflow name only
+    >>> wf_name = assemble_fmriprep_wf(bold_file, wf_only=True)
+    >>> wf_name
+    >>> 'func_preproc_ses_2_task_SRFi_run_1_acq_3DEPI_wf'
+    """
+    bids_comps = split_bids_components(os.path.basename(bold_path))
+    fname = ["func_preproc"]
+
+    for tag in ['ses', 'task', 'run', 'acq']:
+        if tag in list(bids_comps.keys()):
+            fname.append(f"{tag}_{bids_comps[tag]}")
+    
+    base_dir = ""
+    fname = "_".join(fname)+"_wf"
+    if 'sub' in list(bids_comps.keys()):
+        base_dir = f"single_subject_{bids_comps['sub']}_wf"
+
+        if wf_only:
+            return fname
+        else:
+            return opj(base_dir, fname)
+    else:
+        return fname
+
+class BIDSFile():
+
+    def __init__(self, bids_file):
+        self.bids_file = os.path.abspath(bids_file)
+
+    def get_bids_basepath(self, *args):
+        return self._get_bids_basepath(self.bids_file, *args)
+    
+    def get_bids_root(self, *args):
+        return self._get_bids_root(self.bids_file, *args)
+
+    def get_bids_workbase(self, *args):
+        return self._get_bids_workbase(self.bids_file, *args) 
+
+    def get_bids_workflow(self, **kwargs):
+        return assemble_fmriprep_wf(self.bids_file, **kwargs)   
+
+    # def get_bids_root(self):
+    @staticmethod
+    def _get_bids_basepath(file, pref="sub"):
+        sp = file.split(os.sep)
+        for i in sp:
+            if i.startswith(pref) and not i.endswith('.nii.gz'):
+                base_path = os.sep.join(sp[sp.index(i)+1:-1])
+                break
+
+        return base_path
+    
+    # def get_bids_root(self):
+    @staticmethod
+    def _get_bids_workbase(file, pref="sub"):
+        sp = file.split(os.sep)
+        for i in sp:
+            if i.startswith(pref) and not i.endswith('.nii.gz'):
+                base_path = os.sep.join(sp[sp.index(i):-2])
+                break
+
+        return base_path    
+    
+    @staticmethod
+    def _get_bids_root(file, pref="sub"):
+        sp = file.split(os.sep)
+        for i in sp:
+            if i.startswith(pref) and not i.endswith('.nii.gz'):
+                bids_root = os.sep.join(sp[:sp.index(i)])
+                break
+
+        return bids_root
+    
+    def get_bids_ids(self, **kwargs):
+        return split_bids_components(self.bids_file, **kwargs)
+
 class color:
     # """color
     
