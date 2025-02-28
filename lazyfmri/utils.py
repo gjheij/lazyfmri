@@ -1,4 +1,5 @@
 import math
+import csv
 import numpy as np
 import os
 import operator
@@ -6,10 +7,164 @@ import pandas as pd
 from nilearn import signal
 from shapely import geometry
 import matplotlib.colors as mcolors
+import nibabel as nb
 from PIL import ImageColor
 
 opj = os.path.join
 
+class color:
+    # """color
+    
+    # Add some color to the terminal.
+
+    # Example
+    # ----------
+    # >>> print("set orientation to " + utils.color.BOLD + utils.color.RED + "SOME TEXT THAT'LL BE IN TED" + utils.color.END)
+    # """
+   PURPLE = '\033[95m'
+   CYAN = '\033[96m'
+   DARKCYAN = '\033[36m'
+   BLUE = '\033[94m'
+   GREEN = '\033[92m'
+   YELLOW = '\033[93m'
+   RED = '\033[91m'
+   BOLD = '\033[1m'
+   UNDERLINE = '\033[4m'
+   END = '\033[0m'
+
+def convert2unit(v, method="np"):
+    """convert vector to unit vector"""
+    import numpy as np
+
+    if method.lower() == "np":
+        v_hat = v / np.linalg.norm(v)
+        return v_hat
+    elif method.lower() == "mesh":
+        # https://sites.google.com/site/dlampetest/python/calculating-normals-of-a-triangle-mesh-using-numpy
+        lens = np.sqrt( v[:,0]**2 + v[:,1]**2 + v[:,2]**2 )
+        v[:,0] /= lens
+        v[:,1] /= lens
+        v[:,2] /= lens
+        return v
+
+def string2list(string_array, make_float=False):
+    """string2list
+
+    This function converts a array in string representation to a list of string. This can happen, for instance, when you use bash to give a list of strings to python, where ast.literal_eval fails.
+
+    Parameters
+    ----------
+    string_array: str
+        string to be converted to a valid numpy array with float values
+
+    Returns
+    ----------
+    numpy.ndarray
+        array containing elements in float rather than in string representation
+
+    Example
+    ----------
+    >>> string2list('[tc,bgfs]')
+    ['tc', 'bgfs']
+    """
+
+    if type(string_array) == str:
+        new = string_array.split(',')[0:]
+        new = list(filter(None, new))
+
+        if make_float:
+            new = [float(ii) for ii in new]
+            
+        return new
+
+    else:
+        # array is already in non-string format
+        return string_array
+
+def string2float(string_array):
+    """string2float
+
+    This function converts a array in string representation to a regular float array. This can happen, for instance, when
+    you've stored a numpy array in a pandas dataframe (such is the case with the 'normal' vector). It starts by splitting
+    based on empty spaces, filter these, and convert any remaining elements to floats and returns these in an array.
+
+    Parameters
+    ----------
+    string_array: str
+        string to be converted to a valid numpy array with float values
+
+    Returns
+    ----------
+    numpy.ndarray
+        array containing elements in float rather than in string representation
+
+    Example
+    ----------
+    >>> string2float('[ -7.42 -92.97 -15.28]')
+    array([ -7.42, -92.97, -15.28])
+    """
+
+    if type(string_array) == str:
+        new = string_array[1:-1].split(' ')[0:]
+        new = list(filter(None, new))
+        new = [float(i.strip(",")) for i in new]
+        new = np.array(new)
+
+        return new
+
+    else:
+        # array is already in non-string format
+        return string_array
+
+def reverse_sign(x):
+    """reverse_sign
+
+    Inverts the sign given set of values. Can be either one value or an array of values that need to be inverted
+
+    Parameters
+    ----------
+    x: int,float,list,numpy.ndarray
+        input that needs inverting, either one value or a list
+    
+    Returns
+    ----------
+    the inverse of whatever the input `x` was
+
+    Example
+    ----------
+    >>> # input is integer
+    >>> x = 5
+    >>> reverse_sign(x)
+    -5
+    >>> # input is array
+    >>> x = np.array([2, -2340, 2345,123342, 123])
+    >>> In [6]: reverse_sign(x)
+    array([-2.00000e+00,  2.34000e+03, -2.34500e+03, -1.23342e+05,-1.23000e+02])
+    >>> # input is float
+    >>> x = 5.0
+    >>> reverse_sign(x)
+    -5.0
+    """
+
+    import numpy as np
+
+    inverted = ()
+
+    if isinstance(x, int) or isinstance(x, float) or isinstance(x, np.float32):
+        if x > 0:
+            inverted = -x
+        else:
+            inverted = abs(x)
+    elif isinstance(x, np.ndarray):
+        for i in x:
+            if float(i) > 0:
+                val = -float(i)
+            else:
+                val = abs(float(i))
+
+            inverted = np.append(inverted, val)
+
+    return inverted
 
 def convert_to_rgb(color, as_integer=False):
     if isinstance(color, tuple):
@@ -38,6 +193,160 @@ def convert_to_rgb(color, as_integer=False):
         R, G, B = rgb
 
     return (R, G, B)
+
+def decode(obj):
+    """decode an object"""
+    if isinstance(obj, bytes):
+        obj = obj.decode()
+    return obj
+
+def copy_hdr(source_img,dest_img):
+    """copy_hdr
+
+    Similar functionality as fslcpgeom but than more rigorious using Nibabel. Copies the ENTIRE header, including affine, quaternion rotations, and dimensions.
+
+    Parameters
+    ----------
+    source_img: str, nibabel.Nifti1Image
+        source image from which to derive the header information
+    dest_img: str, nibabel.Nifti1Image
+        destination image to which to copy the header from <source image> to
+
+    Returns
+    ----------
+    nibabel.Nifti1Image
+        `source_img` with updated header information
+
+    Example
+    ----------
+    >>> new_img = copy_hdr(img1,img2)
+    """
+
+    if isinstance(source_img, nb.Nifti1Image):
+        src_img = source_img
+    elif isinstance(source_img, str):
+        src_img = nb.load(source_img)
+
+    if isinstance(dest_img, nb.Nifti1Image):
+        targ_img = dest_img
+    elif isinstance(dest_img, str):
+        targ_img = nb.load(dest_img)
+
+    new = nb.Nifti1Image(targ_img.get_fdata(), affine=src_img.affine, header=src_img.header)
+    return new
+
+def ants_to_spm_moco(affine, deg=False, convention="SPM"):
+
+    """SPM output = x [LR], y [AP], z [SI], rx, ry, rz. ANTs employs an LPS system, so y value should be switched"""
+    dx, dy, dz = affine[9:]
+
+    if convention == "SPM":
+        dy = reverse_sign(dy)
+
+    rot_x = np.arcsin(affine[6])
+    cos_rot_x = np.cos(rot_x)
+    rot_y = np.arctan2(affine[7] / cos_rot_x, affine[8] / cos_rot_x)
+    rot_z = np.arctan2(affine[3] / cos_rot_x, affine[0] / cos_rot_x)
+
+    if deg:
+        rx,ry,rz = np.degrees(rot_x),np.degrees(rot_y),np.degrees(rot_z)
+    else:
+        rx,ry,rz = rot_x,rot_y,rot_z
+
+    moco_pars = np.array([dx,dy,dz,rx,ry,rz])
+    return moco_pars
+
+def make_chicken_csv(
+    coord,
+    input="ras",
+    output_file=None,
+    vol=0.343
+    ):
+
+    """make_chicken_csv
+
+    This function creates a .csv-file like the chicken.csv example from ANTs to warp a coordinate using a transformation file
+    ANTs assumes the input coordinate to be LPS, but this function can deal with RAS-coordinates too.
+    (see https://github.com/stnava/chicken for the reason of this function's name)
+
+    Parameters
+    ----------
+    coord: np.ndarray
+        numpy array containing the three coordinates in x,y,z direction
+    input: str
+        specify whether your coordinates uses RAS or LPS convention (default is RAS, and will be converted to LPS to create
+        the file)
+    output_file: str
+        path-like string pointing to an output file (.csv!)
+    vol: float
+        volume of voxels (pixdim_x*pixdim_y*pixdim_z). If you're using the standard 0.7 MP2RAGE, the default vol will be ok
+
+    Returns
+    ----------
+    str
+        path pointing to the `csv`-file containing the coordinate
+
+    Example
+    ----------
+    >>> make_chicken_csv(np.array([-16.239,-67.23,-2.81]), output_file="sub-001_space-fs_desc-lpi.csv")
+    "sub-001_space-fs_desc-lpi.csv"
+    """
+
+    if len(coord) > 3:
+        coord = coord[:3]
+
+    if input.lower() == "ras":
+        # ras2lps
+        LPS = np.array([[-1,0,0],
+                        [0,-1,0],
+                        [0,0,1]])
+
+        coord = LPS @ coord
+
+    # rows = ["x,y,z,t,label,mass,volume,count", f"{coord[0]},{coord[1]},{coord[2]},0,1,1,{vol},1"]
+    with open(output_file, "w") as target:
+        writer = csv.writer(target, delimiter=",")
+        writer.writerow(["x","y","z","t","label","mass","volume","count"])
+        writer.writerow([coord[0],coord[1],coord[2],0,1,1,vol,1])
+
+    return output_file
+
+def read_chicken_csv(chicken_file, return_type="lps"):
+    """read_chicken_csv
+
+    Function to get at least the coordinates from a csv file used with antsApplyTransformsToPoints.
+    (see https://github.com/stnava/chicken for the reason of this function's name)
+
+    Parameters
+    ----------
+    chicken_file: str
+        path-like string pointing to an input file (.csv!)
+    return_type: str
+        specify the coordinate system that the output should be in
+
+    Returns
+    ----------
+    numpy.ndarray
+        (3,) array containing the coordinate in `chicken_file`
+
+    Example
+    ----------
+    >>> read_chicken_csv("sub-001_space-fs_desc-lpi.csv")
+    array([-16.239,-67.23,-2.81])
+    """
+    
+    contents = pd.read_csv(chicken_file)
+    coord = np.squeeze(contents.iloc[:,0:3].values)
+
+    if return_type.lower() == "lps":
+        return coord
+    elif return_type.lower() == "ras":
+        # ras2lps
+        LPS = np.array([[-1,0,0],
+                        [0,-1,0],
+                        [0,0,1]])
+
+        return LPS@coord
 
 
 def make_binary_cm(color):
@@ -230,7 +539,7 @@ def percent_change(
         ax = 0
 
     if prf:
-        from linescanning import prf
+        from fmriproc import prf
 
         # format data
         if ts.ndim == 1:

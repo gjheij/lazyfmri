@@ -327,7 +327,7 @@ class ICA():
 
     Example
     ----------
-    >>> from linescanning.preproc import ICA
+    >>> from lazyfmri.preproc import ICA
     >>> ica_obj = ICA(
     >>>     data_obj.hp_zscore_df,
     >>>     subject=f"sub-{sub}",

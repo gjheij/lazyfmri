@@ -125,7 +125,7 @@ class ParseEyetrackerFile(SetAttributes):
 
     Examples
     ----------
-    >>> from linescanning.utils import ParseExpToolsFile
+    >>> from lazyfmri.utils import ParseExpToolsFile
     >>> file = 'some/path/to/exptoolsfile.tsv'
     >>> parsed_file = ParseExpToolsFile(file, subject=1, run=1, button=True)
     >>> onsets = parsed_file.get_onset_df()
@@ -831,7 +831,7 @@ class ParseExpToolsFile(ParseEyetrackerFile, SetAttributes):
 
     Examples
     ----------
-    >>> from linescanning.utils import ParseExpToolsFile
+    >>> from lazyfmri.utils import ParseExpToolsFile
     >>> file = 'some/path/to/exptoolsfile.tsv'
     >>> parsed_file = ParseExpToolsFile(file, subject=1, run=1, button=True)
     >>> onsets = parsed_file.get_onset_df()
@@ -2057,7 +2057,7 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
 
     Example
     ----------
-    >>> from linescanning import utils
+    >>> from lazyfmri import utils
     >>> func_file = utils.get_file_from_substring(f"run-1_bold.mat", opj('sub-001', 'ses-1', 'func'))
     >>> func = utils.ParseFuncFile(func_file, subject=1, run=1, deleted_first_timepoints=100, deleted_last_timepoints=300)
     >>> raw = func.get_raw(index=True)
@@ -2963,10 +2963,11 @@ class Dataset(ParseFuncFile, SetAttributes):
 
     Example
     ----------
-    >>> from linescanning import dataset, utils
+    >>> from fmriproc import dataset
+    >>> from lazyfmri import utils
     >>> func_dir = "/some/dir"
-    >>> exp     = utils.get_file_from_substring("tsv", func_dir)
-    >>> funcs   = utils.get_file_from_substring("bold.mat", func_dir)
+    >>> exp = utils.get_file_from_substring("tsv", func_dir)
+    >>> funcs = utils.get_file_from_substring("bold.mat", func_dir)
     >>> #
     >>> # only cut from SR-runs
     >>> delete_first = 100

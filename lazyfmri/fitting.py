@@ -50,7 +50,7 @@ class CurveFitter():
     Example
     ----------
     >>> # imports
-    >>> from linescanning import fitting
+    >>> from lazyfmri import fitting
     >>> import matplotlib.pyplot as plt
     >>> import numpy as np
     >>> # define data points
@@ -987,7 +987,7 @@ class NideconvFitter(InitFitter):
 
     Example
     ----------
-    >>> from linescanning import utils, dataset, fitting
+    >>> from lazyfmri import utils, dataset, fitting
     >>> func_file
     >>> ['sub-003_ses-3_task-SR_run-3_bold.mat',
     >>> 'sub-003_ses-3_task-SR_run-4_bold.mat',
@@ -2721,7 +2721,7 @@ class CVDeconv(InitFitter):
         Example
         ----------
         >>> # import stuff
-        >>> from linescanning import fitting
+        >>> from lazyfmri import fitting
         >>> cv_ = fitting.CVDeconv(
         >>>     func,
         >>>     onsets,
@@ -2973,7 +2973,7 @@ class HRFMetrics():
 
         Example
         ----------
-        >>> from linescanning import fitting
+        >>> from lazyfmri import fitting
         >>> metrics_kws = {} # extra parameters
         >>> metrics = fitting.HRFMetrics(some_profile).return_metrics()
         """
@@ -4325,7 +4325,7 @@ class Epoch(InitFitter):
 
     Example
     ----------
-    >>> from linescanning import fitting
+    >>> from lazyfmri import fitting
     >>> sub_ep = fitting.Epoch(
     >>>     func,
     >>>     onsets,
