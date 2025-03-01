@@ -530,6 +530,53 @@ def make_binary_cm(color):
 
     return cmap
 
+class FindFiles():
+
+    def __init__(self, directory, extension, exclude=None, maxdepth=None, filters=None):
+
+        self.directory = directory
+        self.extension = extension
+        self.exclude = exclude
+        self.maxdepth = maxdepth
+        self.filters = filters
+        self.files = []
+
+        for filename in self.find_files(self.directory, f'*{self.extension}', maxdepth=self.maxdepth):
+            if not filename.startswith('._'):
+                self.files.append(filename)
+
+        self.files.sort()
+
+        if isinstance(self.exclude, (str,list)) or isinstance(self.filters, (list, str)):
+            if isinstance(self.filters, str):
+                self.filters =  [self.filters]
+            elif isinstance(self.filters, list):
+                pass
+            else:
+                self.filters = []
+
+            self.files = get_file_from_substring(self.filters, self.files, exclude=self.exclude)
+
+    @staticmethod
+    def find_files(directory, pattern, maxdepth=None):
+        
+        start = None
+        if isinstance(maxdepth, int):
+            start = 0
+
+        for root, dirs, files in os.walk(directory, followlinks=True):
+
+            for basename in files:
+                if fnmatch.fnmatch(basename, pattern):
+                    filename = os.path.join(root, basename)
+                    yield filename
+
+            if isinstance(maxdepth, int):
+                if start > maxdepth:
+                    break 
+
+            if isinstance(start, int):
+                start += 1
 
 def find_missing(lst):
     return [i for x, y in zip(lst, lst[1:])
