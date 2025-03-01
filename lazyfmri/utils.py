@@ -2,6 +2,7 @@ import math
 import csv
 import numpy as np
 import os
+import fnmatch
 import operator
 import pandas as pd
 from nilearn import signal
