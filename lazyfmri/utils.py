@@ -46,7 +46,8 @@ def get_vertex_nr(
 def disassemble_fmriprep_wf(wf_path, subj_ID, prefix="sub-"):
     """disassemble_fmriprep_wf
 
-    Parses the workflow-folder from fMRIPrep into its constituents to recreate a filename. Searches for the following keys: `['ses', 'task', 'acq', 'run']`.
+    Parses the workflow-folder from fMRIPrep into its constituents to recreate a filename. Searches for the following keys:
+    `['ses', 'task', 'acq', 'run']`.
 
     Parameters
     ----------
@@ -86,14 +87,16 @@ def disassemble_fmriprep_wf(wf_path, subj_ID, prefix="sub-"):
 def assemble_fmriprep_wf(bold_path, wf_only=False):
     """assemble_fmriprep_wf
 
-    Parses the bold file into a workflow name for fMRIPrep into its constituents to recreate a filename. Searches for the following keys: `['ses', 'task', 'acq', 'run']`.
+    Parses the bold file into a workflow name for fMRIPrep into its constituents to recreate a filename. Searches for the
+    following keys: `['ses', 'task', 'acq', 'run']`.
 
     Parameters
     ----------
     bold_path: str
         Path to bold-file
     wf_only: bool, optional
-        If `sub` tag is found in `bold_path`, we can reconstruct the full workflow folder including preceding `single_subject_<sub_id>_wf`. If you do not want this, set `wf_only` to **False**.
+        If `sub` tag is found in `bold_path`, we can reconstruct the full workflow folder including preceding
+        `single_subject_<sub_id>_wf`. If you do not want this, set `wf_only` to **False**.
 
     Returns
     ----------
@@ -206,7 +209,6 @@ class color:
 
 def convert2unit(v, method="np"):
     """convert vector to unit vector"""
-    import numpy as np
 
     if method.lower() == "np":
         v_hat = v / np.linalg.norm(v)
@@ -222,7 +224,8 @@ def convert2unit(v, method="np"):
 def string2list(string_array, make_float=False):
     """string2list
 
-    This function converts a array in string representation to a list of string. This can happen, for instance, when you use bash to give a list of strings to python, where ast.literal_eval fails.
+    This function converts a array in string representation to a list of string. This can happen, for instance, when you use
+    bash to give a list of strings to python, where ast.literal_eval fails.
 
     Parameters
     ----------
