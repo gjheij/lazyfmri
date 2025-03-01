@@ -13,6 +13,36 @@ from PIL import ImageColor
 
 opj = os.path.join
 
+def get_vertex_nr(
+    subject,
+    as_list=False,
+    debug=False,
+    fs_dir=None):
+
+    if not isinstance(fs_dir, str):
+        fs_dir = os.environ.get("SUBJECTS_DIR")
+
+    n_verts_fs = []
+    for i in ['lh', 'rh']:
+        
+        surf = opj(fs_dir, subject, 'surf', f'{i}.white')
+        verbose(surf, debug)
+        if not os.path.exists(surf):
+            raise FileNotFoundError(f"Could not find file '{surf}'")
+        
+        try:
+            verts = nb.freesurfer.io.read_geometry(surf)[0].shape[0]
+        except:
+            annot = opj(fs_dir, subject, 'label', f'{i}.aparc.a2009s.annot')
+            verts = nb.freesurfer.io.read_annot(annot)[0].shape[0]
+            
+        n_verts_fs.append(verts)
+
+    if as_list:
+        return n_verts_fs
+    else:
+        return sum(n_verts_fs)
+    
 def disassemble_fmriprep_wf(wf_path, subj_ID, prefix="sub-"):
     """disassemble_fmriprep_wf
 
