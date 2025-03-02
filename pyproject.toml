@@ -28,7 +28,7 @@ dependencies = [
     "seaborn",
     "nilearn",
     "lmfit",
-    "nideconv @ git+https://github.com/gjheij/nideconv.git",
+    "nideconv @ git+https://github.com/VU-Cog-Sci/nideconv",
     "scikit-learn",
     "pingouin",
     "nitime",
