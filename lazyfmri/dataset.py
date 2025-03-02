@@ -842,6 +842,7 @@ class ParseExpToolsFile(ParseEyetrackerFile, SetAttributes):
             tsv_file,
             subject=1,
             run=1,
+            task=None,
             button=False,
             RTs=False,
             RT_relative_to=None,
@@ -872,6 +873,7 @@ class ParseExpToolsFile(ParseEyetrackerFile, SetAttributes):
         self.tsv_file = tsv_file
         self.sub = subject
         self.run = run
+        self.task = task
         self.TR = TR
         self.deleted_first_timepoints = deleted_first_timepoints
         self.button = button
@@ -941,14 +943,18 @@ class ParseExpToolsFile(ParseEyetrackerFile, SetAttributes):
             self.onset_index = ['subject', 'run', 'event_type']
             self._index = ['subject', 'run']
             self.index_task = False
+            self.task_ids = []
             if self.use_bids:
                 self.task_ids = utils.get_ids(self.tsv_file, bids="task")
+            else:
+                if isinstance(self.task, str):
+                    self.task_ids = [self.task]
 
-                # insert task id in indexer
-                if len(self.task_ids) > 1:
-                    self.index_task = True
-                    for idx in ["onset_index", "_index"]:
-                        getattr(self, idx).insert(1, "task")
+            # insert task id in indexer
+            if len(self.task_ids) > 0:
+                self.index_task = True
+                for idx in ["onset_index", "_index"]:
+                    getattr(self, idx).insert(1, "task")
 
             # set them for internal reference
             for attr in self.exp_attributes:
@@ -958,7 +964,6 @@ class ParseExpToolsFile(ParseEyetrackerFile, SetAttributes):
 
                 self.run = run+1
                 self.ses = None
-                self.task = None
                 if self.use_bids:
                     bids_comps = utils.split_bids_components(onset_file)
                     for el in ['sub', 'run', 'ses', 'task']:
