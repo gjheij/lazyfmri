@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lazyfmri"
-dynamc = ["version"]
+dynamic = ["version"]
 description = "lazyfmri: seaborn wrapper for plotting & HRF fitting procedures"
 readme = "README.md"
 license = { text = "GPL-3.0-or-later" }
