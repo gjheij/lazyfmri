@@ -8,11 +8,21 @@ import pandas as pd
 from nilearn import signal
 from shapely import geometry
 import matplotlib.colors as mcolors
+from matplotlib import cm
 import nibabel as nb
 from PIL import ImageColor
 
 opj = os.path.join
 
+def make_polar_cmap():
+
+    top = cm.get_cmap('hsv', 256)
+    bottom = cm.get_cmap('hsv', 256)
+
+    newcolors = np.vstack((top(np.linspace(0, 1, 256)), bottom(np.linspace(0, 1, 256))))
+    cmap = mcolors.ListedColormap(newcolors, name='hsvx2')
+
+    return cmap
 def get_vertex_nr(
     subject,
     as_list=False,
