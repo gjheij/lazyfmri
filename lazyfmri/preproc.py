@@ -82,7 +82,7 @@ def highpass_dct(
     TR=0.105,
     modes_to_remove=None,
     remove_constant=False,
-):
+    ):
     """highpass_dct
 
     Discrete cosine transform (DCT) is a basis set of cosine regressors of varying frequencies up to a filter cutoff of a
@@ -1595,6 +1595,15 @@ class EventRegression(fitting.InitFitter):
             **kwargs
         )
 
+    @classmethod
+    def single_regression(
+        self,
+        func,
+        onsets,
+        reg_kw={},
+        **kwargs
+        ):
+        
         """Regress out events per subject
 
         Performs event regression separately for each subject.
@@ -1791,7 +1800,7 @@ class EventRegression(fitting.InitFitter):
         evs=None,
         loc=[0, 1],
         **kwargs
-    ):
+        ):
 
         """Plot model fits
 
