@@ -111,10 +111,11 @@ def highpass_dct(
 
     Notes
     ----------
-    * *High-pass* filters remove low-frequency (slow) noise and pass high-freqency signals.
-    * Low-pass filters remove high-frequency noise and thus smooth the data.
-    * Band-pass filters allow only certain frequencies and filter everything else out
-    * Notch filters remove certain frequencies
+    - *High-pass* filters remove low-frequency (slow) noise and pass high-freqency signals.
+    - Low-pass filters remove high-frequency noise and thus smooth the data.
+    - Band-pass filters allow only certain frequencies and filter everything else out
+    - Notch filters remove certain frequencies
+
     """
 
     # Create high-pass filter and clean
@@ -172,10 +173,11 @@ def lowpass_savgol(
 
     Notes
     ----------
-    * High-pass filters remove low-frequency (slow) noise and pass high-freqency signals.
-    * *Low-pass* filters remove high-frequency noise and thus smooth the data.
-    * Band-pass filters allow only certain frequencies and filter everything else out
-    * Notch filters remove certain frequencies
+    - High-pass filters remove low-frequency (slow) noise and pass high-freqency signals.
+    - *Low-pass* filters remove high-frequency noise and thus smooth the data.
+    - Band-pass filters allow only certain frequencies and filter everything else out
+    - Notch filters remove certain frequencies
+
     """
 
     if window_length % 2 == 0:
@@ -327,20 +329,28 @@ class ICA():
 
     Example
     ----------
-    >>> from lazyfmri.preproc import ICA
-    >>> ica_obj = ICA(
-    >>>     data_obj.hp_zscore_df,
-    >>>     subject=f"sub-{sub}",
-    >>>     session=ses,
-    >>>     run=3,
-    >>>     n_components=10,
-    >>>     TR=data_obj.TR,
-    >>>     filter_confs=0.18,
-    >>>     keep_comps=1,
-    >>>     verbose=True,
-    >>>     ribbon=None
-    >>> )
-    >>> ica_obj.regress()
+
+    .. code-block:: python
+
+        from lazyfmri.preproc import ICA
+
+        # intialize
+        ica_obj = ICA(
+            data_obj.hp_zscore_df,
+            subject=f"sub-{sub}",
+            session=ses,
+            run=3,
+            n_components=10,
+            TR=data_obj.TR,
+            filter_confs=0.18,
+            keep_comps=1,
+            verbose=True,
+            ribbon=None
+        )
+
+        # actually run the regression
+        ica_obj.regress()
+
     """
 
     def __init__(
@@ -589,10 +599,15 @@ class ICA():
 
         Example
         ----------
-        >>> ica_obj.melodic(
-        >>>     # color="r",
-        >>>     zoom_freq=True,
-        >>>     zoom_lim=[0,0.25])
+
+        .. code-block:: python     
+        
+            ica_obj.melodic(
+                # color="r",
+                zoom_freq=True,
+                zoom_lim=[0,0.25]
+            )
+
         """
 
         # check how many components to plot
@@ -713,8 +728,32 @@ class ICA():
                 dpi=300,
                 facecolor="white")
 
+class DataFilter:
+    """DataFilter
 
-class DataFilter():
+    A class for filtering functional fMRI data based on subject, task, and run identifiers. 
+    It supports multiple filtering strategies, including high-pass and low-pass filtering.
+
+    Parameters
+    ----------
+    func : pd.DataFrame
+        The input functional data as a Pandas DataFrame.
+    **kwargs : dict
+        Additional filtering parameters.
+
+    Example
+    ----------
+    .. code-block:: python
+
+        from lazyfmri.preproc import DataFilter
+        obj = DataFilter(
+            func=df_func,
+            filter_strategy="hp",
+            hp_kw={"cutoff": 0.01},
+        )
+
+        filtered_df = obj.get_result()
+    """
 
     def __init__(
         self,
@@ -726,11 +765,23 @@ class DataFilter():
         self.func = func
         self.filter_input(**kwargs)
 
-    def filter_runs(
-        self,
-        df_func,
-        **kwargs
-    ):
+    def filter_runs(self, df_func, **kwargs):
+        """Filter runs
+
+        Extracts and processes functional data for each unique run in the dataset.
+
+        Parameters
+        ----------
+        df_func : pd.DataFrame
+            Functional data to be filtered.
+        **kwargs : dict
+            Additional parameters for filtering.
+
+        Returns
+        ----------
+        pd.DataFrame
+            Filtered functional data, concatenated across runs.
+        """
 
         # loop through runs
         self.run_ids = utils.get_unique_ids(df_func, id="run")
@@ -757,7 +808,25 @@ class DataFilter():
         self,
         df_func,
         **kwargs
-    ):
+        ):
+
+        """Filter tasks
+
+        Extracts and processes functional data for each unique task in the dataset.
+
+        Parameters
+        ----------
+        df_func : pd.DataFrame
+            Functional data to be filtered.
+        **kwargs : dict
+            Additional parameters for filtering.
+
+        Returns
+        ----------
+        pd.DataFrame
+            Filtered functional data, concatenated across tasks.
+        """
+
 
         # read task IDs
         self.task_ids = utils.get_unique_ids(df_func, id="task")
@@ -779,11 +848,23 @@ class DataFilter():
 
         return pd.concat(task_df)
 
-    def filter_subjects(
-        self,
-        df_func,
-        **kwargs
-    ):
+    def filter_subjects(self, df_func, **kwargs):
+        """Filter subjects
+
+        Extracts and processes functional data for each unique subject in the dataset.
+
+        Parameters
+        ----------
+        df_func : pd.DataFrame
+            Functional data to be filtered.
+        **kwargs : dict
+            Additional parameters for filtering.
+
+        Returns
+        ----------
+        pd.DataFrame
+            Filtered functional data, concatenated across subjects.
+        """
 
         self.sub_ids = utils.get_unique_ids(df_func, id="subject")
 
@@ -817,6 +898,15 @@ class DataFilter():
         return sub_df
 
     def filter_input(self, **kwargs):
+        """Filter input data
+
+        Filters the input data by applying subject-level, task-level, and run-level filtering.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Additional parameters for filtering.
+        """
 
         self.df_filt = self.filter_subjects(
             self.func,
@@ -824,14 +914,29 @@ class DataFilter():
         )
 
     @classmethod
-    def single_filter(
-        self,
-        func,
-        filter_strategy="hp",
-        hp_kw={},
-        lp_kw={},
-        **kwargs
-    ):
+    def single_filter(cls, func, filter_strategy="hp", hp_kw={}, lp_kw={}, **kwargs):
+        """Apply a single filtering step
+
+        Performs high-pass or low-pass filtering on the input data.
+
+        Parameters
+        ----------
+        func : pd.DataFrame
+            Functional data to be filtered.
+        filter_strategy : str or list, optional
+            Filtering strategy to apply. Options: ["hp", "lp"]. Default is "hp".
+        hp_kw : dict, optional
+            Parameters for high-pass filtering.
+        lp_kw : dict, optional
+            Parameters for low-pass filtering.
+        **kwargs : dict
+            Additional parameters.
+
+        Returns
+        ----------
+        pd.DataFrame
+            Filtered data.
+        """
 
         allowed_lp = ["lp", "lowpass", "low-pass", "low_pass"]
         allowed_hp = ["hp", "highpass", "high-pass", "high_pass"]
@@ -873,18 +978,44 @@ class DataFilter():
         return use_df
 
     def get_result(self):
+        """Get filtered result
+
+        Returns the final filtered DataFrame.
+
+        Returns
+        ----------
+        pd.DataFrame
+            Filtered functional data.
+        """
+
         return self.df_filt
 
     @classmethod
-    def power_spectrum(
-        self,
-        tc1,
-        tc2,
-        axs=None,
-        TR=0.105,
-        figsize=(5, 5),
-        **kwargs
-    ):
+    def power_spectrum(cls, tc1, tc2, axs=None, TR=0.105, figsize=(5, 5), **kwargs):
+        """Compute power spectrum
+
+        Computes and plots the power spectrum of two time series.
+
+        Parameters
+        ----------
+        tc1 : pd.DataFrame
+            First time series.
+        tc2 : pd.DataFrame
+            Second time series.
+        axs : matplotlib.axes._axes.Axes, optional
+            Matplotlib axis object for plotting. If None, a new figure is created.
+        TR : float, optional
+            Repetition time (TR) of the fMRI scan. Default is 0.105 seconds.
+        figsize : tuple, optional
+            Figure size for plotting. Default is (5, 5).
+        **kwargs : dict
+            Additional parameters.
+
+        Returns
+        ----------
+        matplotlib.figure.Figure
+            Power spectrum plot.
+        """
 
         if not isinstance(axs, mpl.axes._axes.Axes):
             _, axs = plt.subplots(figsize=figsize)
@@ -937,7 +1068,42 @@ class DataFilter():
         power_kws={},
         make_figure=True,
         **kwargs
-    ):
+        ):
+
+        """Plot task-averaged time series
+
+        Plots the original and filtered time series averaged across tasks.
+
+        Parameters
+        ----------
+        orig : pd.DataFrame, optional
+            Original unfiltered data. Defaults to self.func.
+        filt : pd.DataFrame, optional
+            Filtered data. Defaults to self.df_filt.
+        t_col : str, optional
+            Column name representing time. Default is "t".
+        avg : bool, optional
+            Whether to compute the average time series across subjects. Default is True.
+        plot_title : str or dict, optional
+            Title for the plot. If dict, it should contain additional title arguments.
+        incl_task : str or list, optional
+            Specific tasks to include. If None, all tasks are included.
+        sf : matplotlib.figure.SubFigure, optional
+            SubFigure object for multiple plots.
+        use_cols : list, optional
+            Colors to use for the original and filtered data. Default is ["#cccccc", "r"].
+        power_kws : dict, optional
+            Additional parameters for power spectrum computation.
+        make_figure : bool, optional
+            Whether to create a new figure. Default is True.
+        **kwargs : dict
+            Additional plotting parameters.
+
+        Returns
+        ----------
+        matplotlib.figure.Figure or pd.DataFrame
+            If `make_figure=True`, returns a figure. Otherwise, returns a DataFrame of task-averaged time series.
+        """
 
         if not isinstance(orig, pd.DataFrame):
             orig = self.func
@@ -1081,6 +1247,51 @@ class DataFilter():
 
 
 class EventRegression(fitting.InitFitter):
+    """EventRegression
+
+    Performs event regression on functional fMRI data. This class takes functional time series and event onsets
+    to regress out specific event-related activity.
+
+    Parameters
+    ----------
+    func : pd.DataFrame
+        Functional time series data.
+    onsets : pd.DataFrame
+        Event onsets with associated event types.
+    TR : float, optional
+        Repetition time (TR) of the fMRI scan. Default is 0.105 seconds.
+    merge : bool, optional
+        Whether to merge event-related regressors. Default is False.
+    evs : list, str, optional
+        List of event types to regress out. If None, all event types will be used.
+    ses : int, optional
+        Session identifier, if applicable.
+    prediction_plot : bool, optional
+        Whether to generate plots for predicted timecourses. Default is False.
+    result_plot : bool, optional
+        Whether to generate plots for the final regression results. Default is False.
+    save_ext : str, optional
+        File extension for saved plots (e.g., "svg" or "png"). Default is "svg".
+    reg_kw : dict, optional
+        Keyword arguments for regression.
+    **kwargs : dict
+        Additional keyword arguments for processing.
+
+    Example
+    ----------
+    .. code-block:: python
+
+        from lazyfmri.preproc import EventRegression
+
+        obj = EventRegression(
+            func=df_func,
+            onsets=df_onsets,
+            TR=0.105,
+            evs=["stimulus", "response"],
+            result_plot=True
+        )
+        regressed_df = obj.df_regress
+    """
 
     def __init__(
         self,
@@ -1130,6 +1341,35 @@ class EventRegression(fitting.InitFitter):
         reg_kw={},
         **kwargs
     ):
+
+        """Regress out events per run
+
+        Performs event regression separately for each run.
+
+        Parameters
+        ----------
+        df_func : pd.DataFrame
+            Functional time series data.
+        df_onsets : pd.DataFrame
+            Event onsets for each run.
+        basename : str, optional
+            Basename for saving figures. Default is None.
+        final_ev : bool, optional
+            Whether this is the final event to be regressed. Default is True.
+        make_figure : bool, optional
+            Whether to generate plots. Default is False.
+        plot_kw : dict, optional
+            Additional plotting parameters.
+        reg_kw : dict, optional
+            Additional regression parameters.
+        **kwargs : dict
+            Additional keyword arguments.
+
+        Returns
+        ----------
+        pd.DataFrame
+            Functional data with event regressors removed.
+        """
 
         # loop through runs
         self.run_ids = utils.get_unique_ids(df_func, id="run")
@@ -1185,6 +1425,29 @@ class EventRegression(fitting.InitFitter):
         **kwargs
     ):
 
+        """Regress out events per task
+
+        Performs event regression separately for each task.
+
+        Parameters
+        ----------
+        df_func : pd.DataFrame
+            Functional time series data.
+        df_onsets : pd.DataFrame
+            Event onsets for each task.
+        basename : str, optional
+            Basename for saving figures. Default is None.
+        reg_kw : dict, optional
+            Additional regression parameters.
+        **kwargs : dict
+            Additional keyword arguments.
+
+        Returns
+        ----------
+        pd.DataFrame
+            Functional data with event regressors removed.
+        """
+
         # read task IDs
         self.task_ids = utils.get_unique_ids(df_func, id="task")
 
@@ -1222,6 +1485,31 @@ class EventRegression(fitting.InitFitter):
         reg_kw={},
         **kwargs
     ):
+
+        """Regress out events per subject
+
+        Performs event regression separately for each subject.
+
+        Parameters
+        ----------
+        df_func : pd.DataFrame
+            Functional time series data.
+        df_onsets : pd.DataFrame
+            Event onsets for each subject.
+        evs : list, str, optional
+            List of event types to regress out. Default is None (all events).
+        ses : int, optional
+            Session identifier, if applicable.
+        reg_kw : dict, optional
+            Additional regression parameters.
+        **kwargs : dict
+            Additional keyword arguments.
+
+        Returns
+        ----------
+        pd.DataFrame
+            Functional data with event regressors removed.
+        """
 
         self.sub_ids = utils.get_unique_ids(df_func, id="subject")
 
@@ -1288,6 +1576,15 @@ class EventRegression(fitting.InitFitter):
         return sub_df
 
     def regress_input(self, **kwargs):
+        """Perform event regression on input data
+
+        Runs event regression for all subjects in the dataset.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Additional keyword arguments for processing.
+        """
 
         self.df_regress = self.regress_subjects(
             self.func,
@@ -1298,14 +1595,30 @@ class EventRegression(fitting.InitFitter):
             **kwargs
         )
 
-    @classmethod
-    def single_regression(
-        self,
-        func,
-        onsets,
-        reg_kw={},
-        **kwargs
-    ):
+        """Regress out events per subject
+
+        Performs event regression separately for each subject.
+
+        Parameters
+        ----------
+        df_func : pd.DataFrame
+            Functional time series data.
+        df_onsets : pd.DataFrame
+            Event onsets for each subject.
+        evs : list, str, optional
+            List of event types to regress out. Default is None (all events).
+        ses : int, optional
+            Session identifier, if applicable.
+        reg_kw : dict, optional
+            Additional regression parameters.
+        **kwargs : dict
+            Additional keyword arguments.
+
+        Returns
+        ----------
+        pd.DataFrame
+            Functional data with event regressors removed.
+        """
 
         # fit FIR model
         model = fitting.NideconvFitter(
@@ -1335,6 +1648,35 @@ class EventRegression(fitting.InitFitter):
         TR=0.105,
         **kwargs
     ):
+
+        """Plot timecourse prediction
+
+        Plots original and predicted timecourses to visualize regression results.
+
+        Parameters
+        ----------
+        tc1 : pd.DataFrame
+            Original time series.
+        tc2 : pd.DataFrame
+            Predicted time series from the regression model.
+        axs : matplotlib.axes._axes.Axes, optional
+            Matplotlib axis object for plotting.
+        figsize : tuple, optional
+            Figure size. Default is (16, 4).
+        time_col : str, optional
+            Column name for time axis. Default is "t".
+        t_axis : list or np.ndarray, optional
+            Time axis values.
+        TR : float, optional
+            Repetition time (TR) of the fMRI scan. Default is 0.105 seconds.
+        **kwargs : dict
+            Additional plotting parameters.
+
+        Returns
+        ----------
+        matplotlib.figure.Figure
+            Timecourse prediction plot.
+        """
 
         if not isinstance(axs, mpl.axes._axes.Axes):
             fig, axs = plt.subplots(figsize=figsize)
@@ -1376,6 +1718,31 @@ class EventRegression(fitting.InitFitter):
         figsize=(5, 5),
         **kwargs
     ):
+
+        """Plot power spectrum
+
+        Computes and plots the power spectrum before and after regression.
+
+        Parameters
+        ----------
+        tc1 : pd.DataFrame
+            Original time series.
+        tc2 : pd.DataFrame
+            Regressed time series.
+        axs : matplotlib.axes._axes.Axes, optional
+            Matplotlib axis object for plotting.
+        TR : float, optional
+            Repetition time (TR) of the fMRI scan. Default is 0.105 seconds.
+        figsize : tuple, optional
+            Figure size. Default is (5, 5).
+        **kwargs : dict
+            Additional plotting parameters.
+
+        Returns
+        ----------
+        matplotlib.figure.Figure
+            Power spectrum plot.
+        """
 
         if not isinstance(axs, mpl.axes._axes.Axes):
             _, axs = plt.subplots(figsize=figsize)
@@ -1425,6 +1792,34 @@ class EventRegression(fitting.InitFitter):
         loc=[0, 1],
         **kwargs
     ):
+
+        """Plot model fits
+
+        Visualizes model-predicted and observed time series for different voxels.
+
+        Parameters
+        ----------
+        model : object
+            Fitted model object.
+        save : bool, optional
+            Whether to save the plot. Default is False.
+        fig_dir : str, optional
+            Directory to save figures.
+        basename : str, optional
+            Basename for saved figures.
+        TR : float, optional
+            Repetition time (TR) of the fMRI scan. Default is 0.105 seconds.
+        cm : str, optional
+            Colormap for plotting.
+        ext : str, optional
+            File extension for saving plots.
+        **kwargs : dict
+            Additional plotting parameters.
+
+        Returns
+        ----------
+        None
+        """
 
         # parse to list
         func_list = list(model.func.T.values)

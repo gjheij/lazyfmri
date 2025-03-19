@@ -15,6 +15,15 @@ from PIL import ImageColor
 opj = os.path.join
 
 def make_polar_cmap():
+    """make_polar_cmap
+
+    Creates a colormap with an extended HSV color spectrum to denote the polar angle in pRF mapping.
+
+    Returns
+    ----------
+    matplotlib.colors.ListedColormap
+        Custom colormap with a doubled HSV range.
+    """
 
     top = cm.get_cmap('hsv', 256)
     bottom = cm.get_cmap('hsv', 256)
@@ -23,11 +32,33 @@ def make_polar_cmap():
     cmap = mcolors.ListedColormap(newcolors, name='hsvx2')
 
     return cmap
-def get_vertex_nr(
-    subject,
-    as_list=False,
-    debug=False,
-    fs_dir=None):
+
+def get_vertex_nr(subject, as_list=False, debug=False, fs_dir=None):
+    """get_vertex_nr
+
+    Retrieve the number of vertices in the cortical surface for a given subject.
+
+    Parameters
+    ----------
+    subject : str
+        Subject ID.
+    as_list : bool, optional
+        Whether to return left and right hemisphere vertex counts separately, by default False.
+    debug : bool, optional
+        Whether to print debug information, by default False.
+    fs_dir : str, optional
+        Path to FreeSurfer subjects directory, by default reads from environment variable `SUBJECTS_DIR`.
+
+    Returns
+    ----------
+    int or list
+        Total number of vertices (int) or a list of hemisphere-specific counts if `as_list=True`.
+
+    Raises
+    ----------
+    FileNotFoundError
+        If the surface file is not found.
+    """
 
     if not isinstance(fs_dir, str):
         fs_dir = os.environ.get("SUBJECTS_DIR")
@@ -56,31 +87,32 @@ def get_vertex_nr(
 def disassemble_fmriprep_wf(wf_path, subj_ID, prefix="sub-"):
     """disassemble_fmriprep_wf
 
-    Parses the workflow-folder from fMRIPrep into its constituents to recreate a filename. Searches for the following keys:
-    `['ses', 'task', 'acq', 'run']`.
+    Parses the workflow folder from fMRIPrep into a filename based on subject-specific components.
 
     Parameters
     ----------
-    wf_path: str
-        Path to workflow-folder
-    subj_ID: str
-        Subject ID to append to `prefix`
-    prefix: str, optional
-        Forms together with `subj_ID` the beginning of the new filename. By default "sub-"
+    wf_path : str
+        Path to workflow folder.
+    subj_ID : str
+        Subject ID to append to `prefix`.
+    prefix : str, optional
+        Prefix for the filename (default is `"sub-"`).
 
     Returns
     ----------
     str
-        filename based on constituent file parts
+        Constructed filename based on workflow parts.
 
     Example
     ----------
-    >>> from linescanning.utils import disassemble_fmriprep_wf
-    >>> wf_dir = "func_preproc_ses_2_task_pRF_run_1_acq_3DEPI_wf"
-    >>> fname = disassemble_fmriprep_wf(wf_dir, "001")
-    >>> fname
-    'sub-001_ses-2_task-pRF_acq-3DEPI_run-1'
+    .. code-block:: python
+
+        from lazyfmri.utils import disassemble_fmriprep_wf
+        wf_dir = "func_preproc_ses_2_task_pRF_run_1_acq_3DEPI_wf"
+        fname = disassemble_fmriprep_wf(wf_dir, "001")
+        print(fname)  # 'sub-001_ses-2_task-pRF_acq-3DEPI_run-1'
     """
+
     wf_name = [ii for ii in wf_path.split(os.sep) if "func_preproc" in ii][0]
     wf_elem = wf_name.split("_")
     fname = [f"{prefix}{subj_ID}"]
@@ -97,35 +129,35 @@ def disassemble_fmriprep_wf(wf_path, subj_ID, prefix="sub-"):
 def assemble_fmriprep_wf(bold_path, wf_only=False):
     """assemble_fmriprep_wf
 
-    Parses the bold file into a workflow name for fMRIPrep into its constituents to recreate a filename. Searches for the
-    following keys: `['ses', 'task', 'acq', 'run']`.
+    Converts a BOLD file path into a workflow name for fMRIPrep.
 
     Parameters
     ----------
-    bold_path: str
-        Path to bold-file
-    wf_only: bool, optional
-        If `sub` tag is found in `bold_path`, we can reconstruct the full workflow folder including preceding
-        `single_subject_<sub_id>_wf`. If you do not want this, set `wf_only` to **False**.
+    bold_path : str
+        Path to the BOLD file.
+    wf_only : bool, optional
+        Whether to return only the workflow name without `single_subject_<sub_id>_wf`, by default False.
 
     Returns
     ----------
     str
-        filename based on constituent file parts
+        Constructed workflow name.
 
     Example
     ----------
-    >>> from linescanning.utils import disassemble_fmriprep_wf
-    >>> bold_file = "sub-008_ses-2_task-SRFi_acq-3DEPI_run-1_desc-preproc_bold.nii.gz"
-    >>> wf_name = assemble_fmriprep_wf(bold_file)
-    >>> wf_name
-    >>> 'single_subject_008_wf/func_preproc_ses_2_task_SRFi_run_1_acq_3DEPI_wf'
+    .. code-block:: python
 
-    >>> # workflow name only
-    >>> wf_name = assemble_fmriprep_wf(bold_file, wf_only=True)
-    >>> wf_name
-    >>> 'func_preproc_ses_2_task_SRFi_run_1_acq_3DEPI_wf'
+        from lazyfmri.utils import assemble_fmriprep_wf
+        bold_file = "sub-008_ses-2_task-SRFi_acq-3DEPI_run-1_desc-preproc_bold.nii.gz"
+        wf_name = assemble_fmriprep_wf(bold_file)
+        print(wf_name)  # 'single_subject_008_wf/func_preproc_ses_2_task_SRFi_run_1_acq_3DEPI_wf'
+
+    .. code-block:: python
+
+        wf_name = assemble_fmriprep_wf(bold_file, wf_only=True)
+        print(wf_name)  # 'func_preproc_ses_2_task_SRFi_run_1_acq_3DEPI_wf'
     """
+
     bids_comps = split_bids_components(os.path.basename(bold_path))
     fname = ["func_preproc"]
 
@@ -145,7 +177,29 @@ def assemble_fmriprep_wf(bold_path, wf_only=False):
     else:
         return fname
 
-class BIDSFile():
+class BIDSFile:
+    """BIDSFile
+
+    Class to extract BIDS-related components from filenames and paths.
+
+    Parameters
+    ----------
+    bids_file : str
+        Path to the BIDS-compliant file.
+
+    Methods
+    ----------
+    :func:`lazyfmri.utils.BIDSFile.get_bids_basepath()`
+        Retrieve the BIDS base path.
+    :func:`lazyfmri.utils.BIDSFile.get_bids_root()`
+        Retrieve the BIDS root directory.
+    :func:`lazyfmri.utils.BIDSFile.get_bids_workbase()`
+        Retrieve the BIDS working directory.
+    :func:`lazyfmri.utils.BIDSFile.get_bids_workflow()`
+        Retrieve the workflow name for fMRIPrep.
+    :func:`lazyfmri.utils.BIDSFile.get_bids_ids()`
+        Extract subject, session, task, and run information from filename.
+    """
 
     def __init__(self, bids_file):
         self.bids_file = os.path.abspath(bids_file)
@@ -204,7 +258,7 @@ class color:
 
     # Example
     # ----------
-    # >>> print("set orientation to " + utils.color.BOLD + utils.color.RED + "SOME TEXT THAT'LL BE IN TED" + utils.color.END)
+    # print("set orientation to " + utils.color.BOLD + utils.color.RED + "SOME TEXT THAT'LL BE IN TED" + utils.color.END)
     # """
    PURPLE = '\033[95m'
    CYAN = '\033[96m'
@@ -218,7 +272,22 @@ class color:
    END = '\033[0m'
 
 def convert2unit(v, method="np"):
-    """convert vector to unit vector"""
+    """convert2unit
+
+    Normalize a vector to a unit vector.
+
+    Parameters
+    ----------
+    v : numpy.ndarray
+        Vector to be normalized.
+    method : str, optional
+        Method for normalization (`"np"` for NumPy, `"mesh"` for mesh-based normalization), by default `"np"`.
+
+    Returns
+    ----------
+    numpy.ndarray
+        Unit-normalized vector.
+    """
 
     if method.lower() == "np":
         v_hat = v / np.linalg.norm(v)
@@ -234,23 +303,27 @@ def convert2unit(v, method="np"):
 def string2list(string_array, make_float=False):
     """string2list
 
-    This function converts a array in string representation to a list of string. This can happen, for instance, when you use
-    bash to give a list of strings to python, where ast.literal_eval fails.
+    Convert a string representation of a list into an actual Python list.
 
     Parameters
     ----------
-    string_array: str
-        string to be converted to a valid numpy array with float values
+    string_array : str
+        String containing a list representation.
+    make_float : bool, optional
+        Whether to convert list elements to float, by default False.
 
     Returns
     ----------
-    numpy.ndarray
-        array containing elements in float rather than in string representation
+    list
+        Parsed list.
 
     Example
     ----------
-    >>> string2list('[tc,bgfs]')
-    ['tc', 'bgfs']
+    .. code-block:: python
+
+        from lazyfmri.utils import string2list
+        lst = string2list('[tc,bgfs]')
+        print(lst)  # ['tc', 'bgfs']
     """
 
     if type(string_array) == str:
@@ -285,7 +358,7 @@ def string2float(string_array):
 
     Example
     ----------
-    >>> string2float('[ -7.42 -92.97 -15.28]')
+    string2float('[ -7.42 -92.97 -15.28]')
     array([ -7.42, -92.97, -15.28])
     """
 
@@ -304,31 +377,29 @@ def string2float(string_array):
 def reverse_sign(x):
     """reverse_sign
 
-    Inverts the sign given set of values. Can be either one value or an array of values that need to be inverted
+    Inverts the sign of given values.
 
     Parameters
     ----------
-    x: int,float,list,numpy.ndarray
-        input that needs inverting, either one value or a list
-    
+    x : int, float, list, numpy.ndarray
+        Input value(s) to be inverted.
+
     Returns
     ----------
-    the inverse of whatever the input `x` was
+    Same type as input
+        Values with inverted sign.
 
     Example
     ----------
-    >>> # input is integer
-    >>> x = 5
-    >>> reverse_sign(x)
-    -5
-    >>> # input is array
-    >>> x = np.array([2, -2340, 2345,123342, 123])
-    >>> In [6]: reverse_sign(x)
-    array([-2.00000e+00,  2.34000e+03, -2.34500e+03, -1.23342e+05,-1.23000e+02])
-    >>> # input is float
-    >>> x = 5.0
-    >>> reverse_sign(x)
-    -5.0
+    .. code-block:: python
+
+        from lazyfmri.utils import reverse_sign
+        print(reverse_sign(5))  # -5
+    
+    .. code-block:: python
+
+        print(reverse_sign(np.array([2, -2340, 2345, 123])))  
+        # array([-2, 2340, -2345, -123])
     """
 
     import numpy as np
@@ -385,27 +456,31 @@ def decode(obj):
         obj = obj.decode()
     return obj
 
-def copy_hdr(source_img,dest_img):
+def copy_hdr(source_img, dest_img):
     """copy_hdr
 
-    Similar functionality as fslcpgeom but than more rigorious using Nibabel. Copies the ENTIRE header, including affine, quaternion rotations, and dimensions.
+    Copy the header of one NIfTI image to another.
 
     Parameters
     ----------
-    source_img: str, nibabel.Nifti1Image
-        source image from which to derive the header information
-    dest_img: str, nibabel.Nifti1Image
-        destination image to which to copy the header from <source image> to
+    source_img : str or nibabel.Nifti1Image
+        Source image.
+    dest_img : str or nibabel.Nifti1Image
+        Target image.
 
     Returns
     ----------
     nibabel.Nifti1Image
-        `source_img` with updated header information
+        Image with the header copied from the source.
 
     Example
     ----------
-    >>> new_img = copy_hdr(img1,img2)
+    .. code-block:: python
+
+        from lazyfmri.utils import copy_hdr
+        new_img = copy_hdr(img1, img2)
     """
+
 
     if isinstance(source_img, nb.Nifti1Image):
         src_img = source_img
@@ -441,40 +516,38 @@ def ants_to_spm_moco(affine, deg=False, convention="SPM"):
     moco_pars = np.array([dx,dy,dz,rx,ry,rz])
     return moco_pars
 
-def make_chicken_csv(
-    coord,
-    input="ras",
-    output_file=None,
-    vol=0.343
-    ):
-
+def make_chicken_csv(coord, input="ras", output_file=None, vol=0.343):
     """make_chicken_csv
 
-    This function creates a .csv-file like the chicken.csv example from ANTs to warp a coordinate using a transformation file
-    ANTs assumes the input coordinate to be LPS, but this function can deal with RAS-coordinates too.
-    (see https://github.com/stnava/chicken for the reason of this function's name)
+    Create a CSV file for ANTs transformation of coordinates.
 
     Parameters
     ----------
-    coord: np.ndarray
-        numpy array containing the three coordinates in x,y,z direction
-    input: str
-        specify whether your coordinates uses RAS or LPS convention (default is RAS, and will be converted to LPS to create
-        the file)
-    output_file: str
-        path-like string pointing to an output file (.csv!)
-    vol: float
-        volume of voxels (pixdim_x*pixdim_y*pixdim_z). If you're using the standard 0.7 MP2RAGE, the default vol will be ok
+    coord : numpy.ndarray
+        Array containing (x, y, z) coordinates.
+    input : str, optional
+        Input coordinate system (`"ras"` or `"lps"`), by default `"ras"`.
+    output_file : str, optional
+        Output file path.
+    vol : float, optional
+        Voxel volume, by default 0.343.
 
     Returns
     ----------
     str
-        path pointing to the `csv`-file containing the coordinate
+        Path to the created CSV file.
 
     Example
     ----------
-    >>> make_chicken_csv(np.array([-16.239,-67.23,-2.81]), output_file="sub-001_space-fs_desc-lpi.csv")
-    "sub-001_space-fs_desc-lpi.csv"
+    .. code-block:: python
+
+        from lazyfmri.utils import make_chicken_csv
+        csv_file = make_chicken_csv(
+            np.array([-16.239, -67.23, -2.81]),
+            output_file="sub-001_space-fs.csv"
+        )
+
+        print(csv_file)  # "sub-001_space-fs.csv"
     """
 
     if len(coord) > 3:
@@ -516,8 +589,7 @@ def read_chicken_csv(chicken_file, return_type="lps"):
 
     Example
     ----------
-    >>> read_chicken_csv("sub-001_space-fs_desc-lpi.csv")
-    array([-16.239,-67.23,-2.81])
+    read_chicken_csv("sub-001_space-fs_desc-lpi.csv")
     """
     
     contents = pd.read_csv(chicken_file)
@@ -558,12 +630,16 @@ def make_binary_cm(color):
 
     Example
     ----------
-    >>> cm = make_binary_cm((232,255,0))
-    >>> cm
-    <matplotlib.colors.LinearSegmentedColormap at 0x7f35f7154a30>
-    >>> cm = make_binary_cm("#D01B47")
-    >>> cm
-    >>> <matplotlib.colors.LinearSegmentedColormap at 0x7f35f7154a30>
+    .. code-block:: python
+    
+        cm = make_binary_cm((232,255,0))
+        print(cm) # <matplotlib.colors.LinearSegmentedColormap at 0x7f35f7154a30>
+
+    .. code-block:: python        
+
+        cm = make_binary_cm("#D01B47")
+        print(cm) # <matplotlib.colors.LinearSegmentedColormap at 0x7f35f7154a30>
+    
     """
 
     # convert input to RGB
@@ -573,10 +649,39 @@ def make_binary_cm(color):
     cmap = mcolors.LinearSegmentedColormap.from_list('mycmap', colors, N=5)
 
     return cmap
+class FindFiles:
+    """FindFiles
 
-class FindFiles():
+    Class to search for files in a directory based on a specified extension and optional filters.
+
+    This class allows recursive search with depth constraints and filtering based on filename patterns.
+
+    Parameters
+    ----------
+    directory : str
+        Path to the directory where the search should be performed.
+    extension : str
+        File extension to search for (e.g., ".nii", ".csv").
+    exclude : str or list, optional
+        String or list of substrings to exclude from the search results.
+    maxdepth : int, optional
+        Maximum depth of recursion for searching subdirectories. If None, no limit is imposed.
+    filters : str or list, optional
+        String or list of substrings to filter the results. Only files matching these filters will be retained.
+
+    Attributes
+    ----------
+    files : list
+        Sorted list of found files that match the search criteria.
+
+    Methods
+    ----------
+    :func:`lazyfmri.utils.FindFiles.find_files()`
+        Static method that yields files in a directory matching the given pattern.
+    """
 
     def __init__(self, directory, extension, exclude=None, maxdepth=None, filters=None):
+        """Initialize FindFiles instance and perform file search."""
 
         self.directory = directory
         self.extension = extension
@@ -585,15 +690,15 @@ class FindFiles():
         self.filters = filters
         self.files = []
 
-        for filename in self.find_files(self.directory, f'*{self.extension}', maxdepth=self.maxdepth):
-            if not filename.startswith('._'):
+        for filename in self.find_files(self.directory, f"*{self.extension}", maxdepth=self.maxdepth):
+            if not filename.startswith("._"):
                 self.files.append(filename)
 
         self.files.sort()
 
-        if isinstance(self.exclude, (str,list)) or isinstance(self.filters, (list, str)):
+        if isinstance(self.exclude, (str, list)) or isinstance(self.filters, (list, str)):
             if isinstance(self.filters, str):
-                self.filters =  [self.filters]
+                self.filters = [self.filters]
             elif isinstance(self.filters, list):
                 pass
             else:
@@ -603,7 +708,36 @@ class FindFiles():
 
     @staticmethod
     def find_files(directory, pattern, maxdepth=None):
-        
+        """find_files
+
+        Static method to recursively find files in a directory matching a given pattern.
+
+        Parameters
+        ----------
+        directory : str
+            Path to the directory to search in.
+        pattern : str
+            Filename pattern to match (e.g., "*.nii", "*.csv").
+        maxdepth : int, optional
+            Maximum depth of recursion for subdirectories. If None, no limit is imposed.
+
+        Yields
+        ----------
+        str
+            Paths to files that match the specified pattern.
+
+        Example
+        ----------
+        .. code-block:: python
+
+            from lazyfmri.utils import FindFiles
+            finder = FindFiles("/data", ".nii")
+            print(finder.files)  # List of NIfTI files in the directory
+
+            for file in FindFiles.find_files("/data", "*.csv"):
+                print(file)  # Prints paths to CSV files in the directory
+        """
+
         start = None
         if isinstance(maxdepth, int):
             start = 0
@@ -617,7 +751,7 @@ class FindFiles():
 
             if isinstance(maxdepth, int):
                 if start > maxdepth:
-                    break 
+                    break
 
             if isinstance(start, int):
                 start += 1
@@ -931,46 +1065,100 @@ def select_from_df(
     index=True,
     indices=None,
     match_exact=True
-):
+    ):
+
     """select_from_df
 
-    Select a subset of a dataframe based on an expression. Dataframe should be indexed by the variable you want to select on
-    or have the variable specified in the expression argument as column name. If index is True, the dataframe will be indexed
-    by the selected variable. If indices is specified, the dataframe will be indexed by the indices specified through a list
-    (only select the elements in the list) or a `range`-object (select within range).
+    Selects a subset of a pandas DataFrame based on an expression, index-based selection, or column filtering.
+
+    This function provides flexible data selection methods:
+    - Using an `expression`, which consists of a column name and an operator (e.g., `'task = "rest"'`).
+    - Using `indices`, which selects columns based on a list, range, or numpy array.
+    - Optionally reindexing the output DataFrame.
 
     Parameters
     ----------
-    df: pandas.DataFrame
-        input dataframe
-    expression: str, optional
-        what subject of the dataframe to select, by default None. The expression must consist of a variable name and an
-        operator. The operator can be any of the following: '=', '>', '<', '>=', '<=', '!=', separated by spaces. You can also
-        change 2 operations by specifying the `&`-operator between the two expressions. If you want to use `indices`, specify
-        `expression="ribbon"`.
-    index: bool, optional
-        return output dataframe with the same indexing as `df`, by default True
-    indices: list, range, numpy.ndarray, optional
-        List, range, or numpy array of indices to select from `df`, by default None
-    match_exact: bool, optional:
-        When you insert a list of strings with `indices` to be filtered from the dataframe, you can either request that the
-        items of `indices` should **match** exactly (`match_exact=True`, default) the column names of `df`, or whether the
-        columns of `df` should **contain** the items of `indices` (`match_exact=False`).
+    df : pandas.DataFrame
+        The input dataframe.
+    expression : str, list, tuple, optional
+        The condition(s) to filter the DataFrame rows. Expressions should be in the format:
+        `"column operator value"` where `operator` can be one of:
+        `'='`, `'>'`, `'<'`, `'>='`, `'<='`, `'!='`. 
+        Multiple expressions can be combined with `&` (logical AND).
+        Example: `"task = 'rest'"`, `"age > 30"`, `["task = 'rest'", "&", "age > 30"]`.
+    index : bool, optional
+        Whether to return the output DataFrame with the same indexing as `df`. Default is `True`.
+    indices : list, range, numpy.ndarray, optional
+        Specifies column indices to select from `df`. This can be:
+        - A `list` of column names or indices.
+        - A `range` object.
+        - A `numpy.ndarray` containing column indices.
+        If `indices` is specified, `expression` is ignored.
+    match_exact : bool, optional
+        If `indices` is a list of strings, determines how column names are matched:
+        - `True` (default): Exact matches only.
+        - `False`: Partial matches (i.e., column names that contain the given strings).
 
     Returns
     ----------
     pandas.DataFrame
-        new dataframe where `expression` or `indices` were selected from `df`
+        A new DataFrame with rows/columns selected based on `expression` or `indices`.
 
     Raises
     ----------
     TypeError
-        If `indices` is not a tuple, list, or array
+        If `indices` is not a tuple, list, or array.
+    ValueError
+        If an expression does not match any row in `df`.
 
-    Notes
+    Examples
     ----------
-    See https://linescanning.readthedocs.io/en/latest/examples/nideconv.html for an example of how to use this function (do
-    ctrl+F and enter "select_from_df").
+    **Select rows based on an expression:**
+    
+    .. code-block:: python
+
+        import pandas as pd
+        from lazyfmri.utils import select_from_df
+
+        # Create example DataFrame
+        data = {
+            "subject": [1, 2, 3, 4],
+            "age": [25, 30, 35, 40],
+            "task": ["rest", "active", "rest", "active"]
+        }
+        df = pd.DataFrame(data)
+
+        # Select rows where task is "rest"
+        df_filtered = select_from_df(df, expression="task = 'rest'")
+
+        print(df_filtered)
+        # Output:
+        #    subject  age  task
+        # 0       1   25  rest
+        # 2       3   35  rest
+
+    **Select columns by index range:**
+    
+    .. code-block:: python
+
+        df_filtered = select_from_df(df, indices=range(0, 2))
+        print(df_filtered)
+        # Output:
+        #    subject  age
+        # 0       1   25
+        # 1       2   30
+        # 2       3   35
+        # 3       4   40
+
+    **Select multiple conditions using AND (`&`):**
+    
+    .. code-block:: python
+
+        df_filtered = select_from_df(df, expression=["task = 'rest'", "&", "age > 30"])
+        print(df_filtered)
+        # Output:
+        #    subject  age  task
+        # 2       3   35  rest
     """
 
     # not the biggest fan of a function within a function, but this allows
@@ -1199,47 +1387,89 @@ def pairwise(l1):
 def get_file_from_substring(filt, path, return_msg='error', exclude=None):
     """get_file_from_substring
 
-    This function returns the file given a path and a substring. Avoids annoying stuff with glob. Now also allows multiple
-    filters to be applied to the list of files in the directory. The idea here is to construct a binary matrix of shape
-    (files_in_directory, nr_of_filters), and test for each filter if it exists in the filename. If all filters are present in
-    a file, then the entire row should be 1. This is what we'll be looking for. If multiple files are found in this manner, a
-    list of paths is returned. If only 1 file was found, the string representing the filepath will be returned.
+    Finds and returns file(s) in a directory that contain specific substrings in their filenames. 
+    Supports multiple search filters and optional exclusions.
+
+    This function scans a directory for filenames containing the specified substring(s) (`filt`). 
+    It constructs a binary matrix where each row represents a file, and each column represents a filter. 
+    A file is considered a match if all filters exist within its filename.
+    
+    - If a **single file** matches, it returns the file path as a string.
+    - If **multiple files** match, it returns a list of file paths.
+    - If **no files** match, it raises an error or returns `None`, depending on `return_msg`.
 
     Parameters
     ----------
-    filt: str, list
-        tag for files we need to select. Now also support a list of multiple filters.
-    path: str
-        path to the directory from which we need to remove files
-    return_msg: str, optional
-        whether to raise an error (*return_msg='error') or return None (*return_msg=None*). Default = 'error'.
-    exclude: str, optional:
-        Specify string to exclude from options. This criteria will be ensued after finding files that conform to `filt` as
-        final filter.
+    filt : str or list of str
+        Substring(s) to match within filenames. Can be a single string or a list of multiple filters.
+    path : str or list
+        Path to the directory to search in. Can also be a list of filenames for direct filtering.
+    return_msg : str, optional
+        Behavior when no matching files are found:
+        - `'error'` (default): Raises `FileNotFoundError`.
+        - `None`: Returns `None` instead of raising an error.
+    exclude : str or list of str, optional
+        Substring(s) to exclude from matching files. Applied after filtering with `filt`.
 
     Returns
     ----------
     str
-        path to the files containing `string`. If no files could be found, `None` is returned
-
-    list
-        list of paths if multiple files were found
+        The path to the matching file if a single match is found.
+    list of str
+        A list of paths if multiple files match the filters.
+    None
+        If no matches are found and `return_msg=None`.
 
     Raises
     ----------
     FileNotFoundError
-        If no files usingn the specified filters could be found
+        If no files match the specified filters and `return_msg='error'`.
 
-    Example
+    Examples
     ----------
-    >>> get_file_from_substring("R2", "/path/to/prf")
-    '/path/to/prf/r2.npy'
-    >>> get_file_from_substring(['gauss', 'best_vertices'], "path/to/pycortex/sub-xxx")
-    '/path/to/pycortex/sub-xxx/sub-xxx_model-gauss_desc-best_vertices.csv'
-    >>> get_file_from_substring(['best_vertices'], "path/to/pycortex/sub-xxx")
-    ['/path/to/pycortex/sub-xxx/sub-xxx_model-gauss_desc-best_vertices.csv',
-    '/path/to/pycortex/sub-xxx/sub-xxx_model-norm_desc-best_vertices.csv']
+    **Find a single file containing a substring:**
+    
+    .. code-block:: python
+
+        from lazyfmri.utils import get_file_from_substring
+
+        # Search for a file containing "R2" in the /path/to/prf directory
+        file_path = get_file_from_substring("R2", "/path/to/prf")
+        print(file_path)
+        # Output: "/path/to/prf/r2.npy"
+
+    **Find a file matching multiple filters:**
+    
+    .. code-block:: python
+
+        file_path = get_file_from_substring(["gauss", "best_vertices"], "path/to/pycortex/sub-xxx")
+        print(file_path)
+        # Output: "/path/to/pycortex/sub-xxx/sub-xxx_model-gauss_desc-best_vertices.csv"
+
+    **Find multiple matching files:**
+    
+    .. code-block:: python
+
+        file_list = get_file_from_substring(["best_vertices"], "path/to/pycortex/sub-xxx")
+        print(file_list)
+        # Output:
+        # [
+        #   "/path/to/pycortex/sub-xxx/sub-xxx_model-gauss_desc-best_vertices.csv",
+        #   "/path/to/pycortex/sub-xxx/sub-xxx_model-norm_desc-best_vertices.csv"
+        # ]
+
+    **Exclude specific files from the results:**
+    
+    .. code-block:: python
+
+        file_list = get_file_from_substring(["best_vertices"], "path/to/pycortex/sub-xxx", exclude="norm")
+        print(file_list)
+        # Output:
+        # [
+        #   "/path/to/pycortex/sub-xxx/sub-xxx_model-gauss_desc-best_vertices.csv"
+        # ]
     """
+
 
     input_is_list = False
     if isinstance(filt, str):
@@ -1418,7 +1648,7 @@ def find_intersection(xx, curve1, curve2):
 
     Example
     ----------
-    See [refer to linescanning.prf.SizeResponse.find_stim_sizes]
+    See https://fmriproc.readthedocs.io/en/latest/classes/prf.html#fmriproc.prf.SizeResponse.find_stim_sizes
     """
 
     first_line = geometry.LineString(np.column_stack((xx, curve1)))

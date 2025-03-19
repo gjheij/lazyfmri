@@ -94,7 +94,7 @@ class ParseEyetrackerFile(SetAttributes):
     volumes (to do this correctly, set the `TR` and `deleted_first_timepoints`). You can also provide a numpy array/file
     containing eye blinks that should be added to the onset times in real-world time (seconds). In principle, it will return a
     pandas DataFrame indexed by subject and run that can be easily concatenated over runs. This function relies on the naming
-    used when programming the experiment. In the `session.py` file, you should have created `phase_names=['iti', 'stim']`; the
+    used when programming the experiment. In the `session.py` file, you should have created ``phase_names=['iti', 'stim']``; the
     class will use these things to parse the file.
 
 
@@ -125,24 +125,18 @@ class ParseEyetrackerFile(SetAttributes):
 
     Examples
     ----------
-    >>> from lazyfmri.utils import ParseExpToolsFile
-    >>> file = 'some/path/to/exptoolsfile.tsv'
-    >>> parsed_file = ParseExpToolsFile(file, subject=1, run=1, button=True)
-    >>> onsets = parsed_file.get_onset_df()
+    .. code-block:: python
 
-    >>> # If you want to get all your subjects and runs in 1 nideconv compatible dataframe, you can do something like this:
-    >>> onsets = []
-    >>> run_subjects = ['001','002','003']
-    >>> for sub in run_subjects:
-    >>>     path_tsv_files = os.path.join(f'some/path/sub-{sub}')
-    >>>     f = os.listdir(path_tsv_files)
-    >>>     nr_runs = []; [nr_runs.append(os.path.join(path_tsv_files, r)) for r in f if "events.tsv" in r]
-    >>>
-    >>>     for run in range(1,len(nr_runs)+1):
-    >>>         sub_idx = run_subjects.index(sub)+1
-    >>>         onsets.append(ParseExpToolsFile(df_onsets, subject=sub_idx, run=run).get_onset_df())
-    >>>
-    >>> onsets = pd.concat(onsets).set_index(['subject', 'run', 'event_type'])
+        from lazyfmri.dataset import ParseExpToolsFile
+        file = 'some/path/to/exptoolsfile.tsv'
+        parsed_file = ParseExpToolsFile(
+            file,
+            subject=1,
+            run=1,
+            button=True
+        )
+
+        onsets = parsed_file.get_onset_df()
 
     Notes
     ----------
@@ -775,10 +769,10 @@ class ParseExpToolsFile(ParseEyetrackerFile, SetAttributes):
         If true, we'll read BIDS-components such as 'sub', 'run', 'task', etc from the input file and use those as indexers,
         rather than sequential 1,2,3.
     funcs: str, list, optional
-        List of functional files that is being passed down down to :class:`linescanning.dataset.ParseEyetrackerFile`. Required
+        List of functional files that is being passed down down to :class:`lazyfmri.dataset.ParseEyetrackerFile`. Required
         for correct resampling to functional space
     edfs: str, list, optional
-        List of eyetracking output files that is being passed down down to :class:`linescanning.dataset.ParseEyetrackerFile`.
+        List of eyetracking output files that is being passed down down to :class:`lazyfmri.dataset.ParseEyetrackerFile`.
     verbose: bool, optional
         Print details to the terminal, default is False
     phase_onset: int, optional
@@ -812,11 +806,11 @@ class ParseExpToolsFile(ParseEyetrackerFile, SetAttributes):
         Set window in which a response is counted
     merge: bool, optional
         Merge the dataframes containing responses and stimulus onsets. Default = True. Onset times will be sorted in an
-        ascending order. Select parts of dataframes with :func:`linescanning.utils.select_from_df()`
+        ascending order. Select parts of dataframes with :func:`lazyfmri.utils.select_from_df()`
     resp_as_cov: bool, optional
         If you have a design where you have button presses in half of the trials, you can add a covariate consisting of -1/1
         for the stimulus onsets where there was a response or not. This way, the response event will not steal variance from
-        the stimulus event when fitting using :class:`linescanning.fitting.NideconvFitter()`. Default = False
+        the stimulus event when fitting using :class:`lazyfmri.fitting.NideconvFitter()`. Default = False
     ev_onset: str, optional
         Sometimes experiments are coded such that the event name of interest is not called `stim`. Use this variable +
         `phase_onset` to extract the correct onset times
@@ -824,17 +818,20 @@ class ParseExpToolsFile(ParseEyetrackerFile, SetAttributes):
         Specify a custom list of button presses to extract. Default = `['b']`
     expr: str, tuple, optional
         Add additional conditions for your extracted onset times. This follows the formulation of
-        :func:`linescanning.utils.select_from_df()`. E.g., `expr="movie_type != blank`. Acts as an extra filter to extract the
+        :func:`lazyfmri.utils.select_from_df()`. E.g., `expr="movie_type != blank`. Acts as an extra filter to extract the
         relevant onsets
     filter_na: bool, optional
         Try to filter out NaN-events from the onset dataframe
 
     Examples
     ----------
-    >>> from lazyfmri.utils import ParseExpToolsFile
-    >>> file = 'some/path/to/exptoolsfile.tsv'
-    >>> parsed_file = ParseExpToolsFile(file, subject=1, run=1, button=True)
-    >>> onsets = parsed_file.get_onset_df()
+    .. code-block:: python
+
+        from lazyfmri.dataset import ParseExpToolsFile
+        file = 'some/path/to/exptoolsfile.tsv'
+        parsed_file = ParseExpToolsFile(file, subject=1, run=1, button=True)
+        onsets = parsed_file.get_onset_df()
+
     """
 
     def __init__(
@@ -1806,7 +1803,7 @@ class ParsePhysioFile():
 
     """ParsePhysioFile
 
-    In similar style to :class:`linescanning.utils.ParseExpToolsFile` and :class:`linescanning.utils.ParseFuncFile`, we use
+    In similar style to :class:`lazyfmri.dataset.ParseExpToolsFile` and :class:`lazyfmri.dataset.ParseFuncFile`, we use
     this class to read in physiology-files created with the PhysIO-toolbox (https://www.tnu.ethz.ch/en/software/tapas/
     documentations/physio-toolbox) (via `call_spmphysio` for instance). Using the *.mat*-file created with `PhysIO`, we can
     also attempt to extract `heart rate variability` measures. If this file cannot be found, this operation will be skipped
@@ -1833,17 +1830,21 @@ class ParsePhysioFile():
 
     Example
     ----------
-    >>> physio_file = opj(os.path.dirname(func_file), "sub-001_ses-1_task-SR_run-1_physio.txt")
-    >>> physio_mat  = opj(os.path.dirname(func_file), "sub-001_ses-1_task-SR_run-1_physio.mat")
-    >>> physio = utils.ParsePhysioFile(
-    >>>     physio_file,
-    >>>     physio_mat=physio_mat,
-    >>>     subject=func.subject,
-    >>>     run=func.run,
-    >>>     TR=func.TR,
-    >>>     deleted_first_timepoints=func.deleted_first_timepoints,
-    >>>     deleted_last_timepoints=func.deleted_last_timepoints)
-    >>> physio_df   = physio.get_physio(index=False)
+    .. code-block:: python
+    
+        physio_file = opj(os.path.dirname(func_file), "sub-001_ses-1_task-SR_run-1_physio.txt")
+        physio_mat  = opj(os.path.dirname(func_file), "sub-001_ses-1_task-SR_run-1_physio.mat")
+        physio = utils.ParsePhysioFile(
+            physio_file,
+            physio_mat=physio_mat,
+            subject=func.subject,
+            run=func.run,
+            TR=func.TR,
+            deleted_first_timepoints=func.deleted_first_timepoints,
+            deleted_last_timepoints=func.deleted_last_timepoints)
+
+        physio_df = physio.get_physio(index=False)
+
     """
 
     def __init__(
@@ -1998,7 +1999,7 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
     """ParseFuncFile
 
     Class for parsing func-files created with Luisa's reconstruction. It can do filtering, conversion to percent signal
-    change, and create power spectra. It is supposed to look similar to :class:`linescanning.utils.ParseExpToolsFile` to make
+    change, and create power spectra. It is supposed to look similar to :class:`lazyfmri.dataset.ParseExpToolsFile` to make
     it easy to translate between the functional data and experimental data.
 
     Parameters
@@ -2062,11 +2063,21 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
 
     Example
     ----------
-    >>> from lazyfmri import utils
-    >>> func_file = utils.get_file_from_substring(f"run-1_bold.mat", opj('sub-001', 'ses-1', 'func'))
-    >>> func = utils.ParseFuncFile(func_file, subject=1, run=1, deleted_first_timepoints=100, deleted_last_timepoints=300)
-    >>> raw = func.get_raw(index=True)
-    >>> psc = func.get_psc(index=True)
+    .. code-block:: python
+
+        from lazyfmri import utils, dataset
+        func_file = utils.get_file_from_substring(f"run-1_bold.mat", opj('sub-001', 'ses-1', 'func'))
+        func = utils.ParseFuncFile(
+            func_file,
+            subject=1,
+            run=1,
+            deleted_first_timepoints=100,
+            deleted_last_timepoints=300
+        )
+
+        raw = func.get_raw(index=True)
+        psc = func.get_psc(index=True)
+
     """
 
     def __init__(
@@ -2218,14 +2229,6 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
             if len(self.task_ids) > 1:
                 self.index_task = True
                 self.index_list = ["subject", "task", "run", "t"]
-
-        # start boilerplate
-        self.func_pre_desc = """
-Functional data preprocessing
-
-# For each of the {num_bold} BOLD run(s) found per subject (across all tasks and sessions), the following preprocessing was
-performed.
-# """.format(num_bold=len(self.func_file))
 
         if isinstance(self.func_file, list):
 
@@ -2953,11 +2956,11 @@ class Dataset(ParseFuncFile, SetAttributes):
     these elements will be derived from the file names. So if you have BIDS-like files, leave them empty and the dataframe
     will be created for you with the correct subject/run IDs.
 
-    Inherits from :class:`linescanning.dataset.ParseFuncFile`, so all arguments from that class are available and are passed
+    Inherits from :class:`lazyfmri.dataset.ParseFuncFile`, so all arguments from that class are available and are passed
     on via `kwargs`. Only `func_file` and `verbose` are required. The first one is necessary because if the input is an
-    **h5**-file, we'll set the attributes accordingly. Otherwise :class:`linescanning.dataset.ParseFuncFile` is invoked.
-    `verbose` is required for aesthetic reasons. Given that :class:`linescanning.dataset.ParseFuncFile` inherits in turn from
-    :class:`linescanning.dataset.ParseExpToolsFile`, you can pass the arguments for that class here as well.
+    *h5*-file, we'll set the attributes accordingly. Otherwise :class:`lazyfmri.dataset.ParseFuncFile` is invoked.
+    `verbose` is required for aesthetic reasons. Given that :class:`lazyfmri.dataset.ParseFuncFile` inherits in turn from
+    :class:`lazyfmri.dataset.ParseExpToolsFile`, you can pass the arguments for that class here as well.
 
     Parameters
     ----------
@@ -2968,28 +2971,30 @@ class Dataset(ParseFuncFile, SetAttributes):
 
     Example
     ----------
-    >>> from fmriproc import dataset
-    >>> from lazyfmri import utils
-    >>> func_dir = "/some/dir"
-    >>> exp = utils.get_file_from_substring("tsv", func_dir)
-    >>> funcs = utils.get_file_from_substring("bold.mat", func_dir)
-    >>> #
-    >>> # only cut from SR-runs
-    >>> delete_first = 100
-    >>> delete_last = 0
-    >>> #
-    >>> window = 19
-    >>> order = 3
-    >>> data = dataset.Dataset(
-    >>>     funcs,
-    >>>     deleted_first_timepoints=delete_first,
-    >>>     deleted_last_timepoints=delete_last,
-    >>>     tsv_file=exp,
-    >>>     verbose=True)
-    >>> #
-    >>> # retrieve data
-    >>> fmri = data.fetch_fmri()
-    >>> onsets = data.fetch_onsets()
+    .. code-block:: python
+
+        from fmriproc import dataset
+        from lazyfmri import utils
+        func_dir = "/some/dir"
+        exp = utils.get_file_from_substring("tsv", func_dir)
+        funcs = utils.get_file_from_substring("bold.mat", func_dir)
+
+        # only cut from SR-runs
+        delete_first = 100
+        delete_last = 0
+        window = 19
+        order = 3
+
+        data = dataset.Dataset(
+            funcs,
+            deleted_first_timepoints=delete_first,
+            deleted_last_timepoints=delete_last,
+            tsv_file=exp,
+            verbose=True)
+        
+        # retrieve data
+        fmri = data.fetch_fmri()
+        onsets = data.fetch_onsets()
     """
 
     def __init__(
@@ -3338,6 +3343,35 @@ class DatasetCollector():
 
 class ParseGiftiFile():
 
+    """ParseGiftiFile
+
+    Read a gifti-file into a dataframe similar to :class:`lazyfmri.dataset.ParseFuncFile`. Also allows you to set the RepetitionTime in the metadata and rewrite the gifti-file.
+    The final data is set as ``self.data``, representing the `numpy.ndarray`-form of the gifti-file.
+
+    Parameters
+    ----------
+    gifti_file: str
+        Path pointing to gifti-file
+    set_tr: int, float, optional
+        Set the TR in milliseconds in the metadata, by default None
+    \*gii_args, \*gii_kwargs: dict
+        Arguments passed to `nb.gifti.GiftiDataArray`
+    Raises
+    ----------
+    ValueError
+        If ``gifti-file`` does not end with ".gii".
+
+    Example
+    ----------
+    .. code-block:: python
+
+        from lazyfmri import dataset
+        gii_file = "sub-01_ses-1_task-rest_space-fsnative_bold.gii"
+        obj = dataset.ParseGiftiFile(gii_file)
+        data = obj.data
+
+    """
+
     def __init__(self, gifti_file, set_tr=None, *gii_args, **gii_kwargs):
 
         if isinstance(gifti_file, str):
@@ -3348,8 +3382,7 @@ class ParseGiftiFile():
             self.gifti_file = None
             self.data = gifti_file
         else:
-            raise ValueError(
-                "Input must be a string ending with '.gii' or a numpy array")
+            raise ValueError("Input must be a string ending with '.gii' or a numpy array")
 
         # get TR
         self.set_tr = set_tr

@@ -43,9 +43,9 @@ class Defaults():
         Trim specifically the x-axis of plots. Default = False
     sns_ori: str, optional
         Default orientation for bar-plots. Default is up-right (vertical). Allowed options are "v" or "h".
-        :class:`lazyplot.plotting.LazyBar()`
+        :class:`lazyfmri.plotting.LazyBar()`
     sns_rot: int, float, optional
-        Rotation of labels in bar plot. Specific to :class:`lazyplot.plotting.LazyBar()`
+        Rotation of labels in bar plot. Specific to :class:`lazyfmri.plotting.LazyBar()`
     xkcd: bool
         Plot with cartoon style. Default = False
     ylim_bottom: float
@@ -70,12 +70,14 @@ class Defaults():
     title: str, dict, optional
         String of dictionary collecting the following keys representing information about the title:
 
-        >>> title = {
-        >>>     'title' "some title",   # title text
-        >>>     'color': 'k',           # color (default = 'k')
-        >>>     'fontweight': "bold"    # fontweight (default = 'normal'), can be any of the matplotib fontweight options
-        (e.g., 'italic', 'bold', 'normal' etc.)
-        >>> }
+        .. code-block:: python
+
+            title = {
+                'title' "some title",   # title text
+                'color': 'k',           # color (default = 'k')
+                'fontweight': "bold"    # fontweight (default = 'normal'), can be any of the matplotib fontweight options
+            (e.g., 'italic', 'bold', 'normal' etc.)
+            }
 
     color: str, list, optional
         String (if 1 timeseries) or list (with the length of `ts`) of colors, by default None. If nothing is specified, we'll
@@ -94,12 +96,14 @@ class Defaults():
     add_hline: dict, optional
         Dictionary for a horizontal line through the plot, by default None. Collects the following items:
 
-        >>> add_hline = {
-        >>>     'pos' 0,        # position
-        >>>     'color': 'k',   # color
-        >>>     'lw': 1,        # linewidth
-        >>>     'ls': '--'      # linestyle
-        >>> }
+        .. code-block:: python
+            
+            add_hline = {
+                'pos' 0,        # position
+                'color': 'k',   # color
+                'lw': 1,        # linewidth
+                'ls': '--'      # linestyle
+            }
 
         You can get the settings above by specifying *add_hline='default'*. Now also accepts *add_hline='mean'* for single
         inputs
@@ -601,7 +605,7 @@ class LazyPRF(Defaults):
     vf_extent: list
         the space the pRF lives in
     cmap: str, optional
-        Colormap for imshow; accepts output from :func:`lazyplot.utils.make_binary_cm`. Defaults to 'magma'
+        Colormap for imshow; accepts output from :func:`lazyfmri.utils.make_binary_cm`. Defaults to 'magma'
     cross_color: str, optional
         Color for the fixation cross; defaults to 'white'. You can set it to 'k' if you have a binary colormap as input
     alpha: float, optional
@@ -610,7 +614,7 @@ class LazyPRF(Defaults):
         When the background of the image is white, we create a black border around the Circle patch. If this is equal to
         `vf_extent`, the border is cut off at some points. This factor shrinks the radius of the Circle, so that we can have a
         nice border. When set to 0.9, it becomes sort of like a target. This is relevant for **all** non-`magma` color maps
-        that you insert, specifically a :func:`lazyplot.utils.make_binary_cm` object
+        that you insert, specifically a :func:`lazyfmri.utils.make_binary_cm` object
     full_axis: bool, optional
         If `True`, the entire axis of `vf_extent` will be used for the ticks (more detailed). If `False`, a truncated/trimmed
         version will be returned (looks cleaner). Default = False
@@ -622,7 +626,7 @@ class LazyPRF(Defaults):
         empty array with the same shape rather than the pRF. Default = False
     line_width: float, optional
         Width of the outer border of the visual field if `cmap` is not *viridis* or *magma* (these color maps are quite
-        default, and do not require an extra border like :func:`lazyplot.utils.make_binary_cm`-objects do). Default is 0.5.
+        default, and do not require an extra border like :func:`lazyfmri.utils.make_binary_cm`-objects do). Default is 0.5.
     cross_width: float, optional
         Width of the cross denoting the x/y axis. Default is 0.5, but can be increased if `cmap` is not *viridis* or *magma*
         to enhance visibility
@@ -844,40 +848,49 @@ class LazyLine(Defaults):
 
     Example
     ----------
-    >>> # create a bunch of timeseries
-    >>> from lazyplot import utils
-    >>> ts = utils.random_timeseries(1.2, 0.0, 100)
-    >>> ts1 = utils.random_timeseries(1.2, 0.3, 100)
-    >>> ts2 = utils.random_timeseries(1.2, 0.5, 100)
-    >>> ts3 = utils.random_timeseries(1.2, 0.8, 100)
-    >>> ts4 = utils.random_timeseries(1.2, 1, 100)
 
-    >>> # plot 1 timecourse
-    >>> plotting.LazyLine(ts2, figsize=(20, 5))
-    <lazyplot.plotting.LazyLine at 0x7f839b0289d0>
+    .. code-block:: python
 
-    >>> # plot multiple timecourses, add labels, and save file
-    >>> plotting.LazyLine([ts, ts1, ts2, ts3, ts4], figsize=(20, 5), save_as="test_LazyLine.pdf", labels=['vol=0', 'vol=0.3',
-    'vol=0.5', 'vol=0.8', 'vol=1.0'])
-    <lazyplot.plotting.LazyLine at 0x7f839b2177c0>
+        # create a bunch of timeseries
+        from lazyfmri import utils
+        ts = utils.random_timeseries(1.2, 0.0, 100)
+        ts1 = utils.random_timeseries(1.2, 0.3, 100)
+        ts2 = utils.random_timeseries(1.2, 0.5, 100)
+        ts3 = utils.random_timeseries(1.2, 0.8, 100)
+        ts4 = utils.random_timeseries(1.2, 1, 100)
 
-    >>> # add horizontal line at y=0
-    >>> hline = {'pos': 0, 'color': 'k', 'lw': 0.5, 'ls': '--'}
-    >>> >>> plotting.LazyLine(ts2, figsize=(20, 5), add_hline=hline)
-    <lazyplot.plotting.LazyLine at 0x7f839b053580>
+        # plot 1 timecourse
+        plotting.LazyLine(ts2, figsize=(20, 5))
+        <lazyfmri.plotting.LazyLine at 0x7f839b0289d0>
 
-    >>> # add shaded error bars
-    >>> from scipy.stats import sem
-    # make some stack
-    >>> stack = np.hstack((ts1[...,np.newaxis],ts2[...,np.newaxis],ts4[...,np.newaxis]))
-    >>> avg = stack.mean(axis=-1) # calculate mean
-    >>> err = sem(stack, axis=-1) # calculate error
-    >>> plotting.LazyLine(avg, figsize=(20, 5), error=err)
-    <lazyplot.plotting.LazyLine at 0x7f839b0d5220>
+    .. code-block:: python
+
+        # plot multiple timecourses, add labels, and save file
+        plotting.LazyLine([ts, ts1, ts2, ts3, ts4], figsize=(20, 5), save_as="test_LazyLine.pdf", labels=['vol=0', 'vol=0.3',
+        'vol=0.5', 'vol=0.8', 'vol=1.0'])
+        <lazyfmri.plotting.LazyLine at 0x7f839b2177c0>
+
+    .. code-block:: python
+
+        # add horizontal line at y=0
+        hline = {'pos': 0, 'color': 'k', 'lw': 0.5, 'ls': '--'}
+        plotting.LazyLine(ts2, figsize=(20, 5), add_hline=hline)
+        <lazyfmri.plotting.LazyLine at 0x7f839b053580>
+
+    .. code-block:: python
+
+        # add shaded error bars
+        from scipy.stats import sem
+        # make some stack
+        stack = np.hstack((ts1[...,np.newaxis],ts2[...,np.newaxis],ts4[...,np.newaxis]))
+        avg = stack.mean(axis=-1) # calculate mean
+        err = sem(stack, axis=-1) # calculate error
+        plotting.LazyLine(avg, figsize=(20, 5), error=err)
+        <lazyfmri.plotting.LazyLine at 0x7f839b0d5220>
 
     Notes
     ----------
-    See https://lazyplot.readthedocs.io/en/latest/examples/LazyLine.html for more examples
+    See https://lazyfmri.readthedocs.io/en/latest/examples/example.html for more examples
     """
 
     def __init__(
@@ -1206,7 +1219,9 @@ class LazyCorr(Defaults):
     scatter_kwargs: dict, optional
         Additional options passed on to the ``scatter`` function from matplotlib. Set colorbar to nothing by passing:
 
-        >>> scatter_kwargs={"cbar": False}
+        .. code-block:: python
+
+            scatter_kwargs={"cbar": False}
 
     result_to_plot: bool, optional
         Add the correlation/regression result to the plot
@@ -1217,40 +1232,46 @@ class LazyCorr(Defaults):
 
     Example
     ----------
-    >>> from lazyplot import plotting
-    >>> import matplotlib.pyplot as plt
 
-    >>> # vanilla version; here, the regression fit has the same color as the dots.
-    >>> fig,axs = plt.subplots(figsize=(7,7))
-    >>> plotting.LazyCorr(
-    >>>     x_data,
-    >>>     y_data,
-    >>>     axs=axs,
-    >>>     x_label="add xlabel",
-    >>>     y_label="add ylabel")
+    .. code-block:: python
 
-    >>> # more exotic version: color each dot differently
-    >>> from lazyplot import utils
-    >>> #
-    >>> fig,axs = plt.subplots(figsize=(7,7))
-    >>> #
-    >>> # create color map between red and blue; return as list
-    >>> colors = utils.make_between_cm(["r","b], as_list=True, N=len(y_data))
-    >>> for ix,val in enumerate(y_data):
-    >>>     axs.plot(x_data[ix], val, 'o', color=colors[ix], alpha=0.6)
-    >>> #
-    >>> #add the regression fit
-    >>> plotting.LazyCorr(
-    >>>     x_data,
-    >>>     y_data,
-    >>>     axs=axs,
-    >>>     add_points=False, # turn off points; we've already plotted them
-    >>>     x_label="add xlabel",
-    >>>     y_label="add ylabel")
+        from lazyfmri import plotting
+        import matplotlib.pyplot as plt
+
+        # vanilla version; here, the regression fit has the same color as the dots.
+        fig,axs = plt.subplots(figsize=(7,7))
+        plotting.LazyCorr(
+            x_data,
+            y_data,
+            axs=axs,
+            x_label="add xlabel",
+            y_label="add ylabel"
+        )
+
+    .. code-block:: python
+
+        # more exotic version: color each dot differently
+        from lazyfmri import utils
+
+        # create color map between red and blue; return as list
+        fig,axs = plt.subplots(figsize=(7,7))
+        colors = utils.make_between_cm(["r","b], as_list=True, N=len(y_data))
+        for ix,val in enumerate(y_data):
+            axs.plot(x_data[ix], val, 'o', color=colors[ix], alpha=0.6)
+
+        # add the regression fit
+        plotting.LazyCorr(
+            x_data,
+            y_data,
+            axs=axs,
+            add_points=False, # turn off points; we've already plotted them
+            x_label="add xlabel",
+            y_label="add ylabel"
+        )
 
     Notes
     ----------
-    see documentation of :class:`lazyplot.plotting.Defaults()` for formatting options
+    see documentation of :class:`lazyfmri.plotting.Defaults()` for formatting options
     """
 
     def __init__(
@@ -1611,28 +1632,32 @@ class LazyBar():
 
     Example
     ----------
-    >>> # this figure size works well for plots with 2 bars
-    >>> fig,axs = plt.subplots(figsize=(2,8))
-    >>> plotting.LazyBar(
-    >>>     data=df_wm,
-    >>>     x="group",
-    >>>     y="t1",
-    >>>     sns_ori="v",
-    >>>     axs=axs,
-    >>>     add_labels=True,
-    >>>     palette=[con_color,mdd_color],
-    >>>     add_points=True,
-    >>>     points_color="k",
-    >>>     trim_bottom=True,
-    >>>     sns_offset=4,
-    >>>     y_label2="white matter T1 (ms)",
-    >>>     lim=[800,1600],
-    >>>     fancy=True,
-    >>>     fancy_denom=6)
+
+    .. code-block:: python    
+
+        # this figure size works well for plots with 2 bars
+        fig,axs = plt.subplots(figsize=(2,8))
+        plotting.LazyBar(
+            data=df_wm,
+            x="group",
+            y="t1",
+            sns_ori="v",
+            axs=axs,
+            add_labels=True,
+            palette=[con_color,mdd_color],
+            add_points=True,
+            points_color="k",
+            trim_bottom=True,
+            sns_offset=4,
+            y_label2="white matter T1 (ms)",
+            lim=[800,1600],
+            fancy=True,
+            fancy_denom=6
+        )
 
     Notes
     ----------
-    see documentation of :class:`lazyplot.plotting.Defaults()` for formatting options
+    see documentation of :class:`lazyfmri.plotting.Defaults()` for formatting options
     """
 
     def __init__(
@@ -2260,24 +2285,27 @@ class LazyHist(Defaults):
 
     Example
     ----------
-    >>> from lazyplot import plotting
-    >>> import matplotlib.pyplot as plt
-    >>> fig,axs = plt.subplots(figsize=(7,7))
-    >>> plotting.LazyHist(
-    >>>     y_data,
-    >>>     axs=axs,
-    >>>     kde=True,
-    >>>     hist=True,
-    >>>     fill=False,
-    >>>     y_label2="add y_label",
-    >>>     x_label2="add x_label",
-    >>>     hist_kwargs={"alpha": 0.4},
-    >>>     kde_kwargs={"linewidth": 4}
-    >>> )
+
+    .. code-block:: python
+            
+        from lazyfmri import plotting
+        import matplotlib.pyplot as plt
+        fig,axs = plt.subplots(figsize=(7,7))
+        plotting.LazyHist(
+            y_data,
+            axs=axs,
+            kde=True,
+            hist=True,
+            fill=False,
+            y_label2="add y_label",
+            x_label2="add x_label",
+            hist_kwargs={"alpha": 0.4},
+            kde_kwargs={"linewidth": 4}
+        )
 
     Notes
     ----------
-    see documentation of :class:`lazyplot.plotting.Defaults()` for formatting options
+    see documentation of :class:`lazyfmri.plotting.Defaults()` for formatting options
     """
 
     def __init__(
@@ -2483,22 +2511,22 @@ class LazyHist(Defaults):
 def conform_ax_to_obj(
         ax,
         obj=None,
-        **lazy_args):
+        **kwargs):
     """conform_ax_to_obj
 
     Function to conform any plot to the aesthetics of this plotting module. Can be used when a plot is created with functions
-    other than :class:`lazyplot.plotting.LazyLine`, :class:`lazyplot.plotting.LazyCorr`, :class:`lazyplot.plotting.LazyHist`,
+    other than :class:`lazyfmri.plotting.LazyLine`, :class:`lazyfmri.plotting.LazyCorr`, :class:`lazyfmri.plotting.LazyHist`,
     or any other function specified in this file. Assumes `ax` is a `matplotlib.axes._subplots.AxesSubplot` object, and `obj`
-    a `lazyplot.plotting.Lazy*`-object.
+    a `lazyfmri.plotting.Lazy*`-object.
 
     Parameters
     ----------
     ax: matplotlib.axes._subplots.AxesSubplot
         input axis that needs to be modified
-    obj: lazyplot.plotting.Lazy*
+    obj: lazyfmri.plotting.Lazy*
         linecanning-specified plotting object containing the information with which `ax` will be conformed
-    **lazy_args: dict, optional
-        other elements defined in :class:`lazyplot.plotting.Defaults`, such as `font_size`, `label_size`, or `axis_width`.
+    kwargs: dict, optional
+        other elements defined in :class:`lazyfmri.plotting.Defaults`, such as `font_size`, `label_size`, or `axis_width`.
         Overwrites elements in `obj`, if passed
 
     Returns
@@ -2508,23 +2536,27 @@ def conform_ax_to_obj(
 
     Example
     ----------
-    >>> # convert statsmodels's QQ-plot
-    >>> from lazyplot import plotting
-    >>> import matplotlib as plt
-    >>> from scipy import stats
-    >>> #
-    >>> fig,ax = plt.subplots(figsize=(8,8))
-    >>> sm.qqplot(mdf.resid, dist=stats.norm, line='s', ax=ax)
-    >>> ax = plotting.conform_ax_to_obj(ax,pl)
+
+    .. code-block:: python
+
+        # convert statsmodels's QQ-plot
+        from lazyfmri import plotting
+        import matplotlib as plt
+        from scipy import stats
+
+        fig,ax = plt.subplots(figsize=(8,8))
+        sm.qqplot(mdf.resid, dist=stats.norm, line='s', ax=ax)
+        ax = plotting.conform_ax_to_obj(ax,pl)
+
     """
 
     # check if Lazy* object was passed on
     if obj is None:
         obj = Defaults()
 
-    # update with lazy_args | do separate
-    if len(lazy_args) > 0:
-        for key, val in lazy_args.items():
+    # update with kwargs | do separate
+    if len(kwargs) > 0:
+        for key, val in kwargs.items():
             setattr(obj, key, val)
 
     # try to read some stuff from the passed axis

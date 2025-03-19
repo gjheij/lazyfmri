@@ -1,0 +1,16 @@
+numpy
+pandas
+matplotlib
+seaborn
+scipy
+joblib
+nibabel
+nilearn
+lmfit
+alive-progress
+shapely
+pingouin
+Pillow  # For ImageColor from PIL
+scikit-learn
+nbsphinx
+sphinx-rtd-theme

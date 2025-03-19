@@ -22,20 +22,25 @@ class GenericGLM():
     ----------
     onset: pandas.DataFrame
         Dataframe containing the onset times for all events in an experiment. Specifically design to work smoothly with
-        :func:`lazyplot.utils.ParseExpToolsFile`. You should insert the output from
-        :func:`lazyplot.utils.ParseExpToolsFile.get_onset_df()` as `onset`
+        :class:`lazyfmri.dataset.ParseExpToolsFile`. You should insert the output from
+        :func:`lazyfmri.dataset.ParseExpToolsFile.get_onset_df()` as `onset`
     data: numpy.ndarray, pandas.DataFrame
         <time,voxels> numpy array or pandas DataFrame; required for creating the appropriate length of the stimulus vectors
     hrf_pars: dict, optional
-        dictionary collecting the parameters required for :func:`lazyplot.glm.double_gamma` (generally the defaults are fine
+        dictionary collecting the parameters required for :func:`lazyfmri.glm.double_gamma` (generally the defaults are fine
         though!)
 
-        >>> pars = {'lag': 6,
-        >>>         'a2': 12,
-        >>>         'b1': 12,
-        >>>         'b2': 12,
-        >>>         'c': 12,
-        >>>         'scale': True}
+        .. code-block:: python
+
+            pars = {
+                'lag': 6,
+                'a2': 12,
+                'b1': 12,
+                'b2': 12,
+                'c': 12,
+                'scale': True
+            }
+
     TR: float
         repetition time of acquisition
     osf: int, optional
@@ -55,7 +60,7 @@ class GenericGLM():
     make_figure: bool, optional
         Create overview figure of HRF, stimulus vector, and convolved stimulus vector, by default False
     scan_length: int
-        number of volumes in `data` (= `scan_length` in :func:`lazyplot.glm.make_stimulus_vector`)
+        number of volumes in `data` (= `scan_length` in :func:`lazyfmri.glm.make_stimulus_vector`)
     xkcd: bool, optional
         Plot the figre in XKCD-style (cartoon), by default False
     plot_vox: int, optional
@@ -77,44 +82,47 @@ class GenericGLM():
     dict
         Dictionary collecting outputs under the following keys
 
-        * betas: <n_regressors (+intercept), n_voxels>  beta values
-        * tstats: <n_regressors (+intercept), n_voxels> t-statistics (FSL-way)
-        * x_conv: <n_timepoints, n_regressors (+intercept)> design matrix
-        * resids: <n_timepoints, n_voxels> residuals>
+        - "betas": <n_regressors (+intercept), n_voxels>  beta values
+        - "tstats": <n_regressors (+intercept), n_voxels> t-statistics (FSL-way)
+        - "x_conv": <n_timepoints, n_regressors (+intercept)> design matrix
+        - "resids": <n_timepoints, n_voxels> residuals>
 
     matplotlib.pyplot
         plots along the process if `make_figure=True`
 
     Example
     ----------
-    >>> # import modules
-    >>> from lazyplot.glm import GenericGLM
-    >>> from lazyplot import dataset
 
-    >>> # define file with fMRI-data and the output from Exptools2
-    >>> func_file = "some_func_file.mat"
-    >>> exp_file = "some_exp_file.tsv"
+    .. code-block:: python
 
-    >>> # load in functional data
-    >>> obj = dataset.Dataset(
-    >>>     func_file,
-    >>>     exp_file=exp_file,
-    >>>     subject=1,
-    >>>     run=1,
-    >>>     deleted_first_timepoints=200,
-    >>>     deleted_last_timepoints=200)
+        # import modules
+        from lazyfmri.glm import GenericGLM
+        from lazyfmri import dataset
 
-    >>> # fetch HP-filtered, percent-signal changed data
-    >>> data = obj.fetch_fmri()
-    >>> onsets = obj.fetch_onsets()
+        # define file with fMRI-data and the output from Exptools2
+        func_file = "some_func_file.mat"
+        exp_file = "some_exp_file.tsv"
 
-    >>> # do the fitting
-    >>> fitting = GenericGLM(onsets, data.values, TR=func.TR, osf=1000)
+        # load in functional data
+        obj = dataset.Dataset(
+            func_file,
+            exp_file=exp_file,
+            subject=1,
+            run=1,
+            deleted_first_timepoints=200,
+            deleted_last_timepoints=200)
 
-    Notes
-    ----------
-    For `FirstLevelModel` to work with our type of data, I had to add the following to
-    `https://github.com/nilearn/nilearn/blob/main/nilearn/glm/first_level/first_level.py#L683`:
+        # fetch HP-filtered, percent-signal changed data
+        data = obj.fetch_fmri()
+        onsets = obj.fetch_onsets()
+
+        # do the fitting
+        fitting = GenericGLM(
+            onsets,
+            data.values,
+            TR=func.TR,
+            osf=1000
+        )
 
     """
 
@@ -469,12 +477,12 @@ def make_stimulus_vector(
 
     Creates a stimulus vector for each of the conditions found in `onset_df`. You can account for onset times being in decimal
     using the oversampling factor `osf`. This would return an upsampled stimulus vector which should be convolved with an
-    equally upsampled HRF. This can be ensured by using the same `osf` in :func:`lazyplot.glm.double_gamma`.
+    equally upsampled HRF. This can be ensured by using the same `osf` in :func:`lazyfmri.glm.double_gamma`.
 
     Parameters
     ----------
     onset_df: pandas.DataFrame
-        onset times as read in with :class:`lazyplot.utils.ParseExpToolsFile`
+        onset times as read in with :class:`lazyfmri.dataset.ParseExpToolsFile`
     scan_length: float, optional
         length of the , by default None
     TR: float, optional
@@ -506,18 +514,31 @@ def make_stimulus_vector(
 
     Example
     ----------
-    >>> from lazyplot import utils
-    >>> from lazyplot import glm
-    >>> exp_file = 'path/to/exptools2_file.tsv'
-    >>> exp_df = utilsParseExpToolsFile(exp_file, subject=1, run=1)
-    >>> times = exp_df.get_onset_df()
-    >>> # oversample with factor 1000 to get rid of 3 decimals in onset times
-    >>> osf = 1000
-    >>> # make stimulus vectors
-    >>> stims = glm.make_stimulus_vector(times, scan_length=400, osf=osf, type='event')
-    >>> stims
-    {'left': array([0., 0., 0., ..., 0., 0., 0.]),
-    'right': array([0., 0., 0., ..., 0., 0., 0.])}
+
+    .. code-block:: python
+
+        from lazyfmri import utils, glm
+        exp_file = 'path/to/exptools2_file.tsv'
+        exp_df = utilsParseExpToolsFile(exp_file, subject=1, run=1)
+        times = exp_df.get_onset_df()
+        # oversample with factor 1000 to get rid of 3 decimals in onset times
+        osf = 1000
+        # make stimulus vectors
+        stims = glm.make_stimulus_vector
+            times,
+            scan_length=400,
+            osf=osf,
+            type='event'
+        )
+        
+    .. code-block:: python    
+
+        # stims
+        {
+            'left': array([0., 0., 0., ..., 0., 0., 0.]),
+            'right': array([0., 0., 0., ..., 0., 0., 0.])
+        }
+
     """
 
     # check if we should reset or not
@@ -673,7 +694,7 @@ def convolve_hrf(
         **kwargs):
     """convolve_hrf
 
-    Convolve :func:`lazyplot.glm.double_gamma` with :func:`lazyplot.glm.make_stimulus_vector`. There's an option to plot the
+    Convolve :func:`lazyfmri.glm.double_gamma` with :func:`lazyfmri.glm.make_stimulus_vector`. There's an option to plot the
     result in a nice overview figure, though python-wise it's not the prettiest..
 
     Parameters
@@ -681,14 +702,14 @@ def convolve_hrf(
     hrf: numpy.ndarray
         HRF across given timepoints with shape (,`x.shape[0]`)
     stim_v: numpy.ndarray, list
-        Stimulus vector as per :func:`lazyplot.glm.make_stimulus_vector` or numpy array containing one stimulus vector (e.g.,
-        a *key* from :func:`lazyplot.glm.make_stimulus_vector`)
+        Stimulus vector as per :func:`lazyfmri.glm.make_stimulus_vector` or numpy array containing one stimulus vector (e.g.,
+        a *key* from :func:`lazyfmri.glm.make_stimulus_vector`)
     TR: float
         repetition time of acquisition
     make_figure: bool, optional
         Create overview figure of HRF, stimulus vector, and convolved stimulus vector, by default False
     scan_length: int
-        number of volumes in `data` (= `scan_length` in :func:`lazyplot.glm.make_stimulus_vector`)
+        number of volumes in `data` (= `scan_length` in :func:`lazyfmri.glm.make_stimulus_vector`)
     xkcd: bool, optional
         Plot the figre in XKCD-style (cartoon), by default False
     add_array1: numpy.ndarray, optional
@@ -710,9 +731,13 @@ def convolve_hrf(
 
     Example
     ----------
-    >>> from lazyplot.glm import convolve_hrf
-    >>> convolved_stim_vector_left = convolve_hrf(hrf_custom, stims, make_figure=True, xkcd=True) # creates figure too
-    >>> convolved_stim_vector_left = convolve_hrf(hrf_custom, stims) # no figure
+
+    .. code-block:: python
+
+        from lazyfmri.glm import convolve_hrf
+        convolved_stim_vector_left = convolve_hrf(hrf_custom, stims, make_figure=True, xkcd=True) # creates figure too
+        convolved_stim_vector_left = convolve_hrf(hrf_custom, stims) # no figure
+
     """
 
     def plot(
@@ -854,9 +879,9 @@ def resample_stim_vector(convolved_array, scan_length, interpolate='nearest'):
     Parameters
     ----------
     convolved_array: dict, numpy.ndarray
-        oversampled convolved stimulus vector as per :func:`lazyplot.glm.convolve_hrf`
+        oversampled convolved stimulus vector as per :func:`lazyfmri.glm.convolve_hrf`
     scan_length: int
-        number of volumes in `data` (= `scan_length` in :func:`lazyplot.glm.make_stimulus_vector`)
+        number of volumes in `data` (= `scan_length` in :func:`lazyfmri.glm.make_stimulus_vector`)
     interpolate: str, optional
         interpolation method, by default 'nearest'
 
@@ -867,8 +892,13 @@ def resample_stim_vector(convolved_array, scan_length, interpolate='nearest'):
 
     Example
     ----------
-    >>> from lazyplot.glm import resample_stim_vector
-    >>> convolved_stim_vector_left_ds = resample_stim_vector(convolved_stim_vector_left, <`scan_length`>)
+
+    .. code-block:: python
+
+        from lazyfmri.glm import resample_stim_vector
+        scan_length = 230
+        convolved_stim_vector_left_ds = resample_stim_vector(convolved_stim_vector_left, scan_length)
+
     """
 
     if isinstance(convolved_array, np.ndarray):
@@ -994,11 +1024,11 @@ def fit_first_level(
     Parameters
     ----------
     stim_vector: pandas.DataFrame, numpy.ndarray
-        either the output from :func:`lazyplot.glm.resample_stim_vector` (convolved stimulus vector in fMRI-acquisition time
+        either the output from :func:`lazyfmri.glm.resample_stim_vector` (convolved stimulus vector in fMRI-acquisition time
         domain) or a pandas.DataFrame containing the full design matrix as per the output of
-        :func:`lazyplot.glm.first_level_matrix`.
+        :func:`lazyfmri.glm.first_level_matrix`.
     data: numpy.ndarray
-        <time,voxels> numpy array; same input as **data** from :func:`lazyplot.glm.make_stimulus_vector`
+        <time,voxels> numpy array; same input as **data** from :func:`lazyfmri.glm.make_stimulus_vector`
     make_figure: bool, optional
         Create a figure of best-voxel fit, by default False
     copes: [type], optional
@@ -1023,11 +1053,28 @@ def fit_first_level(
 
     Example
     ----------
-    >>> from lazyplot.glm import fit_first_level
-    >>> betas_left,x_conv_left = fit_first_level(convolved_stim_vector_left_ds, data, make_figure=True, xkcd=True)
-    # plots first event
-    >>> betas_left,x_conv_left = fit_first_level(convolved_stim_vector_left_ds, data, make_figure=True, xkcd=True,
-    plot_events=[1,2]) # plots first two events
+
+    .. code-block:: python
+
+        from lazyfmri.glm import fit_first_level
+        
+        # plots first event
+        betas_left,x_conv_left = fit_first_level(
+            convolved_stim_vector_left_ds,
+            data,
+            make_figure=True
+        )
+
+    .. code-block:: python
+
+        # plots first two events
+        betas_left,x_conv_left = fit_first_level(
+            convolved_stim_vector_left_ds,
+            data,
+            make_figure=True,
+            plot_events=[1,2]
+        )
+
     """
 
     utils.verbose("Running GLM", verbose)
@@ -1205,7 +1252,7 @@ def fit_first_level(
 def calculate_r2(
     data,
     sse
-):
+    ):
 
     tse = (data.shape[0] - 1) * np.var(data, axis=0, ddof=1)
     r2 = 1 - (sse / tse)
@@ -1218,7 +1265,7 @@ def calculate_tstats(
     betas=None,
     sse=None,
     rank=None
-):
+    ):
 
     tstat = []
     for co_ix in range(C.shape[0]):
@@ -1302,10 +1349,14 @@ def double_gamma(x, lag=6, a2=12, b1=0.9, b2=0.9, c=0.35, scale=True):
 
     Example
     ----------
-    >>> dt = 1
-    >>> time_points = np.linspace(0,36,np.rint(float(36)/dt).astype(int))
-    >>> hrf_custom = lazyplot.glm.double_gamma(time_points, lag=6)
-    >>> hrf_custom = hrf_custom[np.newaxis,...]
+
+    .. code-block:: python
+
+        dt = 1
+        time_points = np.linspace(0,36,np.rint(float(36)/dt).astype(int))
+        hrf_custom = lazyfmri.glm.double_gamma(time_points, lag=6)
+        hrf_custom = hrf_custom[np.newaxis,...]
+
     """
     a1 = lag
     d1 = a1 * b1
@@ -1320,29 +1371,30 @@ def double_gamma(x, lag=6, a2=12, b1=0.9, b2=0.9, c=0.35, scale=True):
 
 
 class Posthoc(plotting.Defaults):
+
     """Posthoc
 
-    Run posthoc analysis on the output from `pingouin` ANOVA/ANCOVA or just straight up as pairwise t-tests. During
-    intialization, the plotting arguments are internalized from :class:`lazyplot.plotting.Defaults()`. Posthoc test should
-    then be executed using the :func:`lazyplot.glm.Posthoc.run_posthoc()` function, which accepts all arguments that
-    :class:`pingouin.pairwise_tukey()` or :class:`pingouin.pairwise_tests()` accept. You can then choose to have the
-    significance bars plotted on a specified `axs`. Note that this only works for relatively simple tests; there's NO support
-    for complicated (nested) data structures such as repeated-measures.
+    Initializes the `Posthoc` class for conducting posthoc statistical tests following an ANOVA or ANCOVA analysis.
+    This class is designed for simple pairwise comparisons using `pingouin.pairwise_tukey()` or `pingouin.pairwise_tests()`.
+    It also provides visualization support for significance bars on a given matplotlib axis.
 
     Parameters
     ----------
-    See: :class:`lazyplot.plotting.Defaults()`
+    **kwargs : dict
+        Additional parameters that will be passed to :class:`lazyfmri.plotting.Defaults()`, allowing customization of plotting settings.
 
     Example
     ----------
-    >>> from lazyplot import glm
-    >>> posth = glm.Posthoc()
-    >>> posth.run_posthoc(
-    >>>     data=df,
-    >>>     dv="dependent_variable",
-    >>>     between="grouping_variable",
-    >>>     )
-    >>> posth.plot_bars(axs=axs)
+    .. code-block:: python
+
+        from lazyfmri import glm
+        posth = glm.Posthoc()
+        posth.run_posthoc(
+            data=df,
+            dv="dependent_variable",
+            between="grouping_variable"
+        )
+        posth.plot_bars(axs=axs)
     """
 
     def __init__(self, **kwargs):
@@ -1350,8 +1402,29 @@ class Posthoc(plotting.Defaults):
         super().__init__(**kwargs)
 
     def sort_posthoc(self, df):
-        """sort the output of posthoc tests based on distance so that the longest significance bar spans the largest
-        distance"""
+        """sort_posthoc
+
+        Sorts the output of posthoc tests based on the distance between compared conditions. The function ensures that 
+        the longest significance bar spans the largest distance in the plot.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Dataframe containing posthoc test results, with columns `"A"` and `"B"` indicating the conditions being compared.
+
+        Returns
+        -------
+        pd.DataFrame
+            The sorted dataframe with an additional `"distances"` column indicating the distance between compared conditions.
+
+        Example
+        ----------
+        .. code-block:: python
+
+            sorted_df = posth.sort_posthoc(posth.posthoc)
+            print(sorted_df)
+        """
+
 
         distances = []
         for contr in range(df.shape[0]):
@@ -1373,21 +1446,44 @@ class Posthoc(plotting.Defaults):
             paired=False,
             *args,
             **kwargs):
+            
         """run_posthoc
 
-        Run the posthoc test. By default, we'll run a `tukey`-test. If the argument is something else, the
-        :class:`pingouin.pairwise_tests()` is invoked.
+        Runs the posthoc test. By default, a Tukey test is executed (`"tukey"`), but other tests from `pingouin.pairwise_tests()`
+        can be used. The function supports both parametric and non-parametric comparisons.
 
         Parameters
         ----------
-        test: str, optional
-            Type of test to execute, by default "tukey"
+        test : str, optional
+            Type of posthoc test to execute. Default is `"tukey"`. If another value is provided, `pingouin.pairwise_tests()` is used.
+        ano : dict, optional
+            Dictionary containing ANOVA results. If provided, posthoc p-values can be inherited from the ANOVA output.
+        paired : bool, optional
+            If `True`, assumes a paired comparison (e.g., within-subject analysis). Default is `False`.
+        *args : tuple
+            Additional positional arguments for the `pingouin` posthoc functions.
+        **kwargs : dict
+            Additional keyword arguments for the `pingouin` posthoc functions.
 
         Raises
-        ----------
+        ------
         ImportError
-            If pingouin cannot by imported
+            If `pingouin` is not installed.
+
+        Example
+        ----------
+        .. code-block:: python
+
+            posth.run_posthoc(
+                data=df,
+                dv="response",
+                between="condition",
+                test="tukey"
+            )
+
+            print(posth.posthoc)  # Print posthoc test results
         """
+
         self.test = test
 
         # internalize data
@@ -1458,35 +1554,44 @@ class Posthoc(plotting.Defaults):
             color: str = "black",
             *args,
             **kwargs):
+
         """plot_bars
 
-        Function that plots the significance bars given a matplotlib axis. Based on the sorted posthoc output, it'll draw the
-        significance bars from top to bottom (longest significance bar up top).
+        Plots significance bars on a matplotlib axis based on sorted posthoc results. The function determines significance
+        levels using asterisks (`"*"` for p < 0.05, `"**"` for p < 0.01, `"***"` for p < 0.001) and positions bars accordingly.
 
         Parameters
         ----------
-        axs: mpl.axes._axes.Axes, optional
-            Axis to plot the lines on, by default None
-        alpha: float, optional
-            Alpha value to consider contrasts significant, by default 0.05
-        y_pos: float, optional
-            Starting position of top significance line in axis proportions (1 = top of plot), by default 0.95. While looping
-            through significant contrasts, this factor is reduced with `line_separate_factor`
-        line_separate_factor: float, optional
-            Factor to reduce the y-position of subsequent significance bars with, by default -0.065
-        ast_frac: float, optional
-            Distance between significance line and annotation (e.g., asterix denoting significance or 'ns' if
-            `ns_annot==True`), by default 0.2
-        ns_annot: bool, optional
-            Also annotate non-significant contrasts with 'ns', by default False
-        ns_frac: bool, optional
-            Additional factor to scale the distance between the significance lines and text as `ast_frac` will yield different
-            results for text and asterixes, by default 5
-        leg_size: float, optional
-            Size of the overhang from the significance bars. Default = 0.02 and is defined as a fraction of the total limit of
-            the y-axis
-        color: str, optional
-            Define color. Default is black
+        axs : mpl.axes._axes.Axes, optional
+            Axis to plot significance bars on. Default is `None`.
+        alpha : float, optional
+            Significance threshold. Default is `0.05`.
+        y_pos : float, optional
+            Starting position of the top significance line in axis proportions (1 = top of plot). Default is `0.95`.
+            This factor is reduced incrementally using `line_separate_factor`.
+        line_separate_factor : float, optional
+            Factor by which subsequent significance bars are shifted downward. Default is `-0.065`.
+        ast_frac : float, optional
+            Distance between significance line and annotation (e.g., asterisks or `"ns"` for non-significance). Default is `0.2`.
+        ns_annot : bool, optional
+            If `True`, non-significant contrasts are annotated with `"ns"`. Default is `False`.
+        ns_frac : float, optional
+            Additional factor to scale the distance between significance lines and `"ns"` annotations. Default is `5`.
+        leg_size : float, optional
+            Size of the overhang from the significance bars, defined as a fraction of the total y-axis limit. Default is `0.02`.
+        color : str, optional
+            Color of significance bars. Default is `"black"`.
+        *args : tuple
+            Additional arguments.
+        **kwargs : dict
+            Additional keyword arguments.
+
+        Example
+        ----------
+        .. code-block:: python
+
+            fig, ax = plt.subplots()
+            posth.plot_bars(axs=ax, alpha=0.05, y_pos=1.1, color="red")
         """
 
         # internalize args
@@ -1581,60 +1686,67 @@ class Posthoc(plotting.Defaults):
 
 
 class ANOVA(Posthoc):
-
     """ANOVA
 
-    Run an ANOVA with pingouin and subsequently run posthoc test. Allows you to immediately visualize significant results
-    given a matplotlib axis. In contrast to :class:`lazyplot.glm.Posthoc()`, arguments for the ANOVA test are immediately
-    passed on during the initialization stage. If `covar` is passed, we'll run an ANCOVA rather than ANOVA.
+    Runs an ANOVA using `pingouin` and subsequently performs posthoc tests. This class allows for immediate visualization
+    of significant results using a Matplotlib axis. Unlike :class:`lazyfmri.glm.Posthoc`, arguments for the ANOVA test 
+    are provided at initialization. If `covar` is specified, an ANCOVA is run instead of an ANOVA.
 
     Parameters
     ----------
-    alpha: float, optional
-        Alpha value to consider contrasts significant, by default 0.05
-    axs: mpl.axes._axes.Axes, optional
-        Axis to plot the lines on, by default None
-    posthoc_kw: dict, optional
-        Dictionairy containing arguments that are passed to :func:`lazyplot.glm.Posthoc.plot_bars()`, by default {}. See docs
-        for arguments
+    alpha : float, optional
+        Alpha value to determine statistical significance. Default is `0.05`.
+    axs : mpl.axes._axes.Axes, optional
+        Matplotlib axis on which to plot significance bars. Default is `None`.
+    posthoc_kw : dict, optional
+        Dictionary of arguments passed to :func:`lazyfmri.glm.Posthoc.plot_bars()`. Default is `{}`.
+    plot_kw : dict, optional
+        Additional keyword arguments for customizing the plot. Default is `{}`.
+    bar_kw : dict, optional
+        Additional keyword arguments for customizing the significance bars. Default is `{}`.
+    *args : tuple
+        Additional positional arguments for `pingouin.anova()` or `pingouin.ancova()`.
+    **kwargs : dict
+        Additional keyword arguments for `pingouin.anova()` or `pingouin.ancova()`.
 
     Example
-    ----------
-    >>> from lazyplot import glm
-    >>> ano = glm.ANOVA(
-    >>>     data=df,
-    >>>     dv="dependent_variable",
-    >>>     between="grouping_variable",
-    >>>     posthoc_kw={
-    >>>         "effsize": "cohen",
-    >>>         "test": "test",
-    >>>         "paired": True,
-    >>>         "subject": "vox",
-    >>>         "padjust": "holm"
-    >>>     }
-    >>> )
-    >>> print("\n", normality)
-    >>> print("\n", aov.ano)
-    >>> print("\n", aov.posthoc_sorted)
+    -------
+    .. code-block:: python
 
-    >>> # if you have LazyBar-object ready, add the significance bars:
-    >>> aov.plot_bars(
-    >>>     axs=br.ff,
-    >>>     ast_frac=0,
-    >>>     y_pos=1.15,
-    >>>     line_separate_factor=-0.075
-    >>> )
+        from lazyfmri import glm
+
+        # Run an ANOVA on a dataset
+        aov = glm.ANOVA(
+            data=df,
+            dv="dependent_variable",
+            between="grouping_variable",
+            posthoc_kw={
+                "effsize": "cohen",
+                "test": "t-test",
+                "paired": True,
+                "subject": "vox",
+                "padjust": "holm"
+            }
+        )
+
+        # If using LazyBar, add significance bars
+        aov.plot_bars(
+            axs=bar.axs,
+            ast_frac=0,
+            y_pos=1.15,
+            line_separate_factor=-0.075
+        )
     """
 
     def __init__(
-            self,
-            alpha: float = 0.05,
-            axs: mpl.axes._axes.Axes = None,
-            posthoc_kw: dict = {},
-            plot_kw={},
-            bar_kw={},
-            *args,
-            **kwargs):
+        self,
+        alpha: float = 0.05,
+        axs: mpl.axes._axes.Axes = None,
+        posthoc_kw: dict = {},
+        plot_kw={},
+        bar_kw={},
+        *args,
+        **kwargs):
 
         self.posthoc_kw = posthoc_kw
         self.bar_kw = bar_kw
@@ -1651,9 +1763,33 @@ class ANOVA(Posthoc):
         )
 
     def _get_results(
-            self,
-            df: pd.DataFrame,
-            alpha: float = 0.05):
+        self,
+        df: pd.DataFrame,
+        alpha: float = 0.05):
+        """Extract significant p-values from an ANOVA table.
+
+        Identifies significant effects from the ANOVA results dataframe by checking if p-values
+        are below the defined `alpha` threshold.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Dataframe containing ANOVA results with at least a `"Source"` and `"p-unc"` column.
+        alpha : float, optional
+            Significance threshold for identifying significant effects. Default is `0.05`.
+
+        Returns
+        -------
+        dict
+            Dictionary where keys are significant effects and values are their respective p-values.
+
+        Example
+        -------
+        .. code-block:: python
+
+            results = aov._get_results(aov.ano, alpha=0.05)
+            print(results)  # {'Group': 0.002, 'Condition': 0.035}
+        """
 
         effects = df["Source"].to_list()
         p_vals = {}
@@ -1666,15 +1802,62 @@ class ANOVA(Posthoc):
         return p_vals
 
     def run_anova(
-            self,
-            alpha: float = 0.05,
-            axs: mpl.axes._axes.Axes = None,
-            parametric="auto",
-            posthoc_kw={},
-            plot_kw={},
-            bar_kw={},
-            *args,
-            **kwargs):
+        self,
+        alpha: float = 0.05,
+        axs: mpl.axes._axes.Axes = None,
+        parametric="auto",
+        posthoc_kw=None,
+        plot_kw=None,
+        bar_kw=None,
+        *args,
+        **kwargs):
+        """Runs an ANOVA or ANCOVA analysis.
+
+        Uses the `pingouin` package to perform an ANOVA, automatically choosing between parametric (ANOVA/ANCOVA)
+        and non-parametric (Friedman test) based on normality testing.
+
+        Parameters
+        ----------
+        alpha : float, optional
+            Significance level for statistical tests. Default is `0.05`.
+        axs : mpl.axes._axes.Axes, optional
+            Matplotlib axis on which to plot significance bars. Default is `None`.
+        parametric : str or bool, optional
+            Determines whether to run a parametric or non-parametric test:
+
+                - `"auto"` (default): Tests normality and selects automatically.
+                - `True`: Runs a parametric ANOVA.
+                - `False`: Runs a non-parametric Friedman test.
+
+        posthoc_kw : dict, optional
+            Dictionary of arguments for posthoc testing. Default is `{}`.
+        plot_kw : dict, optional
+            Additional parameters for customizing plots. Default is `{}`.
+        bar_kw : dict, optional
+            Parameters for significance bars. Default is `{}`.
+        args : tuple
+            Additional positional arguments for `pingouin.anova()` or `pingouin.ancova()`.
+        kwargs : dict
+            Additional keyword arguments for `pingouin.anova()` or `pingouin.ancova()`.
+
+        Raises
+        ------
+        ImportError
+            If `pingouin` is not installed.
+
+        Example
+        -------
+        .. code-block:: python
+
+            aov.run_anova(
+                data=df,
+                dv="response",
+                between="condition",
+                posthoc_kw={"effsize": "cohen", "padjust": "holm"}
+            )
+
+            print(aov.ano)  # Print ANOVA table
+        """
 
         self.alpha = alpha
         try:
