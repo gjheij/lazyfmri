@@ -27,4 +27,4 @@ Designed for `exptools2 <https://github.com/VU-Cog-Sci/exptools2>`_, this packag
 Eyetracker Files
 ----------------
 
-Supports **`*.edf`** files from `EyeLink <https://www.sr-research.com/eyelink-1000-plus/>`_, using `hedfpy <https://github.com/tknapen/hedfpy>`_.
+Supports `*.edf`-files from `EyeLink <https://www.sr-research.com/eyelink-1000-plus/>`_, using `hedfpy <https://github.com/tknapen/hedfpy>`_.
