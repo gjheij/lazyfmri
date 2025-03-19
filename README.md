@@ -1,6 +1,6 @@
 # lazyfmri | utility package for fMRI analyses
 
-![plot](https://github.com/gjheij/lazyfmri/blob/main/data/example.png)
+![plot](https://github.com/gjheij/lazyfmri/blob/main/lazyfmri/data/example.png)
 
 This package contains utility functions used for routines such as GLMs, deconvolution, and plotting often used in the [linescanning](https://github.com/gjheij/linescanning)-repository. 
 This is separate to make functions more easily available without installing the entire pipeline.
@@ -27,13 +27,13 @@ The [Dataset](https://github.com/gjheij/lazyfmri/blob/main/lazyfmri/dataset.py#L
 - Functional files: `*.mat`, `*.nii.gz`, or `*.gii` and outputs a 2D dataframe (time, datapoints) indexed by  given (or extracted) subject/run/task IDs.
 These IDs can either be given or extracted from the filename if the filename follows the [BIDS](https://bids.neuroimaging.io/index.html)-format.
 
-![plot](https://github.com/gjheij/lazyfmri/blob/main/data/df_func.png)
+![plot](https://github.com/gjheij/lazyfmri/blob/main/lazyfmri/data/df_func.png)
 
 - Experiment files: this package is designed to work with the `*.tsv`-output from the [exptools](https://github.com/VU-Cog-Sci/exptools2) package.
 This is a wrapper around `psychopy` that divides the experiment in several phases (e.g., ITI and stimulus period), which can be extracted.
 Similar to the functional files, the output of this is a dataframe indexed by subject/run/task ID:
 
-![plot](https://github.com/gjheij/lazyfmri/blob/main/data/df_onsets.png)
+![plot](https://github.com/gjheij/lazyfmri/blob/main/lazyfmri/data/df_onsets.png)
 
 - Eyetracker files: this package is designed to work with the `*.edf`-output from [EyeLink](https://www.sr-research.com/eyelink-1000-plus/) from SR research.
 It is required that the system has access to the `edf2asc` command.
@@ -45,7 +45,7 @@ The nature of the output makes the output directly compatible with HRF estimatio
 Given that all these different functions output similar dataframes, they are all compatible with the `HRFMetrics`-class. 
 This extracts a bunch of relevant metrics from your estimated HRF profiles:
 
-![plot](https://github.com/gjheij/lazyfmri/blob/main/data/df_metrics.png)
+![plot](https://github.com/gjheij/lazyfmri/blob/main/lazyfmri/data/df_metrics.png)
 
 #### [Deconvolution](https://github.com/gjheij/lazyfmri/blob/main/lazyfmri/fitting.py#L943)
 
