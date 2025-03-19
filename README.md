@@ -1,5 +1,6 @@
 # lazyfmri | utility package for fMRI analyses
 
+[![Documentation Status](https://readthedocs.org/projects/lazyfmri/badge/?version=latest)](https://lazyfmri.readthedocs.io/en/latest/?badge=latest)
 ![plot](https://github.com/gjheij/lazyfmri/blob/main/lazyfmri/data/example.png)
 
 This package contains utility functions used for routines such as GLMs, deconvolution, and plotting often used in the [linescanning](https://github.com/gjheij/linescanning)-repository. 
