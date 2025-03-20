@@ -1361,10 +1361,6 @@ def get_unique_ids(df, id=None, sort=True, as_int=False, drop_na=True):
     except Exception:
         raise RuntimeError(f"Could not find '{id}' in {list(df.columns)}")
 
-# Define a function 'pairwise' that iterates over all pairs of consecutive
-# items in a list
-
-
 def pairwise(l1):
     # Create an empty list 'temp' to store the pairs
     temp = []
@@ -1679,3 +1675,81 @@ def find_intersection(xx, curve1, curve2):
         raise ValueError("Could not find intersection between curves..")
 
     return coords
+
+def SDT(hits, misses, fas, crs):
+    """
+    Computes Signal Detection Theory (SDT) measures, including d-prime (d'), beta, criterion (c), 
+    and area under the d-prime distribution (Ad'), given the number of hits, misses, false alarms, 
+    and correct rejections.
+
+    Parameters
+    ----------
+    hits : int
+        Number of correct detections (signal present, response "yes").
+    misses : int
+        Number of missed detections (signal present, response "no").
+    fas : int
+        Number of false alarms (signal absent, response "yes").
+    crs : int
+        Number of correct rejections (signal absent, response "no").
+
+    Returns
+    -------
+    dict
+        A dictionary containing:
+        - `'d'` (float): d-prime, a measure of sensitivity.
+        - `'beta'` (float): Response bias (β), calculated as exp((Z(fa_rate)^2 - Z(hit_rate)^2) / 2).
+        - `'c'` (float): Criterion (c), calculated as -(Z(hit_rate) + Z(fa_rate)) / 2.
+        - `'Ad'` (float): Area under the d-prime distribution, equivalent to norm.cdf(d / sqrt(2)).
+        - `'hit'` (float): Adjusted hit rate.
+        - `'fa'` (float): Adjusted false alarm rate.
+
+    Notes
+    -----
+    - To prevent infinite values in d-prime calculations, hit and false alarm rates of 0 or 1 
+      are adjusted using a half-increment rule.
+    - `Z(x)` is the inverse cumulative distribution function (probit function) from the standard normal distribution.
+    - The function is useful in psychophysics and cognitive neuroscience to quantify detection sensitivity.
+
+    References
+    ----------
+    - Green, D. M., & Swets, J. A. (1966). Signal detection theory and psychophysics.
+    - Macmillan, N. A., & Creelman, C. D. (2004). Detection theory: A user's guide.
+
+    Example
+    -------
+    >>> SDT(hits=50, misses=10, fas=5, crs=35)
+    {'d': 2.05, 'beta': 0.38, 'c': -0.1, 'Ad': 0.977, 'hit': 0.83, 'fa': 0.12}
+    """
+
+    from scipy import stats
+    Z = stats.norm.ppf
+
+    # Floors an ceilings are replaced by half hits and half FA's
+    half_hit = 0.5 / (hits + misses)
+    half_fa = 0.5 / (fas + crs)
+ 
+    # Calculate hit_rate and avoid d' infinity
+    hit_rate = hits / (hits + misses)
+    if hit_rate == 1: 
+        hit_rate = 1 - half_hit
+    if hit_rate == 0: 
+        hit_rate = half_hit
+ 
+    # Calculate false alarm rate and avoid d' infinity
+    fa_rate = fas / (fas + crs)
+    if fa_rate == 1: 
+        fa_rate = 1 - half_fa
+    if fa_rate == 0: 
+        fa_rate = half_fa
+ 
+    # Return d', beta, c and Ad'
+    out = {}
+    out['d'] = Z(hit_rate) - Z(fa_rate)
+    out['beta'] = math.exp((Z(fa_rate)**2 - Z(hit_rate)**2) / 2)
+    out['c'] = -(Z(hit_rate) + Z(fa_rate)) / 2
+    out['Ad'] = stats.norm.cdf(out['d'] / math.sqrt(2))
+    out['hit'] = hit_rate
+    out['fa'] = fa_rate
+    
+    return(out)
