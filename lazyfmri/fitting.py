@@ -1185,8 +1185,137 @@ class InitFitter():
             idx += [add_idx]
 
         self.pars_condition = df_conc.set_index(idx)
+    
+    @classmethod
+    def format_evs_for_plotting(self, df, indexer="event_type", time_col="time", **kwargs):
+
+        """
+        Formats a dataframe of event-related responses for plotting by averaging across
+        time and computing error margins (SEM or STD) per condition to be compatible with.
+        This output is compatible with plotting utilities such as `LazyLine <https://lazyfmri.readthedocs.io/en/latest/classes/plotting.html#lazyfmri.plotting.LazyLine>`_ plotting class from the LazyfMRI package.
 
 
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Multi-indexed dataframe containing timecourses with event labels and time.
+            Expected indices include at least `event_type` and `time`.
+        indexer : str, optional
+            Index level name corresponding to conditions (e.g., "event_type").
+        time_col : str, optional
+            Index level name corresponding to the time axis.
+        **kwargs : dict
+            Additional arguments passed to `format_for_plotting`, such as error type (`se='sem'` or `'std'`).
+
+        Returns
+        -------
+        dict
+            A dictionary with keys:
+                - "tc" : list of mean timecourses per condition
+                - "err": list of SEM or STD values per condition
+                - "labels": list of condition names (e.g., event types)
+                - "time": common time axis (shared across events)
+
+        Example
+        -------
+        .. code-block:: python
+
+            # initialize the fitter
+            dec = fitting.NideconvFitter(
+                df_func,
+                df_onset,
+                basis_sets="canonical_hrf_with_time_derivative",
+                TR=0.105,
+                interval=[-2,16]
+            )
+
+            # fetch the profiles
+            dec.timecourses_condition()
+
+            # format for plotting
+            fmt = dec.format_evs_for_plotting(dec.tc_condition)
+
+            # plot
+            pl = plotting.LazyLine(
+                fmt["tc"],
+                xx=fmt["time"],
+                figsize=(5,5),
+                labels=["center","medium","large"],
+                x_label="time (s)",
+                y_label="amplitude",
+                error=fmt["err"],
+                line_width=3,
+                color=["#1B9E77","#D95F02","#4c75ff"],
+                add_hline=0
+            )
+
+            plotting.add_axvspan(
+                pl.axs, 
+                ymax=0.1
+            )
+        """ 
+        evs = utils.get_unique_ids(df, id=indexer)
+        ev_ddict = {}
+        
+        for i in ["tc", "err"]:
+            ev_ddict[i] = []
+
+        for ev in evs:
+            ev_df = utils.select_from_df(df, expression=f"{indexer} = {ev}")
+            tc_dict = self.format_for_plotting(ev_df, **kwargs)
+            ev_ddict["tc"].append(tc_dict["tc"])
+            ev_ddict["err"].append(tc_dict["err"])
+
+        ev_ddict["labels"] = evs
+        ev_ddict["time"] = utils.get_unique_ids(df, id=time_col)
+        return ev_ddict
+    
+    @staticmethod
+    def format_for_plotting(df, se="sem"):
+        """
+        Computes the mean and error values (SEM or STD) for a timecourse dataframe.
+        
+        Parameters
+        ----------
+        df : pd.DataFrame
+            A dataframe where rows represent timepoints and columns are different samples or subjects.
+        se : str, optional
+            Error metric to compute:
+                - "sem" or "se": standard error of the mean
+                - "std" or "sd": standard deviation
+
+        Returns
+        -------
+        dict
+            A dictionary with:
+                - "tc" : mean values (1D array)
+                - "err": error margins (SEM or STD, 1D array)
+
+        Raises
+        ------
+        NotImplementedError
+            If `se` is not one of the supported values.
+
+        Example
+        -------
+        >>> result = format_for_plotting(df, se="std")
+        >>> plt.plot(time, result["tc"])
+        >>> plt.fill_between(time, result["tc"] - result["err"], result["tc"] + result["err"])
+        """
+
+
+        ddict = {}
+        ddict["tc"] = df.mean(axis=1).values
+
+        if se in ["sem", "se"]:
+            ddict["err"] = df.sem(axis=1).values
+        elif se in ["std", "sd"]:
+            ddict["err"] = df.std(axis=1).values
+        else:
+            raise NotImplementedError(f"Error type '{se}' is not supported. Must be one of 'sem', 'se', 'std' or 'sd'")
+
+        return ddict
+    
 class ParameterFitter(InitFitter):
 
     """ParameterFitter
@@ -1813,6 +1942,42 @@ class NideconvFitter(InitFitter):
         ev_pred = pd.concat(ev_pred, ignore_index=True)
         return ev_pred
 
+    def _interpolate_timecourse(self, tc):
+        """
+        Interpolates a single FIR timecourse by identifying plateaus and averaging transition points.
+
+        Parameters
+        ----------
+        tc : np.ndarray
+            1D timecourse array.
+
+        Returns
+        -------
+        np.ndarray
+            Interpolated timecourse.
+        np.ndarray
+            Corresponding time values from self.time.
+        """
+
+        tc = np.asarray(tc)
+        diff = np.diff(tc)
+        gradient = np.sign(diff)
+        idx = np.where(gradient != 0)[0]
+
+        if len(idx) == 0:
+            # If no change, return a flat timecourse
+            return tc[:1], self.time[:1]
+
+        new_idx = ((idx[1:] + idx[:-1]) / 2).astype(int)
+        new_idx = np.insert(new_idx, 0, idx[0] // 2)
+        new_idx = np.insert(new_idx, 0, 0)  # Ensure first point is included
+
+        interp_vals = tc[new_idx]
+        new_time = self.time[new_idx]
+
+        return interp_vals, new_time
+
+
     def interpolate_fir_subjects(self):
 
         """interpolate_fir_subjects
@@ -1873,77 +2038,47 @@ class NideconvFitter(InitFitter):
         return sub_df
 
     def interpolate_fir_condition(self, obj):
-
-        """interpolate_fir_condition
-
-        Interpolates FIR model responses for all conditions in the onset dataframe, identifying plateaus in the response
-        and resampling the timecourse.
+        """
+        Interpolates FIR model responses for all conditions in the input DataFrame.
 
         Parameters
         ----------
         obj : pd.DataFrame
-            Dataframe containing FIR model response for a specific condition.
+            DataFrame with FIR model responses, indexed on ['event_type', 'covariate', 'time'].
 
         Returns
         -------
         pd.DataFrame
-            Interpolated timecourses for the specified condition.
-
-        Example
-        ----------
-        .. code-block:: python
-
-            interpolated_condition = fitter.interpolate_fir_condition(fir_data)
+            Interpolated timecourses per condition and event type.
         """
 
-
         evs = utils.get_unique_ids(obj, id="event_type")
-        evs_interp = []
+        interpolated_dfs = []
+
         for ev in evs:
-
             ev_df = utils.select_from_df(obj, expression=f"event_type = {ev}")
-            interp = []
-            for i in range(ev_df.shape[-1]):
+            covariate = utils.get_unique_ids(ev_df, id="covariate")[0]
 
-                # find plateaus
-                tc = ev_df.values[:, i].T
-                diff = np.diff(tc)
-                gradient = np.sign(diff)
-                idx = np.where(gradient != 0)[-1]
+            # Interpolate each timecourse column (e.g., voxel or component)
+            interpolated_cols = []
+            for col_idx in range(ev_df.shape[1]):
+                tc = ev_df.iloc[:, col_idx].values
+                interp_tc, new_t = self._interpolate_timecourse(tc)
+                interpolated_cols.append(interp_tc[..., np.newaxis])
 
-                # correct so that you take point at the middle of plateau;
-                # append 0 and first original index
-                new_idx = ((idx[1:] + idx[:-1]) / 2)
-                new_idx = np.append(
-                    np.array(
-                        (0, idx[0] // 2)), new_idx).astype(int)
+            # Stack interpolated columns
+            data = np.concatenate(interpolated_cols, axis=1)
+            df_interp = pd.DataFrame(data)
+            df_interp["time"] = new_t
+            df_interp["event_type"] = ev
+            df_interp["covariate"] = covariate
 
-                # pull out new values
-                new_vals = ev_df.values[new_idx, i]
+            interpolated_dfs.append(df_interp)
 
-                # resample to original shape
-                # new_vals = glm.resample_stim_vector(new_vals, tc.shape[0], interpolate="linear")
-                uni = new_vals[..., np.newaxis]
-                interp.append(uni)
+        df_result = pd.concat(interpolated_dfs)
+        df_result.set_index(["event_type", "covariate", "time"], inplace=True)
 
-            # concatenate into array and extract time column
-            interp = np.concatenate(interp, axis=1)
-            new_t = self.time[new_idx]
-            # new_t = glm.resample_stim_vector(new_t, tc.shape[0], interpolate="linear")
-
-            # format dataframe in the same way as self.tc_condition
-            df = pd.DataFrame(interp)
-            df["time"], df["event_type"], df["covariate"] = new_t, ev, utils.get_unique_ids(
-                ev_df, id="covariate")[0]
-
-            # append
-            evs_interp.append(df)
-
-        # final indexing
-        evs_interp = pd.concat(evs_interp)
-        evs_interp.set_index(["event_type", "covariate", "time"], inplace=True)
-
-        return evs_interp
+        return df_result
 
     def format_fitters(self):
 
@@ -1963,7 +2098,6 @@ class NideconvFitter(InitFitter):
             fitter.format_fitters()
             print(fitter.fitters)
         """
-
 
         # pass
         self.fitters = self.model._get_response_fitters()
@@ -2142,189 +2276,163 @@ class NideconvFitter(InitFitter):
             ["subject", "event_type", "run", "covariate", "t"], inplace=True)
 
     def get_predictions_per_event(self):
+        """
+        Retrieves both full-model and event-specific predictions from the fitted model.
 
-        """get_predictions_per_event
-
-        Retrieves predictions from the fitted model, storing full-model and event-specific predictions.
+        Stores predictions in object attributes:
+            - self.ev_predictions: Event-level predicted responses.
+            - self.sub_pred_full: Full model predictions per subject.
 
         Returns
         -------
         None
-            Stores predictions in object attributes:
-            - `ev_predictions`: Event-specific predictions.
-            - `sub_pred_full`: Full model predictions.
 
         Example
-        ----------
-        .. code-block:: python
-
-            fitter.get_predictions_per_event()
-            print(fitter.ev_predictions)
+        -------
+        >>> fitter.get_predictions_per_event()
+        >>> print(fitter.ev_predictions)
         """
 
-
-        # also get the predictions
         if self.fit_type == "ols":
             if not hasattr(self, "fitters"):
                 self.fitters = self.model._get_response_fitters()
                 self.format_fitters()
 
         sub_ids = utils.get_unique_ids(self.fitters, id="subject")
-        sub_pred = []
-        sub_pred_full = []
+
+        all_ev_preds = []
+        all_full_preds = []
 
         for sub in sub_ids:
+            sub_fitters = utils.select_from_df(self.fitters, f"subject = {sub}")
 
-            sub_fitters = utils.select_from_df(
-                self.fitters, expression=f"subject = {sub}")
+            subject_ev_preds = []
+            subject_full_preds = []
 
-            # loop through runs
-            self.predictions = []
-            self.sub_predictions = []
             run_ids = utils.get_unique_ids(sub_fitters, id="run")
             for run in run_ids:
-
-                # full model predictions
                 run_fitter = utils.select_from_df(
-                    self.fitters, expression=f"run = {run}").iloc[0][0]
+                    sub_fitters, f"run = {run}"
+                ).iloc[0, 0]  # assumes fitter is in first cell
+
+                # Full model prediction
                 preds = run_fitter.predict_from_design_matrix()
-
-                # overwrite colums
-                preds.columns = self.tc_condition.columns
-
-                # append
+                preds.columns = self.tc_condition.columns  # ensure consistent columns
                 preds = preds.reset_index().rename(columns={"index": "time"})
                 preds["run"] = run
-                self.predictions.append(preds)
+                subject_full_preds.append(preds)
 
-                # event-specific predictions
+                # Event-specific predictions
                 ev_pred = self.get_event_predictions_from_fitter(
-                    run_fitter, intercept=self.conf_icpt)
+                    run_fitter, intercept=self.conf_icpt
+                )
                 ev_pred["run"] = run
+                subject_ev_preds.append(ev_pred)
 
-                self.sub_predictions.append(ev_pred)
+            # Concatenate subject-level results
+            subj_full_df = pd.concat(subject_full_preds, ignore_index=True)
+            subj_ev_df = pd.concat(subject_ev_preds, ignore_index=True)
+            subj_full_df["subject"] = subj_ev_df["subject"] = sub
 
-            # concatenate and index
-            self.predictions = pd.concat(self.predictions)
-            self.sub_predictions = pd.concat(self.sub_predictions)
-            self.predictions["subject"] = self.sub_predictions["subject"] = sub
+            all_full_preds.append(subj_full_df)
+            all_ev_preds.append(subj_ev_df)
 
-            sub_pred.append(self.sub_predictions)
-            sub_pred_full.append(self.predictions)
+        # Assign outputs to object attributes
+        self.ev_predictions = pd.concat(all_ev_preds, ignore_index=True)
+        self.ev_predictions.set_index(["subject", "event_type", "run", "t"], inplace=True)
 
-        # event-specific events
-        self.ev_predictions = pd.concat(sub_pred, ignore_index=True)
-        self.ev_predictions.set_index(
-            ["subject", "event_type", "run", "t"], inplace=True)
-
-        # full model
-        self.sub_pred_full = pd.concat(sub_pred_full, ignore_index=True)
+        self.sub_pred_full = pd.concat(all_full_preds, ignore_index=True)
         self.sub_pred_full.set_index(["subject", "run", "time"], inplace=True)
 
+
     def timecourses_condition(self):
+        """
+        Computes condition-wise timecourses by averaging across runs and extracting
+        subject-level and condition-level HRF responses from the model.
 
-        """timecourses_condition
-
-        Computes timecourses for each condition in the dataset by averaging across runs and extracting
-        condition-wise timecourses from the fitted model.
-
-        Returns
-        -------
-        None
-            Stores timecourse data in the object attributes:
-            - `tc_condition`: Timecourses averaged over runs.
-            - `tc_subjects`: Timecourses per subject.
-            - `tc_mean`: Mean timecourse.
-            - `tc_sem`: Standard error of the mean (SEM).
-            - `tc_std`: Standard deviation.
-
-        Example
-        ----------
-        .. code-block:: python
-
-            fitter.timecourses_condition()
-            print(fitter.tc_condition)
+        Stores timecourse data in object attributes:
+            - self.tc_condition: Condition-wise average across subjects.
+            - self.tc_subjects: Subject-level timecourses.
+            - self.tc_mean: Mean timecourse (subject-level).
+            - self.tc_sem: Standard error of the mean.
+            - self.tc_std: Standard deviation.
+            - self.sem_condition: SEM at condition level.
+            - self.std_condition: STD at condition level.
+            - self.time: Extracted time axis.
+            - self.rsq_: R² values from model (if available).
+            - self.ev_predictions: Event-level predictions (if OLS fit).
         """
 
+        # Default covariate
         if not isinstance(self.covariates, str):
             self.covariates = "intercept"
 
         utils.verbose(
             f"Fetching subject/condition-wise time courses from {self.model}",
-            self.verbose)
+            self.verbose
+        )
 
-        # get the condition-wise timecourses
+        # --- Fetch timecourses ---
         if self.fit_type == "ols":
-            # averaged runs
             self.tc_condition = self.model.get_conditionwise_timecourses()
-
-            # full timecourses of subjects
             self.tc_subjects = self.model.get_timecourses()
         else:
-            self.tc_condition = self.tc_subjects.groupby(
-                level=['event type', 'covariate', 'time']).mean()
+            self.tc_condition = self.tc_subjects.groupby(level=["event type", "covariate", "time"]).mean()
             self.fitters = self.sub_df.copy()
 
-        # get some more info
+        # --- Subject-level grouping ---
         self.obj_grouped = self.tc_subjects.groupby(
             level=["subject", "event type", "covariate", "time"])
 
-        # get the standard error of mean & standard deviation
+        self.tc_mean = self.obj_grouped.mean()
         self.tc_sem = self.obj_grouped.sem()
         self.tc_std = self.obj_grouped.std()
-        self.tc_mean = self.obj_grouped.mean()
 
-        # rename 'event type' to 'event_type'
+        # --- Clean index names ---
+        self.tc_mean = self.change_name_set_index(self.tc_mean)
         self.tc_sem = self.change_name_set_index(self.tc_sem)
         self.tc_std = self.change_name_set_index(self.tc_std)
-        self.tc_mean = self.change_name_set_index(self.tc_mean)
 
+        # --- Aggregate condition-level stats ---
         self.grouper = ["event_type", "covariate", "time"]
         self.sem_condition = self.tc_sem.groupby(level=self.grouper).mean()
         self.std_condition = self.tc_std.groupby(level=self.grouper).mean()
 
-        # rename 'event type' to 'event_type' so it's compatible with
-        # utils.select_from_df
+        # --- Finalize condition & subject-level dataframes ---
         self.tc_condition = self.change_name_set_index(
-            self.tc_condition, index=['event_type', 'covariate', 'time'])
+            self.tc_condition, index=self.grouper
+        )
 
-        # check run ID
         self.tc_subjects = self.check_for_run_index(self.tc_subjects)
         self.tc_subjects = self.change_name_set_index(
-            self.tc_subjects, index=[
-                'subject', 'run', 'event_type', 'covariate', 'time'])
+            self.tc_subjects,
+            index=["subject", "run", "event_type", "covariate", "time"]
+        )
 
-        if "task" in list(self.tc_subjects.columns):
-            self.tc_subjects.drop(["task"], inplace=True, axis=1)
+        # Drop unnecessary task column
+        if "task" in self.tc_subjects.columns:
+            self.tc_subjects.drop(columns=["task"], inplace=True)
 
-        # get time axis
-        self.time = self.tc_condition.groupby(
-            ['time']).mean().reset_index()['time'].values
+        # --- Get time axis ---
+        self.time = (
+            self.tc_condition.groupby("time").mean().reset_index()["time"].values
+        )
 
+        # --- FIR-specific interpolation ---
         if self.basis_sets == "fir":
-
-            # interpolate FIR @middle of plateaus
-            self.tc_condition_interp = self.interpolate_fir_condition(
-                self.tc_condition)
+            self.tc_condition_interp = self.interpolate_fir_condition(self.tc_condition)
             self.tc_subjects_interp = self.interpolate_fir_subjects()
 
-        # get r2
+        # --- R² and predictions ---
         try:
             self.rsq_ = self.model.get_rsq()
-        except BaseException:
-            pass
+        except Exception:
+            self.rsq_ = None
 
-        # get predictions
         if self.fit_type == "ols":
-
-            # get fitters
             self.fitters = self.model._get_response_fitters()
             self.format_fitters()
-
-            # get events
             self.get_predictions_per_event()
-        else:
-            self.ev_predictions = self.sub_ev_df.copy()
 
     @classmethod
     def check_for_run_index(self, df, loc=1):
@@ -2535,15 +2643,13 @@ class NideconvFitter(InitFitter):
 
                 try:
                     self.run_ids = [
-                        int(i) for i in utils.get_unique_ids(
-                            self.func, id="run")]
+                        int(i) for i in utils.get_unique_ids(self.func, id="run")]
                     self.run_df = []
                     self.run_pred_ev_df = []
                     self.run_prof_ev_df = []
                     set_indices = ["subject", "run"]
                     set_ev_idc = ["event_type", "run", "t"]
-                    set_prof_idc = [
-                        "subject", "run", "event type", "covariate", "time"]
+                    set_prof_idc = ["subject", "run", "event type", "covariate", "time"]
                 except BaseException:
                     self.run_ids = [None]
                     self.run_df = None
