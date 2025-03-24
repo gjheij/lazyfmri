@@ -1700,11 +1700,13 @@ def SDT(hits, misses, fas, crs):
 
         - `'d'` (float): d-prime, a measure of sensitivity.
         - `'beta'` (float): Response bias (β), calculated as
+
             .. code-block:: python
 
                 exp((Z(fa_rate)^2 - Z(hit_rate)^2) / 2).
 
         - `'c'` (float): Criterion (c), calculated as:
+        
             .. code-block:: python
         
                 -(Z(hit_rate) + Z(fa_rate)) / 2.
