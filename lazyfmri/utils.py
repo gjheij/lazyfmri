@@ -189,15 +189,15 @@ class BIDSFile:
 
     Methods
     ----------
-    :func:`lazyfmri.utils.BIDSFile.get_bids_basepath()`
+    `get_bids_basepath()`
         Retrieve the BIDS base path.
-    :func:`lazyfmri.utils.BIDSFile.get_bids_root()`
+    `get_bids_root()`
         Retrieve the BIDS root directory.
-    :func:`lazyfmri.utils.BIDSFile.get_bids_workbase()`
+    `get_bids_workbase()`
         Retrieve the BIDS working directory.
-    :func:`lazyfmri.utils.BIDSFile.get_bids_workflow()`
+    `get_bids_workflow()`
         Retrieve the workflow name for fMRIPrep.
-    :func:`lazyfmri.utils.BIDSFile.get_bids_ids()`
+    `get_bids_ids()`
         Extract subject, session, task, and run information from filename.
     """
 
@@ -676,7 +676,7 @@ class FindFiles:
 
     Methods
     ----------
-    :func:`lazyfmri.utils.FindFiles.find_files()`
+    `find_files()`
         Static method that yields files in a directory matching the given pattern.
     """
 
@@ -1697,10 +1697,19 @@ def SDT(hits, misses, fas, crs):
     -------
     dict
         A dictionary containing:
+
         - `'d'` (float): d-prime, a measure of sensitivity.
-        - `'beta'` (float): Response bias (β), calculated as exp((Z(fa_rate)^2 - Z(hit_rate)^2) / 2).
-        - `'c'` (float): Criterion (c), calculated as -(Z(hit_rate) + Z(fa_rate)) / 2.
-        - `'Ad'` (float): Area under the d-prime distribution, equivalent to norm.cdf(d / sqrt(2)).
+        - `'beta'` (float): Response bias (β), calculated as
+            .. code-block:: python
+
+                exp((Z(fa_rate)^2 - Z(hit_rate)^2) / 2).
+
+        - `'c'` (float): Criterion (c), calculated as:
+            .. code-block:: python
+        
+                -(Z(hit_rate) + Z(fa_rate)) / 2.
+
+        - `'Ad'` (float): Area under the d-prime distribution, equivalent to `norm.cdf(d / sqrt(2))`.
         - `'hit'` (float): Adjusted hit rate.
         - `'fa'` (float): Adjusted false alarm rate.
 
