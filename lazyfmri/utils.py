@@ -337,7 +337,7 @@ class color:
    PURPLE = '\033[95m'
    CYAN = '\033[96m'
    DARKCYAN = '\033[36m'
-   BLUE = '\033[94m'
+   BLUE = '\033[34m'
    GREEN = '\033[32m'
    YELLOW = '\033[93m'
    RED = '\033[91m'
@@ -447,6 +447,22 @@ def string2float(string_array):
     else:
         # array is already in non-string format
         return string_array
+
+def print_cmd_highlight(cmd):
+    """
+    Print a shell command with the executable in bold blue, using the `color` class.
+
+    Parameters
+    ----------
+    cmd : str
+        The full command string to print.
+    """
+
+    parts = cmd.strip().split(" ", 1)
+    executable = parts[0]
+    rest = parts[1] if len(parts) > 1 else ""
+
+    print(f"{color.BOLD}{color.BLUE}{executable}{color.END} {rest}", flush=True)
 
 def reverse_sign(x):
     """reverse_sign
@@ -1402,9 +1418,12 @@ def round_decimals_up(number: float, decimals: int = 2):
     return math.ceil(number * factor) / factor
 
 
-def verbose(msg, verbose, flush=True, **kwargs):
+def verbose(msg, verbose, flush=True, highlight=False, **kwargs):
     if verbose:
-        print(msg, flush=flush, **kwargs)
+        if not highlight:
+            print(msg, flush=flush, **kwargs)
+        else:
+            print_cmd_highlight(msg)
 
 
 def get_unique_ids(df, id=None, sort=True, as_int=False, drop_na=True):
