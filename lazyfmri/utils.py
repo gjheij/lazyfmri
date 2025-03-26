@@ -177,6 +177,80 @@ def assemble_fmriprep_wf(bold_path, wf_only=False):
     else:
         return fname
 
+def select_files_from_bids(
+    inputdir,
+    filters=['acq-MP2RAGE_', 'inv'],
+    get_kws={},
+    **kwargs):
+    """
+    Selects files from a BIDS-formatted directory using pybids and optional substring filters.
+
+    This function wraps around `BIDSLayout.get()` to retrieve NIfTI files from a BIDS dataset,
+    with optional keyword arguments and substring filtering.
+
+    Parameters
+    ----------
+    inputdir : str
+        Path to the BIDS dataset directory or a subfolder (e.g., `.../sub-01/anat`).
+    
+    filters : str or list of str, optional
+        Substrings used to filter the resulting list of files. Only files containing all 
+        specified substrings will be returned. If set to `None`, all matching files are returned.
+        Default is ['acq-MP2RAGE_', 'inv'].
+
+    get_kws : dict, optional
+        Additional keyword arguments to pass to `BIDSLayout.get()`. These are merged with
+        default values for 'extension' and 'return_type'.
+
+    **kwargs : dict
+        Additional keyword arguments passed to the `BIDSLayout` constructor (e.g., `config`, `database_path`).
+
+    Returns
+    -------
+    list of str
+        List of file paths that match the specified filters and BIDS selection criteria.
+
+    Notes
+    -----
+        - The function defaults to selecting `.nii.gz` files and returns their full paths.
+        - If `inputdir` ends with `"anat"`, the BIDS data_type is automatically set to `"anat"`.
+        - If `filters` is provided, the results are further reduced to only those containing the given substring(s).
+    """
+
+    from bids import BIDSLayout
+
+    # update kwargs
+    def_dict = {
+        "extension": ["nii.gz"],
+        "return_type": "file"
+    }
+
+    for key, val in def_dict.items():
+        get_kws = update_kwargs(
+            get_kws,
+            key,
+            val
+        )
+
+    if inputdir.endswith("anat"):
+        get_kws = update_kwargs(
+            get_kws,
+            "data_type",
+            "anat"
+        )
+    
+    bids_fn = BIDSLayout(
+        inputdir,
+        validate=False,
+        **kwargs).get(**get_kws)
+    
+    if isinstance(filters, (str, list)):
+        filt_files = get_file_from_substring(filters, bids_fn)
+        filt_files.sort()
+        return filt_files
+    else:
+        return bids_fn
+    
 class BIDSFile:
     """BIDSFile
 
@@ -264,7 +338,7 @@ class color:
    CYAN = '\033[96m'
    DARKCYAN = '\033[36m'
    BLUE = '\033[94m'
-   GREEN = "\033[1;32m"
+   GREEN = '\033[32m'
    YELLOW = '\033[93m'
    RED = '\033[91m'
    BOLD = '\033[1m'
