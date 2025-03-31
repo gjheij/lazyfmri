@@ -1920,23 +1920,21 @@ def run_shell_wrapper(cmd, msg=None, verb=False):
     """
 
     import subprocess
+    import sys
     if isinstance(msg, str):
         verbose(msg, True)
 
     try:
-
         verbose(cmd, verb, highlight=True)
         _ = subprocess.run(
             cmd,
             shell=True,
             check=True,
-            capture_output=True,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
             text=True
         )
     except subprocess.CalledProcessError as e:
-        print(f"Error: Command '{e.cmd}' failed with exit code {e.returncode}")
-        print(f"Standard Output:\n{e.stdout}")
-        print(f"Standard Error:\n{e.stderr}")
-
+        print(f"{color.RED}{color.BOLD}ERROR{color.END}: Command '{e.cmd}' failed with exit code {e.returncode}")
     except Exception as e:
         print(f"Unexpected error: {str(e)}")
