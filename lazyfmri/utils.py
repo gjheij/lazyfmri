@@ -14,6 +14,35 @@ from PIL import ImageColor
 
 opj = os.path.join
 
+def get_first_existing(dictionary, keys, fallback=None, msg=None):
+    """
+    Return the first existing key from a list in the given dictionary.
+    If none are found, return fallback (if provided), else None.
+
+    Parameters
+    ----------
+    dictionary : dict
+        The dictionary to search in.
+    keys : list
+        List of keys to check in priority order.
+    fallback : any, optional
+        Value to return if none of the keys are found.
+    msg : str, optional
+        Extra message in case fallback option is selected
+
+    Returns
+    -------
+    value from dictionary or fallback
+    """
+    for key in keys:
+        if key in dictionary:
+            return dictionary[key]
+
+    if isinstance(msg, str):
+        verbose(msg, True)
+
+    return fallback
+
 def make_polar_cmap():
     """make_polar_cmap
 
@@ -1857,3 +1886,57 @@ def SDT(hits, misses, fas, crs):
     out['fa'] = fa_rate
     
     return(out)
+
+def run_shell_wrapper(cmd, msg=None, verb=False):
+    """
+    Execute a shell command with optional verbose logging and error handling.
+
+    This function runs a shell command using subprocess, capturing output and printing
+    informative messages. If `msg` is provided, it will be printed before executing.
+    If the command fails, both stdout and stderr will be printed for debugging.
+
+    Parameters
+    ----------
+    cmd : str
+        The full shell command to execute.
+    msg : str, optional
+        Message to print before executing the command.
+    verb : bool, default=False
+        If True, echo the command being run with highlighting.
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+    - Uses `shell=True`, so ensure `cmd` is properly sanitized.
+    - Automatically captures and displays stdout/stderr on failure.
+    - Intended as a user-friendly wrapper for external CLI tools.
+
+    Example
+    -------
+    run_shell_wrapper("fslmaths input.nii.gz -abs output.nii.gz", msg="Running FSL abs")
+    """
+
+    import subprocess
+    if isinstance(msg, str):
+        verbose(msg, True)
+
+    try:
+
+        verbose(cmd, verb, highlight=True)
+        _ = subprocess.run(
+            cmd,
+            shell=True,
+            check=True,
+            capture_output=True,
+            text=True
+        )
+    except subprocess.CalledProcessError as e:
+        print(f"Error: Command '{e.cmd}' failed with exit code {e.returncode}")
+        print(f"Standard Output:\n{e.stdout}")
+        print(f"Standard Error:\n{e.stderr}")
+
+    except Exception as e:
+        print(f"Unexpected error: {str(e)}")
