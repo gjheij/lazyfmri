@@ -11,6 +11,7 @@ import matplotlib.colors as mcolors
 from matplotlib import cm
 import nibabel as nb
 from PIL import ImageColor
+import platform
 
 opj = os.path.join
 
@@ -1938,3 +1939,44 @@ def run_shell_wrapper(cmd, msg=None, verb=False):
         print(f"{color.RED}{color.BOLD}ERROR{color.END}: Command '{e.cmd}' failed with exit code {e.returncode}")
     except Exception as e:
         print(f"Unexpected error: {str(e)}")
+
+def launch_itksnap(*args):
+    """
+    Launch ITK-SNAP to view/edit images and wait for the GUI to close.
+    
+    Parameters
+    ----------
+    *args : str
+        Arbitrary command-line arguments to pass to ITK-SNAP (e.g., -g <image> -s <segmentation>)
+
+    Notes
+    -----
+    - Uses `open -W` on macOS to block until ITK-SNAP closes.
+    - On Linux, subprocess waits by default.
+    - On Windows, uses shell execution to block until ITK-SNAP closes.
+    """
+    import subprocess
+    system = platform.system()
+
+    if system == "Darwin":
+        # macOS: open app in blocking mode
+        cmd = ["open", "-W", "-a", "ITK-SNAP", "--args"] + list(args)
+    elif system == "Windows":
+        # Windows: execute directly with shell
+        cmd = ["itksnap"] + list(args)
+        cmd = " ".join(cmd)  # pass as string when using shell=True
+    else:
+        # Linux/Unix: use Popen and wait
+        cmd = ["itksnap"] + list(args)
+
+    # Print command
+    verbose(" ".join(cmd) if isinstance(cmd, list) else cmd, True, highlight=True)
+
+    # Run command
+    if system == "Darwin":
+        subprocess.run(cmd)
+    elif system == "Windows":
+        subprocess.run(cmd, shell=True)
+    else:
+        proc = subprocess.Popen(cmd)
+        proc.wait()
