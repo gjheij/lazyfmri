@@ -12,6 +12,7 @@ from matplotlib import cm
 import nibabel as nb
 from PIL import ImageColor
 import platform
+import re
 
 opj = os.path.join
 
@@ -1937,8 +1938,10 @@ def run_shell_wrapper(cmd, msg=None, verb=False):
         )
     except subprocess.CalledProcessError as e:
         print(f"{color.RED}{color.BOLD}ERROR{color.END}: Command '{e.cmd}' failed with exit code {e.returncode}")
+        sys.exit(e.returncode)  # ← clean exit without traceback
     except Exception as e:
-        print(f"Unexpected error: {str(e)}")
+        print(f"{color.RED}{color.BOLD}Unexpected error{color.END}: {str(e)}")
+        sys.exit(1)
 
 def launch_itksnap(*args):
     """
@@ -1980,3 +1983,73 @@ def launch_itksnap(*args):
     else:
         proc = subprocess.Popen(cmd)
         proc.wait()
+
+def parse_kwargs_to_dict(input_list, delimiter="="):
+    """
+    Parse a string or list of key-value pairs into a dictionary.
+
+    Supports automatic type conversion for booleans, numbers, and lists.
+
+    Parameters
+    ----------
+    input_list : str
+        A single key=value pair (e.g., "alpha=0.01") or a comma-separated
+        string of such pairs (e.g., "alpha=0.01,beta=0.5,debug=True").
+        Values can be lists separated by '|', e.g., "layers=conv|pool|fc".
+    delimiter : str, optional
+        The character used to separate keys from values, by default "=".
+
+    Returns
+    -------
+    dict
+        Dictionary of parsed key-value pairs with appropriate types.
+
+    Examples
+    --------
+    >>> parse_kwargs_to_dict("alpha=0.01,beta=0.5,debug=True")
+    {'alpha': 0.01, 'beta': 0.5, 'debug': True}
+
+    >>> parse_kwargs_to_dict("layers=conv|pool|fc")
+    {'layers': ['conv', 'pool', 'fc']}
+
+    >>> parse_kwargs_to_dict("use_dropout=False,epochs=10")
+    {'use_dropout': False, 'epochs': 10}
+    """
+
+    if "," in input_list:
+        kwargs_in_list = [i.strip() for i in input_list.split(",")]
+    else:
+        kwargs_in_list = [input_list.strip()]
+
+    kwargs_in_dict = {}
+    for item in kwargs_in_list:
+        if delimiter not in item:
+            continue  # skip invalid entries
+
+        key, val = item.split(delimiter, 1)
+
+        # Handle lists (pipe-separated)
+        if "|" in val:
+            val_list = val.split("|")
+            parsed_vals = []
+            for v in val_list:
+                parsed_vals.append(_autotype(v))
+            kwargs_in_dict[key] = parsed_vals
+        else:
+            kwargs_in_dict[key] = _autotype(val)
+
+    return kwargs_in_dict
+
+
+def _autotype(val):
+    """Helper to convert string to bool, int, float, or str."""
+    val = val.strip()
+    if val.lower() == "true":
+        return True
+    elif val.lower() == "false":
+        return False
+    elif re.match(r"^-?\d+$", val):
+        return int(val)
+    elif re.match(r"^-?\d*\.\d+$", val):
+        return float(val)
+    return val
