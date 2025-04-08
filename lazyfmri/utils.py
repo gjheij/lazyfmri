@@ -1,18 +1,21 @@
-import math
 import csv
-import numpy as np
-import os
 import fnmatch
+import math
+import os
+import platform
+import re
+import sys
+from functools import wraps
 import operator
-import pandas as pd
-from nilearn import signal
-from shapely import geometry
+
 import matplotlib.colors as mcolors
 from matplotlib import cm
 import nibabel as nb
+from nilearn import signal
+import numpy as np
+import pandas as pd
 from PIL import ImageColor
-import platform
-import re
+from shapely import geometry
 
 opj = os.path.join
 
@@ -2053,3 +2056,62 @@ def _autotype(val):
     elif re.match(r"^-?\d*\.\d+$", val):
         return float(val)
     return val
+
+def validate_cli_inputs(required_keys=None, allow_input_dir=False, docstring=None):
+    """
+    Decorator factory to validate command-line input context before executing the target function.
+
+    This decorator checks that all of the keys specified in `required_keys` are present and non-empty
+    in the `context` dictionary passed as a keyword argument to the decorated function. If any required 
+    key is missing, or if an input directory (if provided) is invalid when `allow_input_dir` is True, the 
+    decorator prints an error message along with a help message (either custom via `docstring` or the target 
+    function’s own docstring) and then exits the script.
+
+    Parameters
+    ----------
+    required_keys : list, optional
+        A list of keys that must be present and truthy in the `context` dictionary.
+    allow_input_dir : bool, optional
+        If True, the decorator also accepts a valid "input_dir" key in the context (i.e., a string that is 
+        a path to an existing directory) as an alternative to having all the required keys.
+    docstring : str, optional
+        A custom help message to display if validation fails. If not provided, the docstring of the 
+        decorated function is used.
+
+    Returns
+    -------
+    decorator : function
+        A decorator that, when applied to a function, validates its `context` keyword argument before 
+        allowing the function to execute.
+
+    Usage
+    -----
+    @validate_cli_inputs(required_keys=["R1", "R2", "QSM"], allow_input_dir=True, 
+                         docstring="Custom help message or usage instructions.")
+    def main(argv, context):
+        # function body here
+        ...
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            context = kwargs.get("context", {})
+
+            missing = [k for k in required_keys or [] if not context.get(k)]
+            input_dir = context.get("input_dir")
+
+            valid = (not missing) or (allow_input_dir and isinstance(input_dir, str) and os.path.isdir(input_dir))
+
+            if not valid:
+                print("\nMissing or invalid required inputs:")
+                for k in missing:
+                    print(f" - {k}")
+                if allow_input_dir:
+                    print("Or provide a valid --inputdir instead.")
+                print()
+                print(docstring or func.__doc__)
+                sys.exit(1)
+
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
