@@ -2084,8 +2084,8 @@ def validate_cli_inputs(required_keys=None, allow_input_dir=False, docstring=Non
         A decorator that, when applied to a function, validates its `context` keyword argument before 
         allowing the function to execute.
 
-    Usage
-    -----
+    Example
+    -------
     @validate_cli_inputs(required_keys=["R1", "R2", "QSM"], allow_input_dir=True, 
                          docstring="Custom help message or usage instructions.")
     def main(argv, context):
