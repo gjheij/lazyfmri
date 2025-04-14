@@ -7,7 +7,6 @@ import os
 import pandas as pd
 import pickle
 from scipy import io
-import warnings
 
 try:
     import hedfpy
@@ -18,7 +17,6 @@ except ImportError:
 opj = os.path.join
 # disable warning thrown by string2float
 pd.options.mode.chained_assignment = None
-warnings.filterwarnings("ignore")
 
 
 def filter_kwargs(ignore_kwargs, kwargs):

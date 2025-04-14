@@ -16,13 +16,10 @@ from scipy import signal
 import seaborn as sns
 from sklearn import decomposition
 from typing import Union
-import warnings
 
 opj = os.path.join
 # disable warning thrown by string2float
 pd.options.mode.chained_assignment = None
-warnings.filterwarnings("ignore")
-
 
 class RegressOut():
 
