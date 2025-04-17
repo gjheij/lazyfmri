@@ -1,20 +1,20 @@
 from . import (
     glm,
+    utils,
     plotting,
-    utils
 )
 import lmfit
-import matplotlib.pyplot as plt
-import matplotlib as mpl
-import nideconv as nd
 import numpy as np
 import pandas as pd
+import nideconv as nd
 import seaborn as sns
+import matplotlib as mpl
 from typing import Union
-from scipy.optimize import minimize
 from scipy import signal
-from joblib import Parallel, delayed
 from sklearn import metrics
+import matplotlib.pyplot as plt
+from scipy.optimize import minimize
+from joblib import Parallel, delayed
 from alive_progress import alive_bar
 
 

@@ -1,21 +1,21 @@
-from . import utils, plotting, fitting
-import matplotlib.pyplot as plt
+import os
+import numpy as np
+import pandas as pd
+import seaborn as sns
 import matplotlib as mpl
+from scipy import signal
+from typing import Union
+import matplotlib.pyplot as plt
 from nilearn.signal import clean
+from sklearn import decomposition
+from . import utils, plotting, fitting
+from nitime.timeseries import TimeSeries
+from nitime.analysis import SpectralAnalyzer
 
 try:
     from nilearn.glm.first_level.design_matrix import _cosine_drift as cosine_drift
-except Exception:
+except Exception:    
     from nilearn.glm.first_level.design_matrix import create_cosine_drift as cosine_drift
-from nitime.timeseries import TimeSeries
-from nitime.analysis import SpectralAnalyzer
-import numpy as np
-import os
-import pandas as pd
-from scipy import signal
-import seaborn as sns
-from sklearn import decomposition
-from typing import Union
 
 opj = os.path.join
 # disable warning thrown by string2float

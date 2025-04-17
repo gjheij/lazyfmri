@@ -1,12 +1,12 @@
+import string
 import numpy as np
 from . import utils
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
 import pandas as pd
 import seaborn as sns
-import string
+import matplotlib as mpl
 from typing import Union
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
 
 class Defaults():

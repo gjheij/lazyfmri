@@ -5,11 +5,11 @@ from nilearn.plotting import (
     plot_contrast_matrix,
 )
 import numpy as np
+import pandas as pd
+import seaborn as sns
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-import pandas as pd
 from scipy.interpolate import interp1d
-import seaborn as sns
 
 
 class GenericGLM():

@@ -1,21 +1,21 @@
-import csv
-import fnmatch
-import math
 import os
-import platform
 import re
+import csv
 import sys
-from functools import wraps
+import math
+import fnmatch
+import platform
 import operator
+from functools import wraps
 
-import matplotlib.colors as mcolors
-from matplotlib import cm
-import nibabel as nb
-from nilearn import signal
 import numpy as np
 import pandas as pd
+import nibabel as nb
+from matplotlib import cm
+from nilearn import signal
 from PIL import ImageColor
 from shapely import geometry
+import matplotlib.colors as mcolors
 
 opj = os.path.join
 
@@ -1924,8 +1924,8 @@ def run_shell_wrapper(cmd, msg=None, verb=False):
     run_shell_wrapper("fslmaths input.nii.gz -abs output.nii.gz", msg="Running FSL abs")
     """
 
-    import subprocess
     import sys
+    import subprocess
     if isinstance(msg, str):
         verbose(msg, True)
 

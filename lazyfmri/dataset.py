@@ -1,12 +1,12 @@
-from . import glm, plotting, preproc, utils
-import matplotlib.pyplot as plt
-import nibabel as nb
-import json
-import numpy as np
 import os
-import pandas as pd
+import json
 import pickle
+import numpy as np
+import pandas as pd
+import nibabel as nb
 from scipy import io
+import matplotlib.pyplot as plt
+from . import glm, plotting, preproc, utils
 
 try:
     import hedfpy
@@ -2411,7 +2411,7 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
         **kwargs
     ):
 
-        # ----------------------------------------------------------------------------------------------------------------------------------------------------
+        # ----------------------------------------------------------------------------------------------------------------------------------------------
         # BASIC DATA LOADING
 
         # Load in datasets with tag "wcsmtSNR"
@@ -2513,7 +2513,7 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
             self.vox_cols = [f'vox {x}' for x in range(
                 self.ts_corrected.shape[0])]
 
-            # ----------------------------------------------------------------------------------------------------------------------------------------------------
+            # ----------------------------------------------------------------------------------------------------------------------------------------------
             # STANDARDIZATION OF UNFILTERED DATA & CREATE DATAFRAMES
 
             # dataframe of raw, unfiltered data
@@ -2556,7 +2556,7 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
                 TR=self.TR,
                 set_index=True)
 
-            # ----------------------------------------------------------------------------------------------------------------------------------------------------
+            # ----------------------------------------------------------------------------------------------------------------------------------------------
             # HIGH PASS FILTER
             self.clean_tag = None
             if self.filter_strategy != "raw":
@@ -2664,7 +2664,7 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
                     setattr(
                         self, f"hp_{self.clean_tag}_psc_df", self.hp_tmp_psc_df)
 
-                # ----------------------------------------------------------------------------------------------------------------------------------------------------
+                # --------------------------------------------------------------------------------
                 # LOW PASS FILTER
                 if "lp" in self.filter_strategy:
 
