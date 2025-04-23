@@ -1930,9 +1930,10 @@ def run_shell_wrapper(cmd, msg=None, verb=False):
         verbose(msg, True)
 
     try:
-        verbose(cmd, verb, highlight=True)
+        filt_cmd = " ".join(cmd.split())
+        verbose(filt_cmd, verb, highlight=True)
         _ = subprocess.run(
-            cmd,
+            filt_cmd,
             shell=True,
             check=True,
             stdout=sys.stdout,
