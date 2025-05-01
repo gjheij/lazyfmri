@@ -377,6 +377,7 @@ class color:
    RED = '\033[91m'
    BOLD = '\033[1m'
    UNDERLINE = '\033[4m'
+   MAGENTA = "\033[35m"
    END = '\033[0m'
 
 def convert2unit(v, method="np"):
@@ -967,6 +968,67 @@ def remove_files(path, string, ext=False):
         path_to_file = os.path.join(path, file)
         os.remove(path_to_file)
     
+def match_lists_on(ref_list, search_list, matcher="run"):
+    """match_lists_on
+
+    Match two list based on a BIDS-specifier such as 'sub', 'run', etc. Can be any key that is extracted using :func:`linescanning.utils.split_bids_components`.
+
+    Parameters
+    ----------
+    ref_list: list
+        List to use as reference
+    search_list: list
+        List to search for items in `ref_list`
+    matcher: str, optional
+        BIDS-identifier, by default "run"
+
+    Returns
+    ----------
+    list
+        new `search_list` filtered for items in `ref_list`
+
+    Example
+    ----------
+    >>> # Let's say I have functional files for 3 runs
+    >>> func_file
+    >>> ['sub-003_ses-3_task-SR_run-3_bold.mat',
+    >>> 'sub-003_ses-3_task-SR_run-4_bold.mat',
+    >>> 'sub-003_ses-3_task-SR_run-6_bold.mat']
+
+    >>> # and anatomical slices for 5 runs
+    >>> anat_slices
+    >>> ['sub-003_ses-3_acq-1slice_run-2_T1w.nii.gz',
+    >>> 'sub-003_ses-3_acq-1slice_run-3_T1w.nii.gz',
+    >>> 'sub-003_ses-3_acq-1slice_run-4_T1w.nii.gz',
+    >>> 'sub-003_ses-3_acq-1slice_run-5_T1w.nii.gz',
+    >>> 'sub-003_ses-3_acq-1slice_run-6_T1w.nii.gz']
+
+    >>> # I can then use `match_list_on` to find the anatomical slices corresponding to the functional files
+    >>> from linescanning import utils
+    >>> utils.match_lists_on(func_file, anat_slices, matcher='run')
+    >>> ['sub-003_ses-3_acq-1slice_run-3_T1w.nii.gz',
+    >>> 'sub-003_ses-3_acq-1slice_run-4_T1w.nii.gz',
+    >>> 'sub-003_ses-3_acq-1slice_run-6_T1w.nii.gz']
+    """
+
+    if isinstance(matcher, str):
+        matcher = [matcher]
+
+    new_list = []
+    for ii in ref_list:
+        comps = split_bids_components(ii)
+
+        # loop through elements in 'matcher' list
+        search_for = [f"{ii}-{comps[ii]}" for ii in matcher]
+        ff = get_file_from_substring(search_for, search_list, return_msg="None")
+
+        if ff != None:
+            if ff == search_list:
+                raise ValueError(f"Output list is equal to input list with identifier '{matcher}'. Please use unique identifier")
+            new_list.append(ff)
+
+    return new_list
+
 def filter_for_nans(array):
     """filter out NaNs from an array"""
 
