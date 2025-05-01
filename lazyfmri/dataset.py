@@ -18,6 +18,10 @@ opj = os.path.join
 # disable warning thrown by string2float
 pd.options.mode.chained_assignment = None
 
+rb = f"{utils.color.RED}{utils.color.BOLD}"
+gb = f"{utils.color.GREEN}{utils.color.BOLD}"
+bm = f"{utils.color.MAGENTA}{utils.color.BOLD}"
+end = utils.color.END
 
 def filter_kwargs(ignore_kwargs, kwargs):
 
@@ -142,23 +146,24 @@ class ParseEyetrackerFile(SetAttributes):
     """
 
     def __init__(
-            self,
-            edf_file,
-            subject=1,
-            run=1,
-            task=None,
-            low_pass_pupil_f=6.0,
-            high_pass_pupil_f=0.01,
-            func_file=None,
-            TR=0.105,
-            verbose=False,
-            use_bids=True,
-            nr_vols=None,
-            h5_file=None,
-            save_as=None,
-            invoked_from_func=False,
-            overwrite=False,
-            **kwargs):
+        self,
+        edf_file,
+        eye_h5=None,
+        subject=1,
+        run=1,
+        task=None,
+        low_pass_pupil_f=6.0,
+        high_pass_pupil_f=0.01,
+        func_file=None,
+        TR=0.105,
+        verbose=False,
+        use_bids=True,
+        nr_vols=None,
+        save_as=None,
+        invoked_from_func=False,
+        overwrite=False,
+        **kwargs
+        ):
 
         super().__init__()
 
@@ -177,10 +182,10 @@ class ParseEyetrackerFile(SetAttributes):
         self.verbose = verbose
         self.use_bids = use_bids
         self.nr_vols = nr_vols
-        self.h5_file = h5_file
         self.save_as = save_as
         self.invoked_from_func = invoked_from_func
         self.overwrite = overwrite
+        self.eye_h5 = eye_h5
         self.__dict__.update(kwargs)
 
         # deal with edf-files
@@ -219,31 +224,40 @@ class ParseEyetrackerFile(SetAttributes):
         # deal with files
         if in_files is not None:
             if isinstance(in_files, str):
-                in_files = [os.path.abspath(in_files)]
+                return [os.path.abspath(in_files)]
             elif isinstance(in_files, list):
-                in_files = [os.path.abspath(i) for i in in_files]
+                return [os.path.abspath(i) for i in in_files]
             else:
                 raise ValueError(
                     f"Input must be 'str' or 'list', not '{type(in_files)}'")
 
     def define_hdf_file(self):
+        # get basename
+        self.get_bids_info(self.edfs[0], 0)
+        self.base_name = self.get_base_name(
+            subID=self.sub,
+            sesID=self.ses
+        )
 
         # check if there's an instance of h5_file
-        if not isinstance(self.h5_file, str):
-            self.h5_file = opj(os.path.dirname(self.edfs[0]), "eye.h5")
+        if not isinstance(self.eye_h5, str):
+            if self.save_as is not None:
+                self.eye_h5 = opj(self.save_as, f"{self.base_name}_desc-preproc_eye.h5")
+            else:
+                self.eye_h5 = opj(os.path.dirname(self.edfs[0]), "eye.h5")
 
         # check if we should overwrite
         if self.overwrite:
-            if os.path.exists(self.h5_file):
-                store = pd.HDFStore(self.h5_file)
+            if os.path.exists(self.eye_h5):
+                store = pd.HDFStore(self.eye_h5)
                 store.close()
-                os.remove(self.h5_file)
+                os.remove(self.eye_h5)
 
-        self.ho = hedfpy.HDFEyeOperator(self.h5_file)
+        self.ho = hedfpy.HDFEyeOperator(self.eye_h5)
 
     def write_edf_to_hdf(self):
 
-        if not os.path.exists(self.h5_file):
+        if not os.path.exists(self.eye_h5):
             for i, edf_file in enumerate(self.edfs):
 
                 if not os.path.exists(edf_file):
@@ -268,22 +282,32 @@ class ParseEyetrackerFile(SetAttributes):
                 self.ho.edf_gaze_data_to_hdf(
                     alias=alias,
                     pupil_hp=self.high_pass_pupil_f,
-                    pupil_lp=self.low_pass_pupil_f)
+                    pupil_lp=self.low_pass_pupil_f
+                )
 
         else:
             self.ho.open_hdf_file()
 
         # clean up hedfpy-files
         for ext in [".pdf", ".gaz", ".msg", ".gaz.gz", ".asc"]:
-            utils.remove_files(os.path.dirname(self.h5_file), ext, ext=True)
+            utils.remove_files(
+                os.path.dirname(self.eye_h5),
+                ext,
+                ext=True
+            )
 
-    def get_base_name(self, subID=None, sesID=None, taskID=None):
+    def get_base_name(
+        self,
+        subID=None,
+        sesID=None,
+        taskID=None
+        ):
 
         base_name = ""
 
         # set base name based on presence of bids tags
         for key, val in zip(["sub", "ses", "task"], [subID, sesID, taskID]):
-            if isinstance(key, (str, float, int)):
+            if isinstance(val, (str, float, int)):
                 if key == "sub":
                     base_name = f"{key}-{val}"
                 else:
@@ -297,7 +321,8 @@ class ParseEyetrackerFile(SetAttributes):
                 self,
                 "TR",
                 list_element=run,
-                matcher="edf_file")
+                matcher="edf_file"
+            )
         else:
             use_TR = None
 
@@ -320,7 +345,14 @@ class ParseEyetrackerFile(SetAttributes):
                 if el in list(bids_comps.keys()):
                     setattr(self, el, bids_comps[el])
 
-    def fetch_extracted_data(self, run, task, TR, nr_vols):
+    def fetch_extracted_data(
+        self,
+        run,
+        task,
+        TR,
+        nr_vols
+        ):
+
         alias = f"run_{run}"
         if isinstance(task, str):
             alias = f"task_{task}_run_{run}"
@@ -331,7 +363,8 @@ class ParseEyetrackerFile(SetAttributes):
                 TR=TR,
                 task=task,
                 nr_vols=nr_vols,
-                alias=alias)
+                alias=alias
+            )
         except Exception:
             fetch_data = False
 
@@ -363,11 +396,15 @@ class ParseEyetrackerFile(SetAttributes):
 
         for i, edf_file in enumerate(self.edfs):
 
-            utils.verbose(f"Preprocessing {edf_file}", self.verbose)
+            utils.verbose(f"Preprocessing {gb}{edf_file}{end}", self.verbose)
             self.get_bids_info(edf_file, i)
 
             # get basename
-            self.base_name = self.get_base_name()
+            self.base_name = self.get_base_name(
+                subID=self.sub,
+                sesID=self.ses,
+                taskID=self.task
+            )
 
             # check if we got multiple TRs for different edf-files
             use_TR = self.get_tr(run=self.run)
@@ -376,7 +413,12 @@ class ParseEyetrackerFile(SetAttributes):
             nr_vols = self.get_vols(i)
 
             # fetch relevant data
-            self.fetch_extracted_data(self.run, self.task, use_TR, nr_vols)
+            self.fetch_extracted_data(
+                self.run,
+                self.task,
+                use_TR,
+                nr_vols
+            )
 
         # concatenate available dataframes
         self.concat_dataframes()
@@ -405,11 +447,13 @@ class ParseEyetrackerFile(SetAttributes):
         return self.data['space_eye']
 
     def fetch_relevant_info(
-            self,
-            task=None,
-            nr_vols=None,
-            alias=None,
-            TR=None):
+        self,
+        task=None,
+        nr_vols=None,
+        alias=None,
+        TR=None,
+        save_as=None
+        ):
 
         # load times per session:
         trial_times = self.ho.read_session_data(alias, 'trials')
@@ -421,7 +465,7 @@ class ParseEyetrackerFile(SetAttributes):
             use_end_point = False
 
         # get block parameters
-        self.session_start_EL_time = trial_times.iloc[0, :][0]
+        self.session_start_EL_time = trial_times.iloc[0, 0]
         self.sample_rate = self.ho.sample_rate_during_period(alias)
 
         # add number of fMRI*samplerate as stop EL time or read until end of edf file
@@ -437,17 +481,17 @@ class ParseEyetrackerFile(SetAttributes):
                             self.session_stop_EL_time]
 
         eye = self.ho.eye_during_period(self.time_period, alias)
-        utils.verbose(f" Eye:         {eye}", self.verbose)
-        utils.verbose(f" Sample rate: {self.sample_rate}", self.verbose)
-        utils.verbose(f" Start time:  {self.time_period[0]}", self.verbose)
-        utils.verbose(f" Stop time:   {self.time_period[1]}", self.verbose)
+        utils.verbose(f" Eye:         {rb}{eye}{end}", self.verbose)
+        utils.verbose(f" Sample rate: {rb}{self.sample_rate}{end}", self.verbose)
+        utils.verbose(f" Start time:  {rb}{self.time_period[0]}{end}", self.verbose)
+        utils.verbose(f" Stop time:   {rb}{self.time_period[1]}{end}", self.verbose)
 
         # set some stuff required for successful plotting with seconds on the x-axis
         n_samples = int(self.time_period[1]-self.time_period[0])
         duration_sec = n_samples*(1/self.sample_rate)
 
         utils.verbose(
-            f" Duration:    {duration_sec}s [{n_samples} samples]", self.verbose)
+            f" Duration:    {rb}{duration_sec}{end}s [{rb}{n_samples}{end} samples]", self.verbose)
 
         # Fetch a bunch of data
         extract = [
@@ -458,7 +502,7 @@ class ParseEyetrackerFile(SetAttributes):
             "gaze_x",
             "gaze_y"]
 
-        utils.verbose(f" Fetching:    {extract}", self.verbose)
+        utils.verbose(f" Fetching:    [{extract}]", self.verbose)
 
         tf = []
         tf_rs = []
@@ -469,7 +513,9 @@ class ParseEyetrackerFile(SetAttributes):
                     time_period=self.time_period,
                     alias=alias,
                     signal=extr,
-                    requested_eye=eye).values)
+                    requested_eye=eye
+                ).values
+            )
 
             if data.ndim < 2:
                 data = data[..., np.newaxis]
@@ -483,25 +529,31 @@ class ParseEyetrackerFile(SetAttributes):
                     hp = preproc.highpass_dct(
                         rs,
                         self.high_pass_pupil_f,
-                        TR=TR)[0]
+                        TR=TR
+                    )[0]
 
                     psc = np.squeeze(
                         utils.percent_change(
                             rs,
                             0,
-                            baseline=hp.shape[0]))
+                            baseline=hp.shape[0]
+                        )
+                    )
 
                     psc_hp = np.squeeze(
                         utils.percent_change(
                             hp,
                             0,
-                            baseline=hp.shape[0]))
+                            baseline=hp.shape[0]
+                        )
+                    )
 
                     tmp_rs_df = pd.DataFrame({
                         f"{extr}": rs,
                         f"{extr}_psc": psc,
                         f"{extr}_hp": hp,
-                        f"{extr}_hp_psc": psc_hp})
+                        f"{extr}_hp_psc": psc_hp}
+                    )
 
                     if par_ix == len(extr)-1:
                         tmp_rs_df["eye"] = ii
@@ -514,7 +566,9 @@ class ParseEyetrackerFile(SetAttributes):
                     utils.percent_change(
                         data[:, ix],
                         0,
-                        baseline=data[:, ix].shape[0]))
+                        baseline=data[:, ix].shape[0]
+                    )
+                )
 
                 tmp_df = pd.DataFrame({
                     f"{extr}": data[:, ix],
@@ -522,8 +576,7 @@ class ParseEyetrackerFile(SetAttributes):
 
                 if par_ix == len(extr)-1:
                     tmp_df["eye"] = ii
-                    tmp_df["t"] = list((1/self.sample_rate)
-                                       * np.arange(data.shape[0]))
+                    tmp_df["t"] = list((1/self.sample_rate) * np.arange(data.shape[0]))
 
                 tmp.append(tmp_df)
 
@@ -543,8 +596,7 @@ class ParseEyetrackerFile(SetAttributes):
         # add start time to it
         start_exp_time = trial_times.iloc[0, :][-1]
 
-        utils.verbose(
-            f" Start time:  {round(start_exp_time, 2)}s", self.verbose)
+        utils.verbose(f" Start time:  {rb}{round(start_exp_time, 2)}{end}s", self.verbose)
         # get onset time of blinks, cluster blinks that occur within 350 ms
         bb = self.ho.blinks_during_period(self.time_period, alias=alias)
 
@@ -558,7 +610,7 @@ class ParseEyetrackerFile(SetAttributes):
         blink_rate = len(onsets)/duration_sec
 
         utils.verbose(
-            f" Nr blinks:   {len(onsets)} [{round(blink_rate, 2)} blinks per second]", self.verbose)
+            f" Nr blinks:   {rb}{len(onsets)}{end} [{rb}{round(blink_rate, 2)}{end} blinks per second]", self.verbose)
 
         # extract saccades
         df_saccades = self.ho.detect_saccades_during_period(
@@ -566,7 +618,7 @@ class ParseEyetrackerFile(SetAttributes):
 
         if len(df_saccades) > 0:
             utils.verbose(
-                f" Nr saccades: {len(df_saccades)} saccades", self.verbose)
+                f" Nr saccades: {rb}{len(df_saccades)}{end} saccades", self.verbose)
 
             # convert saccade onset to seconds relative to start of run
             df_saccades["onset"] = df_saccades["expanded_start_time"] / \
@@ -615,7 +667,21 @@ class ParseEyetrackerFile(SetAttributes):
         if len(df_saccades) > 0:
             return_dict["saccades"] = df_saccades
 
+        if self.report:
+            # make some plots
+            if save_as is None:
+                save_as = opj(os.getcwd(), "figures")
+                if not os.path.exists(save_as):
+                    os.makedirs(save_as, exist_ok=True)
+
+            fname = opj(save_as, f"{self.base_name}_run-{self.run}_desc")
+            self.plot_trace_and_heatmap(
+                df_space_eye,
+                fname=fname
+            )
+
         return return_dict
+
 
     def set_task_index(self, df, task=None):
         # index task if required
@@ -626,11 +692,12 @@ class ParseEyetrackerFile(SetAttributes):
         return df
 
     def plot_trace_and_heatmap(
-            self,
-            df,
-            fname=None,
-            screen_size=(1920, 1080),
-            scale="screen"):
+        self,
+        df,
+        fname=None,
+        screen_size=(1920, 1080),
+        scale="screen"
+        ):
 
         if not isinstance(df, pd.DataFrame):
             raise TypeError(f"Input must be a pd.Dataframe, not {type(df)}")
@@ -687,14 +754,16 @@ class ParseEyetrackerFile(SetAttributes):
                 y_coor_relfix,
                 gridsize=100,
                 cmap="magma",
-                extent=ext)
+                extent=ext
+            )
 
             axs[0].axhline(y=0, color='white', linestyle='-', linewidth=0.5)
             axs[0].axvline(x=0, color='white', linestyle='-', linewidth=0.5)
             plotting.conform_ax_to_obj(
                 ax=axs[0],
                 y_label="y position",
-                x_label="x position")
+                x_label="x position"
+            )
 
             avg = [float(input_l[i].mean()) for i in range(len(input_l))]
             std = [float(input_l[i].std()) for i in range(len(input_l))]
@@ -711,13 +780,22 @@ class ParseEyetrackerFile(SetAttributes):
             )
 
             y_pos = 1.05
-            sf_a.suptitle(f"eye-{eye}", fontsize=24,
-                          y=y_pos, fontweight="bold")
+            sf_a.suptitle(
+                f"eye-{eye}",
+                fontsize=24,
+                y=y_pos, fontweight="bold"
+            )
 
             # plt.tight_layout()
 
         if isinstance(fname, str):
-            fig.savefig(f"{fname}-eye_qa.svg", bbox_inches='tight', dpi=300)
+            fname += f"-eye_qa.{self.save_ext}"
+            utils.verbose(f" Writing {bm}{fname}{end}", self.verbose)
+            fig.savefig(
+                fname,
+                bbox_inches='tight',
+                dpi=300
+            )
 
     def vols(self, func_file):
         if func_file.endswith("gz") or func_file.endswith('nii'):
@@ -833,37 +911,38 @@ class ParseExpToolsFile(ParseEyetrackerFile, SetAttributes):
     """
 
     def __init__(
-            self,
-            tsv_file,
-            subject=1,
-            run=1,
-            task=None,
-            button=False,
-            RTs=False,
-            RT_relative_to=None,
-            TR=0.105,
-            deleted_first_timepoints=0,
-            edfs=None,
-            funcs=None,
-            use_bids=True,
-            verbose=False,
-            phase_onset=1,
-            stim_duration=None,
-            add_events=None,
-            add_cols=None,
-            event_names=None,
-            invoked_from_func=False,
-            button_duration=1,
-            response_window=3,
-            merge=True,
-            resp_as_cov=False,
-            cov_amplitude=1,
-            ev_onset="stim",
-            duration_col="duration",
-            key_press=["b"],
-            expr=None,
-            filter_na=False,
-            **kwargs):
+        self,
+        tsv_file,
+        subject=1,
+        run=1,
+        task=None,
+        button=False,
+        RTs=False,
+        RT_relative_to=None,
+        TR=0.105,
+        deleted_first_timepoints=0,
+        edfs=None,
+        funcs=None,
+        use_bids=True,
+        verbose=False,
+        phase_onset=1,
+        stim_duration=None,
+        add_events=None,
+        add_cols=None,
+        event_names=None,
+        invoked_from_func=False,
+        button_duration=1,
+        response_window=3,
+        merge=True,
+        resp_as_cov=False,
+        cov_amplitude=1,
+        ev_onset="stim",
+        duration_col="duration",
+        key_press=["b"],
+        expr=None,
+        filter_na=False,
+        **kwargs
+        ):
 
         self.tsv_file = tsv_file
         self.sub = subject
@@ -901,8 +980,8 @@ class ParseExpToolsFile(ParseEyetrackerFile, SetAttributes):
                 "ref_slice",
                 "filter_strat",
             ],
-            kwargs)
-        self.__dict__.update(tmp_kwargs)
+            kwargs
+        )
 
         # set attributes
         SetAttributes.__init__(self)
@@ -924,7 +1003,8 @@ class ParseExpToolsFile(ParseEyetrackerFile, SetAttributes):
                 use_bids=self.use_bids,
                 verbose=self.verbose,
                 invoked_from_func=self.invoked_from_func,
-                **kwargs)
+                **kwargs
+            )
 
     def process_exptools_files(self):
 
@@ -1089,7 +1169,7 @@ class ParseExpToolsFile(ParseEyetrackerFile, SetAttributes):
             phase_onset=1,
             duration=None):
 
-        utils.verbose(f"Preprocessing {tsv_file}", self.verbose)
+        utils.verbose(f"Preprocessing {gb}{tsv_file}{end}", self.verbose)
         with open(tsv_file) as f:
             self.data = pd.read_csv(f, delimiter='\t')
 
@@ -1103,21 +1183,29 @@ class ParseExpToolsFile(ParseEyetrackerFile, SetAttributes):
         else:
             self.start_time = 0
 
-        utils.verbose(f" 1st 't' @{round(self.start_time,2)}s", self.verbose)
+        utils.verbose(f" 1st 't' @{rb}{round(self.start_time,2)}{end}s", self.verbose)
 
         # select all events after start time with `ev_onset`
-        self.trimmed = utils.select_from_df(self.data, expression=(
-            f"event_type = {self.ev_onset}", "&", f"onset > {self.start_time}"))
+        self.trimmed = utils.select_from_df(
+            self.data,
+            expression=(
+                f"event_type = {self.ev_onset}",
+                "&",
+                f"onset > {self.start_time}"
+            )
+        )
 
         # check for more conditions
         if isinstance(self.expr, (tuple, str)):
-            utils.verbose(f" Adding filters: {self.expr}", self.verbose)
+            utils.verbose(f" Adding filters: {rb}{self.expr}{end}", self.verbose)
             self.trimmed = utils.select_from_df(
                 self.trimmed, expression=self.expr)
 
         # get the correct phase
         self.trimmed = utils.select_from_df(
-            self.trimmed, expression=f"phase = {phase_onset}")
+            self.trimmed,
+            expression=f"phase = {phase_onset}"
+        )
         rm_cols = ["index", "level_0"]
         for col in rm_cols:
             if col in list(self.trimmed.columns):
@@ -1155,7 +1243,7 @@ class ParseExpToolsFile(ParseEyetrackerFile, SetAttributes):
 
                 self.nr_resp = self.response_df.shape[0]
                 utils.verbose(
-                    f" Extracting {self.key_press} button(s)", self.verbose)
+                    f" Extracting {rb}{self.key_press}{end} button(s)", self.verbose)
 
                 # loop through them
                 self.button_df = []
@@ -1206,8 +1294,8 @@ class ParseExpToolsFile(ParseEyetrackerFile, SetAttributes):
             if isinstance(self.event_names, list):
                 if len(self.event_names) != len(self.add_events):
                     raise ValueError(
-                        f"""Length ({len(self.add_events)}) of added events {self.add_events} does not equal the length
-                        ({len(self.event_names)}) of requested event names {self.event_names}""")
+                        f"""Length ({rb}{len(self.add_events)}{end}) of added events {rb}{self.add_events}{end} does not equal the length
+                        ({rb}{len(self.event_names)}{end}) of requested event names {rb}{self.event_names}{end}""")
             else:
                 self.event_names = self.add_events.copy()
 
@@ -1240,7 +1328,7 @@ class ParseExpToolsFile(ParseEyetrackerFile, SetAttributes):
             if isinstance(self.add_cols, str):
                 self.add_cols = [self.add_cols]
 
-            utils.verbose(f" Adding {self.add_cols} to onsets", self.verbose)
+            utils.verbose(f" Adding {rb}{self.add_cols}{end} to onsets", self.verbose)
             add_cols = []
             for i in self.add_cols:
                 add_cols.append(self.trimmed[i].values[..., np.newaxis])
@@ -1254,10 +1342,10 @@ class ParseExpToolsFile(ParseEyetrackerFile, SetAttributes):
         self.onset[:, 0] = self.onset[:, 0]-(self.start_time + delete_time)
 
         utils.verbose(
-            f" Cutting {round(self.start_time + delete_time,2)}s from onsets", self.verbose)
+            f" Cutting {rb}{round(self.start_time + delete_time,2)}{end}s from onsets", self.verbose)
         if not skip_duration:
             utils.verbose(
-                f" Avg duration = {round(self.durations.mean(),2)}s", self.verbose)
+                f" Avg duration = {rb}{round(self.durations.mean(),2)}{end}s", self.verbose)
 
         # make dataframe
         columns = ['onset', 'event_type']
@@ -1888,7 +1976,7 @@ class ParsePhysioFile():
             df_physio = []
             for run, func in enumerate(self.physio_file):
 
-                utils.verbose(f"Preprocessing {func}", self.verbose)
+                utils.verbose(f"Preprocessing {gb}{func}{end}", self.verbose)
 
                 self.run = run+1
                 self.ses = None
@@ -2058,13 +2146,23 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
         (e.g., `gii`, `npy`, or `np.ndarray`), so that your final dataframe has the format it needs to have. For gifti-input,
         we transpose by default. `transpose=True` turns this transposing *off*. For `npy`-inputs, we do **NOT** transpose (we
         assume the numpy arrays are already in <time,voxels> format). `transpose=True` will transpose this input.
+    report: bool:
+        Save a bunch of figures along the process, including:
+            - Eyetracking fidelity
+            - ICA components
+            - tSNR before/after ICA
+
+        Directory used is <save_as>/figures + basename that is derived from BIDS components.
 
     Example
     ----------
     .. code-block:: python
 
         from lazyfmri import utils, dataset
-        func_file = utils.get_file_from_substring(f"run-1_bold.mat", opj('sub-001', 'ses-1', 'func'))
+        func_file = utils.get_file_from_substring(
+            f"run-1_bold.mat",
+            opj('sub-001', 'ses-1', 'func')
+        )
         func = utils.ParseFuncFile(
             func_file,
             subject=1,
@@ -2079,46 +2177,48 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
     """
 
     def __init__(
-            self,
-            func_file,
-            subject=1,
-            run=1,
-            filter_strategy="hp",
-            TR=0.105,
-            lb=0.01,
-            deleted_first_timepoints=0,
-            deleted_last_timepoints=0,
-            window_size=11,
-            poly_order=3,
-            attribute_tag=None,
-            hdf_key="df",
-            tsv_file=None,
-            edf_file=None,
-            phys_file=None,
-            phys_mat=None,
-            use_bids=True,
-            button=False,
-            verbose=True,
-            retroicor=False,
-            ica=False,
-            n_components=5,
-            func_tag=None,
-            select_component=None,
-            standardization="psc",
-            filter_confs=0.2,
-            keep_comps=None,
-            ses1_2_ls=None,
-            run_2_run=None,
-            save_as=None,
-            gm_range=[355, 375],
-            tissue_thresholds=[0.7, 0.7, 0.7],
-            save_ext="svg",
-            transpose=False,
-            baseline=20,
-            baseline_units="seconds",
-            psc_nilearn=False,
-            foldover="FH",
-            **kwargs):
+        self,
+        func_file,
+        subject=1,
+        run=1,
+        filter_strategy="hp",
+        TR=0.105,
+        lb=0.01,
+        deleted_first_timepoints=0,
+        deleted_last_timepoints=0,
+        window_size=11,
+        poly_order=3,
+        attribute_tag=None,
+        hdf_key="df",
+        tsv_file=None,
+        edf_file=None,
+        phys_file=None,
+        phys_mat=None,
+        use_bids=True,
+        button=False,
+        verbose=True,
+        retroicor=False,
+        ica=False,
+        n_components=5,
+        func_tag=None,
+        select_component=None,
+        standardization="psc",
+        filter_confs=0.2,
+        keep_comps=None,
+        ses1_2_ls=None,
+        run_2_run=None,
+        save_as=None,
+        gm_range=[355, 375],
+        tissue_thresholds=[0.7, 0.7, 0.7],
+        save_ext="svg",
+        transpose=False,
+        baseline=20,
+        baseline_units="seconds",
+        psc_nilearn=False,
+        foldover="FH",
+        report=False,
+        **kwargs
+        ):
 
         self.sub = subject
         self.run = run
@@ -2158,6 +2258,7 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
         self.psc_nilearn = psc_nilearn
         self.ica = ica
         self.keep_comps = keep_comps
+        self.report = report
         self.__dict__.update(kwargs)
 
         # sampling rate and nyquist freq
@@ -2174,10 +2275,10 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
                 TR=self.TR,
                 deleted_first_timepoints=self.deleted_first_timepoints,
                 deleted_last_timepoints=self.deleted_last_timepoints,
-                **kwargs)
+                **kwargs
+            )
 
         utils.verbose("\nFUNCTIONAL", self.verbose)
-
         if isinstance(self.func_file, (str, np.ndarray)):
             self.func_file = [self.func_file]
 
@@ -2245,10 +2346,10 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
             for run_id, func in enumerate(self.func_file):
 
                 if isinstance(func, str):
-                    utils.verbose(f"Preprocessing {func}", self.verbose)
+                    utils.verbose(f"Preprocessing {gb}{func}{end}", self.verbose)
                 elif isinstance(func, np.ndarray):
                     utils.verbose(
-                        f"Preprocessing array {run_id+1} in list", self.verbose)
+                        f"Preprocessing {gb}array {run_id+1}{end} in list", self.verbose)
 
                     # override use_bids. Can't be use with numpy arrays
                     self.use_bids = False
@@ -2296,9 +2397,9 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
                     matcher="func_file")
 
                 utils.verbose(
-                    f" Filtering strategy: '{self.filter_strategy}'", self.verbose)
+                    f" Filtering strategy: '{rb}{self.filter_strategy}{end}'", self.verbose)
                 utils.verbose(
-                    f" Standardization strategy: '{self.standardization}'", self.verbose)
+                    f" Standardization strategy: '{rb}{self.standardization}{end}'", self.verbose)
 
                 self.preprocess_func_file(
                     func,
@@ -2397,6 +2498,7 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
                 button=self.button,
                 verbose=self.verbose,
                 invoked_from_func=True,
+                save_as=self.save_as,
                 **kwargs
             )
 
@@ -2487,10 +2589,10 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
                 if self.baseline_units in ["seconds", "s", "sec"]:
                     baseline_vols_old = int(np.round(baseline*self.fs, 0))
                     utils.verbose(
-                        f" Baseline is {baseline} seconds, or {baseline_vols_old} TRs", self.verbose)
+                        f" Baseline is {rb}{baseline}{end} seconds, or {rb}{baseline_vols_old}{end} TRs", self.verbose)
                 else:
                     baseline_vols_old = baseline
-                    utils.verbose(f" Baseline is {baseline} TRs", self.verbose)
+                    utils.verbose(f" Baseline is {rb}{baseline}{end} TRs", self.verbose)
 
                 # correct for deleted samples
                 baseline_vols = baseline_vols_old-self.deleted_first_timepoints
@@ -2508,7 +2610,7 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
                                                       deleted_first_timepoints:]
 
             utils.verbose(
-                f" Cutting {deleted_first_timepoints} vols from beginning{txt} | {deleted_last_timepoints} vols from end",
+                f" Cutting {rb}{deleted_first_timepoints}{end} vols from beginning{txt} | {rb}{deleted_last_timepoints}{end} vols from end",
                 self.verbose)
             self.vox_cols = [f'vox {x}' for x in range(
                 self.ts_corrected.shape[0])]
@@ -2525,7 +2627,8 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
                 task=task,
                 run=run,
                 TR=self.TR,
-                set_index=True)
+                set_index=True
+            )
 
             # dataframe of unfiltered PSC-data
             self.data_psc = utils.percent_change(
@@ -2542,7 +2645,8 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
                 task=task,
                 run=run,
                 TR=self.TR,
-                set_index=True)
+                set_index=True
+            )
 
             # dataframe of unfiltered z-scored data
             self.data_zscore = (self.data_raw-self.data_raw.mean(axis=1,
@@ -2562,11 +2666,17 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
             if self.filter_strategy != "raw":
 
                 utils.verbose(
-                    f" DCT-high pass filter [removes low frequencies <{self.lb} Hz] to correct low-frequency drifts.",
+                    f" DCT-high pass filter [removes low frequencies <{rb}{self.lb}{end} Hz] to correct low-frequency drifts.",
                     self.verbose)
 
+                # highpass data
                 self.hp_raw, self._cosine_drift = preproc.highpass_dct(
-                    self.data_raw, lb=self.lb, TR=self.TR)
+                    self.data_raw,
+                    lb=self.lb,
+                    TR=self.TR
+                )
+
+                # index df
                 self.hp_raw_df = self.index_func(
                     self.hp_raw,
                     columns=self.vox_cols,
@@ -2574,15 +2684,20 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
                     task=task,
                     run=run,
                     TR=self.TR,
-                    set_index=True)
+                    set_index=True
+                )
 
                 # dataframe of high-passed PSC-data (set NaN to 0)
-                self.hp_psc = np.nan_to_num(utils.percent_change(
-                    self.hp_raw,
-                    1,
-                    baseline=baseline_vols,
-                    nilearn=self.psc_nilearn))
+                self.hp_psc = np.nan_to_num(
+                    utils.percent_change(
+                        self.hp_raw,
+                        1,
+                        baseline=baseline_vols,
+                        nilearn=self.psc_nilearn
+                    )
+                )
 
+                # index df
                 self.hp_psc_df = self.index_func(
                     self.hp_psc,
                     columns=self.vox_cols,
@@ -2590,11 +2705,14 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
                     run=run,
                     task=task,
                     TR=self.TR,
-                    set_index=True)
+                    set_index=True
+                )
 
                 # dataframe of high-passed z-scored data
                 self.hp_zscore = (self.hp_raw-self.hp_raw.mean(axis=1,
                                   keepdims=True))/self.hp_raw.std(axis=1, keepdims=True)
+                
+                # index df
                 self.hp_zscore_df = self.index_func(
                     self.hp_zscore,
                     columns=self.vox_cols,
@@ -2602,15 +2720,20 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
                     run=run,
                     TR=self.TR,
                     task=task,
-                    set_index=True)
+                    set_index=True
+                )
 
                 # save SD and Mean so we can go from zscore back to original
                 self.zscore_SD = self.hp_raw.std(axis=-1, keepdims=True)
                 self.zscore_M = self.hp_raw.mean(axis=-1, keepdims=True)
 
                 if self.ica:
-
-                    self.run_ica(task=task)
+                    
+                    # run ICA
+                    self.run_ica(
+                        task=task,
+                        save_as=self.save_as
+                    )
                     self.clean_tag = "ica"
                     self.clean_data = self.ica_obj.ica_data
 
@@ -2628,8 +2751,7 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
                     setattr(self, f"hp_{self.clean_tag}_df", self.tmp_df)
 
                     # multiply by SD and add mean
-                    self.tmp_raw = (self.clean_data *
-                                    self.zscore_SD) + self.zscore_M
+                    self.tmp_raw = (self.clean_data * self.zscore_SD) + self.zscore_M
                     setattr(self, f"hp_{self.clean_tag}_raw", self.tmp_raw)
 
                     self.tmp_raw_df = self.index_func(
@@ -2639,19 +2761,22 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
                         task=task,
                         run=run,
                         TR=self.TR,
-                        set_index=True)
+                        set_index=True
+                    )
 
                     setattr(self, f"hp_{self.clean_tag}_raw_df", self.tmp_raw)
 
                     # make percent signal
-                    self.hp_tmp_psc = np.nan_to_num(utils.percent_change(
-                        self.tmp_raw,
-                        1,
-                        baseline=baseline_vols,
-                        nilearn=self.psc_nilearn))
+                    self.hp_tmp_psc = np.nan_to_num(
+                        utils.percent_change(
+                            self.tmp_raw,
+                            1,
+                            baseline=baseline_vols,
+                            nilearn=self.psc_nilearn
+                        )
+                    )
 
                     setattr(self, f"hp_{self.clean_tag}_psc", self.hp_tmp_psc)
-
                     self.hp_tmp_psc_df = self.index_func(
                         self.hp_tmp_psc,
                         columns=self.vox_cols,
@@ -2659,10 +2784,10 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
                         task=task,
                         run=run,
                         TR=self.TR,
-                        set_index=True)
+                        set_index=True
+                    )
 
-                    setattr(
-                        self, f"hp_{self.clean_tag}_psc_df", self.hp_tmp_psc_df)
+                    setattr(self, f"hp_{self.clean_tag}_psc_df", self.hp_tmp_psc_df)
 
                 # --------------------------------------------------------------------------------
                 # LOW PASS FILTER
@@ -2690,11 +2815,14 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
 
                     utils.verbose(info, self.verbose)
                     utils.verbose(
-                        f" Savitsky-Golay low-pass filter [removes high freqs] (w={self.window_size}, o={self.poly_order})",
+                        f" Savitsky-Golay low-pass filter [removes high freqs] (w={rb}{self.window_size}{end}, o={rb}{self.poly_order}{end})",
                         self.verbose)
 
                     tmp_filtered = preproc.lowpass_savgol(
-                        data_for_filtering, window_length=self.window_size, polyorder=self.poly_order)
+                        data_for_filtering,
+                        window_length=self.window_size,
+                        polyorder=self.poly_order
+                    )
 
                     tmp_filtered_df = self.index_func(
                         tmp_filtered,
@@ -2703,7 +2831,8 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
                         task=task,
                         run=run,
                         TR=self.TR,
-                        set_index=True)
+                        set_index=True
+                    )
 
                     setattr(self, out_attr, tmp_filtered.copy())
                     setattr(self, f'{out_attr}_df', tmp_filtered_df.copy())
@@ -2715,6 +2844,8 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
             self.basic_qa(
                 self.ts_corrected,
                 run=run,
+                save_as=self.save_as,
+                make_figure=self.report
             )
 
     def to_nifti(self, func, fname=None):
@@ -2729,9 +2860,15 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
         else:
             return niimg
 
-    def run_ica(self, task=None, save_as=None):
+    def run_ica(
+        self,
+        task=None,
+        save_as=None
+        ):
+        
         utils.verbose(
-            f" Running FastICA with {self.n_components} components", self.verbose)
+            f" Running FastICA with {rb}{self.n_components}{end} components", self.verbose)
+
         self.ica_obj = preproc.ICA(
             self.hp_zscore_df,
             subject=f"sub-{self.sub}",
@@ -2744,13 +2881,21 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
             keep_comps=self.keep_comps,
             verbose=self.verbose,
             zoom_freq=True,
-            ribbon=tuple(self.gm_range)
+            ribbon=tuple(self.gm_range),
+            save_as=save_as,
+            summary_plot=self.report
         )
 
         # regress
         self.ica_obj.regress()
 
-    def basic_qa(self, data, run=1, make_figure=False):
+    def basic_qa(
+        self,
+        data,
+        run=1,
+        make_figure=False,
+        save_as=None
+        ):
 
         # tsnr
         tsnr_pre = utils.calculate_tsnr(data, -1)
@@ -2781,7 +2926,7 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
                 info = f"before '{self.clean_tag}'"
 
             utils.verbose(
-                f" tSNR [{info}]: {round(mean_tsnr_pre,2)}\t| variance: {round(mean_var_pre,2)}", self.verbose)
+                f" tSNR [{info}]: {rb}{round(mean_tsnr_pre,2)}{end}\t| variance: {rb}{round(mean_var_pre,2)}{end}", self.verbose)
 
         if self.clean_tag in ["ica"]:
 
@@ -2814,7 +2959,7 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
             }
 
             utils.verbose(
-                f" tSNR [after '{self.clean_tag}']:  {round(mean_tsnr_post,2)}\t| variance: {round(mean_var_post,2)}",
+                f" tSNR [after '{self.clean_tag}']:  {rb}{round(mean_tsnr_post,2)}{end}\t| variance: {rb}{round(mean_var_post,2)}{end}",
                 self.verbose)
 
         if make_figure:
@@ -2868,6 +3013,18 @@ class ParseFuncFile(ParseExpToolsFile, ParsePhysioFile):
                 x_ticks=vox_ticks,
                 line_width=2
             )
+
+            plt.close(fig)
+            if self.report:
+                if save_as is None:
+                    save_as = opj(os.getcwd(), "figures")
+                    if not os.path.exists(save_as):
+                        os.makedirs(save_as, exist_ok=True)
+                
+                # save
+                fname = opj(save_as, f"{self.base_name}_run-{run}_desc-qa.{self.save_ext}")
+                utils.verbose(f" Writing {bm}{fname}{end}", self.verbose)
+                fig.savefig(fname, bbox_inches='tight', dpi=300)
 
     def get_data(
         self,
@@ -2996,10 +3153,11 @@ class Dataset(ParseFuncFile, SetAttributes):
     """
 
     def __init__(
-            self,
-            func_file,
-            verbose=False,
-            **kwargs):
+        self,
+        func_file,
+        verbose=False,
+        **kwargs
+        ):
 
         self.verbose = verbose
         utils.verbose("DATASET", self.verbose)
@@ -3018,7 +3176,8 @@ class Dataset(ParseFuncFile, SetAttributes):
                 self,
                 func_file,
                 verbose=self.verbose,
-                **kwargs)
+                **kwargs
+            )
 
         utils.verbose("\nDATASET: created", self.verbose)
 
@@ -3050,7 +3209,7 @@ class Dataset(ParseFuncFile, SetAttributes):
         if hasattr(self, attr):
 
             utils.verbose(
-                f"Fetching dataframe from attribute '{attr}'", self.verbose)
+                f"Fetching dataframe from attribute '{rb}{attr}{end}'", self.verbose)
 
             df = getattr(self, attr)
             if strip_index:
@@ -3130,7 +3289,7 @@ class Dataset(ParseFuncFile, SetAttributes):
         if not os.path.exists(self.h5_file):
             raise FileNotFoundError(f"Could not find file: '{self.h5_file}'")
 
-        utils.verbose(f"Reading from {self.h5_file}", self.verbose)
+        utils.verbose(f"Reading from {gb}{self.h5_file}{end}", self.verbose)
         hdf_store = pd.HDFStore(self.h5_file)
         hdf_keys = hdf_store.keys()
         for key in hdf_keys:
@@ -3138,7 +3297,7 @@ class Dataset(ParseFuncFile, SetAttributes):
 
             try:
                 setattr(self, key, hdf_store.get(key))
-                utils.verbose(f" Set attribute: {key}", self.verbose)
+                utils.verbose(f" Set attribute: {rb}{key}{end}", self.verbose)
             except Exception:
                 utils.verbose(
                     f" Could not set attribute '{key}'", self.verbose)
@@ -3152,16 +3311,16 @@ class Dataset(ParseFuncFile, SetAttributes):
     ):
 
         # make the directory
-        if not os.path.exists(os.path.dirname(self.h5_file)):
-            os.makedirs(os.path.dirname(self.h5_file))
+        if not os.path.exists(os.path.dirname(h5_file)):
+            os.makedirs(os.path.dirname(h5_file))
 
         if overwrite:
-            if os.path.exists(self.h5_file):
-                store = pd.HDFStore(self.h5_file)
+            if os.path.exists(h5_file):
+                store = pd.HDFStore(h5_file)
                 store.close()
-                os.remove(self.h5_file)
+                os.remove(h5_file)
 
-        utils.verbose(f"Saving to {self.h5_file}", self.verbose)
+        utils.verbose(f"Saving to {mb}{h5_file}{end}", self.verbose)
         for attr in self.all_attributes:
             if hasattr(self, attr):
 
@@ -3169,17 +3328,21 @@ class Dataset(ParseFuncFile, SetAttributes):
                 # try regular storing
                 if isinstance(add_df, pd.DataFrame):
                     try:
-                        add_df.to_hdf(self.h5_file, key=attr,
-                                      append=True, mode='a', format='t')
-                        utils.verbose(
-                            f" Stored attribute: {attr}", self.verbose)
+                        add_df.to_hdf(
+                            h5_file,
+                            key=attr,
+                            append=True,
+                            mode='a',
+                            format='t'
+                        )
+
+                        utils.verbose(f" Stored attribute: {gb}{attr}{end}", self.verbose)
                     except Exception:
                         # send error message
-                        utils.verbose(
-                            f" Could not store attribute '{attr}'", self.verbose)
+                        utils.verbose(f" Could not store attribute '{attr}'", self.verbose)
 
         # define json file
-        self.json_file = self.h5_file.split(".")[0]+".json"
+        self.json_file = h5_file.split(".")[0]+".json"
         if os.path.exists(self.json_file):
             os.remove(self.json_file)
 
@@ -3192,7 +3355,7 @@ class Dataset(ParseFuncFile, SetAttributes):
 
         utils.verbose("Done", self.verbose)
 
-        store = pd.HDFStore(self.h5_file)
+        store = pd.HDFStore(h5_file)
         store.close()
 
     def to4D(self, fname=None, desc=None, dtype=None, mask=None):
@@ -3224,7 +3387,7 @@ class Dataset(ParseFuncFile, SetAttributes):
                 else:
                     ref_img = self.func_file[file_counter]
 
-                utils.verbose(f"Ref img = {ref_img}", self.verbose)
+                utils.verbose(f"Ref img = {gb}{ref_img}{end}", self.verbose)
                 if isinstance(ref_img, nb.Nifti1Image):
                     ref_img = ref_img
                 elif isinstance(ref_img, str):
@@ -3242,19 +3405,19 @@ class Dataset(ParseFuncFile, SetAttributes):
                 aff = ref_img.affine
                 hdr = ref_img.header
 
-                utils.verbose(f"Ref shape = {dims}", self.verbose)
+                utils.verbose(f"Ref shape = {rb}{dims}{end}", self.verbose)
                 data_per_run = data_per_run.values
                 # time is initially first axis, so transpose
                 if data_per_run.shape[-1] != dims[-1]:
                     utils.verbose(
-                        f"Data shape = {data_per_run.shape}; transposing..", self.verbose)
+                        f"Data shape = {rb}{data_per_run.shape}{end}; transposing..", self.verbose)
                     data_per_run = data_per_run.T
                 else:
                     utils.verbose(
-                        f"Data shape = {data_per_run.shape}; all good..", self.verbose)
+                        f"Data shape = {rb}{data_per_run.shape}{end}; all good..", self.verbose)
 
                 utils.verbose(
-                    f"Final shape = {data_per_run.shape}", self.verbose)
+                    f"Final shape = {rb}{data_per_run.shape}{end}", self.verbose)
 
                 # check if we have mask
                 if isinstance(mask, nb.Nifti1Image) or isinstance(mask, str) or isinstance(mask, list):
@@ -3308,7 +3471,7 @@ class Dataset(ParseFuncFile, SetAttributes):
                     else:
                         fname = f"{fname}_run-{run}.nii.gz"
 
-                utils.verbose(f"Writing {fname}", self.verbose)
+                utils.verbose(f"Writing {gb}{fname}{end}", self.verbose)
                 nb.Nifti1Image(data_per_run, affine=aff,
                                header=hdr).to_filename(fname)
 
@@ -3414,11 +3577,11 @@ class ParseGiftiFile():
             return None
 
     def write_file(
-            self,
-            filename,
-            tr=None,
-            *gii_args,
-            **gii_kwargs):
+        self,
+        filename,
+        tr=None,
+        **kwargs
+        ):
 
         metadata = None
         if not isinstance(tr, (int, float)):
@@ -3433,8 +3596,8 @@ class ParseGiftiFile():
         darray = nb.gifti.GiftiDataArray(
             self.data,
             meta=metadata,
-            *gii_args,
-            **gii_kwargs)
+            **kwargs
+        )
 
         # store in new gifti image object
         gifti_image = nb.GiftiImage()

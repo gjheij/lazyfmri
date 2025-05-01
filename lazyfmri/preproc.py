@@ -21,6 +21,10 @@ opj = os.path.join
 # disable warning thrown by string2float
 pd.options.mode.chained_assignment = None
 
+rb = f"{utils.color.RED}{utils.color.BOLD}"
+bm = f"{utils.color.MAGENTA}{utils.color.BOLD}"
+end = utils.color.END
+
 class RegressOut():
 
     def __init__(self, data, regressors, **kwargs):
@@ -181,7 +185,7 @@ def lowpass_savgol(
         raise ValueError(f"Window-length must be uneven; not {window_length}")
 
     utils.verbose(
-        f"Window_length = {window_length} | poly order = {polyorder}", verbose)
+        f"Window_length = {rb}{window_length}{end} | poly order = {rb}{polyorder}{end}", verbose)
     return signal.savgol_filter(
         func,
         window_length,
@@ -351,24 +355,25 @@ class ICA():
     """
 
     def __init__(
-            self,
-            data: Union[pd.DataFrame, np.ndarray],
-            subject: str = None,
-            ses: int = None,
-            task: str = None,
-            n_components: int = 10,
-            filter_confs: float = 0.02,
-            keep_comps: Union[int, list, tuple] = [0, 1],
-            verbose: bool = False,
-            TR: float = 0.105,
-            save_as: str = None,
-            session: int = 1,
-            run: int = 1,
-            summary_plot: bool = False,
-            melodic_plot: bool = False,
-            ribbon: Union[list, tuple] = None,
-            save_ext: str = "svg",
-            **kwargs):
+        self,
+        data: Union[pd.DataFrame, np.ndarray],
+        subject: str = None,
+        ses: int = None,
+        task: str = None,
+        n_components: int = 10,
+        filter_confs: float = 0.02,
+        keep_comps: Union[int, list, tuple] = [0, 1],
+        verbose: bool = False,
+        TR: float = 0.105,
+        save_as: str = None,
+        session: int = 1,
+        run: int = 1,
+        summary_plot: bool = False,
+        melodic_plot: bool = False,
+        ribbon: Union[list, tuple] = None,
+        save_ext: str = "svg",
+        **kwargs
+        ):
 
         self.subject = subject
         self.ses = ses
@@ -408,7 +413,7 @@ class ICA():
 
         if self.filter_confs is not None:
             utils.verbose(
-                f" DCT high-pass filter on components [removes low frequencies <{self.filter_confs} Hz]", self.verbose)
+                f" DCT high-pass filter on components [removes low frequencies <{rb}{self.filter_confs}{end} Hz]", self.verbose)
 
             if self.S_.ndim >= 2:
                 self.S_filt, _ = highpass_dct(
@@ -437,7 +442,7 @@ class ICA():
                     ({self.S_.shape[-1]})""")
 
             utils.verbose(
-                f" Keeping components: {self.keep_comps}", self.verbose)
+                f" Keeping components: {rb}{self.keep_comps}{end}", self.verbose)
 
             if self.filter_confs is not None:
                 use_data = self.S_filt.copy()
@@ -454,12 +459,15 @@ class ICA():
 
             # this is pretty hard core: regress out all high-passed components
             utils.verbose(
-                f" Regressing out all high-passed components [>{self.filter_confs} Hz]", self.verbose)
+                f" Regressing out all high-passed components [>{rb}{self.filter_confs}{end} Hz]", self.verbose)
             self.confounds = self.S_filt.copy()
 
         # outputs (timepoints, voxels) array (RegressOut is also usable, but this is easier in linescanning.dataset.Dataset)
         self.ica_data = clean(
-            self.data.values, standardize=False, confounds=self.confounds).T
+            self.data.values,
+            standardize=False,
+            confounds=self.confounds
+        ).T
 
         # make summary plot of aCompCor effect
         if self.summary_plot:
@@ -484,7 +492,11 @@ class ICA():
 
             # freq
             tc = self.S_[:, ii]
-            tc_freq = get_freq(tc, TR=self.TR, spectrum_type='fft')
+            tc_freq = get_freq(
+                tc,
+                TR=self.TR,
+                spectrum_type='fft'
+            )
 
             # append
             self.freqs.append(tc_freq)
@@ -505,12 +517,16 @@ class ICA():
             axs=ax1,
             x_lim=[0, 1.5],
             add_vline=add_vline,
-            line_width=self.line_width)
+            line_width=self.line_width
+        )
 
         # plot power spectra from non-aCompCor'ed vs aCompCor'ed data
         if isinstance(self.gm_voxels, (tuple, list)):
             tc1 = utils.select_from_df(
-                self.data, expression='ribbon', indices=self.gm_voxels).mean(axis=1).values
+                self.data,
+                expression='ribbon',
+                indices=self.gm_voxels
+            ).mean(axis=1).values
             tc2 = self.ica_data[self.gm_voxels, :].mean(axis=0)
             txt = "GM-voxels"
         else:
@@ -533,7 +549,8 @@ class ICA():
             axs=ax2,
             line_width=2,
             x_lim=[0, 1.5],
-            **kwargs)
+            **kwargs
+        )
 
         x_axis = np.array(list(np.arange(0, tc1.shape[0])*self.TR))
         ax3 = fig.add_subplot(gs[2])
@@ -548,7 +565,8 @@ class ICA():
             axs=ax3,
             line_width=2,
             x_lim=[0, x_axis[-1]],
-            **kwargs)
+            **kwargs
+        )
 
         if self.save_as is not None:
             self.base_name = self.subject
@@ -560,21 +578,23 @@ class ICA():
 
             fname = opj(
                 self.save_as, f"{self.base_name}_run-{self.run}_desc-ica.{self.save_ext}")
-            utils.verbose(f" Writing {fname}", self.verbose)
+            utils.verbose(f" Writing {bm}{fname}{end}", self.verbose)
             fig.savefig(
                 fname,
                 bbox_inches="tight",
                 dpi=300,
-                facecolor="white")
+                facecolor="white"
+            )
 
     def melodic(
-            self,
-            color: Union[str, tuple] = "#6495ED",
-            zoom_freq: bool = False,
-            task_freq: float = 0.05,
-            zoom_lim: list = [0, 0.5],
-            plot_comps: int = 10,
-            **kwargs):
+        self,
+        color: Union[str, tuple] = "#6495ED",
+        zoom_freq: bool = False,
+        task_freq: float = 0.05,
+        zoom_lim: list = [0, 0.5],
+        plot_comps: int = 10,
+        **kwargs
+        ):
         """melodic
 
         Plot information about the components from the ICA. For each component until ``plot_comps``, plot the 2D spatial
@@ -622,11 +642,21 @@ class ICA():
 
             # make subfigure for each component
             if zoom_freq:
-                axs = subfigs[comp].subplots(ncols=4, gridspec_kw={'width_ratios': [
-                                             0.3, 1, 0.3, 0.2], "wspace": 0.3})
+                axs = subfigs[comp].subplots(
+                    ncols=4,
+                    gridspec_kw={
+                        'width_ratios': [0.3, 1, 0.3, 0.2],
+                        "wspace": 0.3
+                    }
+                )
             else:
                 axs = subfigs[comp].subplots(
-                    ncols=3, gridspec_kw={'width_ratios': [0.3, 1, 0.3], 'wspace': 0.2})
+                    ncols=3,
+                    gridspec_kw={
+                        'width_ratios': [0.3, 1, 0.3],
+                        'wspace': 0.2
+                    }
+                )
 
             # axis for spatial profile
             ax_spatial = axs[0]
@@ -642,7 +672,8 @@ class ICA():
                 line_width=2,
                 add_hline=0,
                 x_ticks=vox_ticks,
-                **kwargs)
+                **kwargs
+            )
 
             # axis for timecourse of component
             ax_tc = axs[1]
@@ -660,13 +691,18 @@ class ICA():
                 line_width=2,
                 x_lim=[0, x_axis[-1]],
                 add_hline=0,
-                **kwargs)
+                **kwargs
+            )
 
             # axis for power spectra of component
             ax_freq = axs[2]
 
             # get frequency/power
-            freq = get_freq(tc, TR=self.TR, spectrum_type="fft")
+            freq = get_freq(
+                tc,
+                TR=self.TR,
+                spectrum_type="fft"
+            )
 
             plotting.LazyLine(
                 freq[1],
@@ -703,8 +739,11 @@ class ICA():
             subfigs[comp].suptitle(
                 f"component {comp+1}", fontsize=self.defaults.font_size*1.4, y=1.02)
 
-        fig.suptitle("Independent component analysis (ICA)",
-                     fontsize=self.defaults.font_size*1.8, y=1.02)
+        fig.suptitle(
+            "Independent component analysis (ICA)",
+            fontsize=self.defaults.font_size*1.8,
+            y=1.02
+        )
 
         plt.tight_layout()
 
@@ -718,12 +757,14 @@ class ICA():
 
             fname = opj(
                 self.save_as, f"{self.base_name}_run-{self.run}_desc-melodic.{self.save_ext}")
-            utils.verbose(f" Writing {fname}", self.verbose)
+            
+            utils.verbose(f" Writing {bm}{fname}{end}", self.verbose)
             fig.savefig(
                 fname,
                 bbox_inches="tight",
                 dpi=300,
-                facecolor="white")
+                facecolor="white"
+            )
 
 class DataFilter:
     """DataFilter
@@ -911,7 +952,15 @@ class DataFilter:
         )
 
     @classmethod
-    def single_filter(cls, func, filter_strategy="hp", hp_kw={}, lp_kw={}, **kwargs):
+    def single_filter(
+        cls,
+        func,
+        filter_strategy="hp",
+        hp_kw={},
+        lp_kw={},
+        **kwargs
+        ):
+
         """Apply a single filtering step
 
         Performs high-pass or low-pass filtering on the input data.
@@ -1899,7 +1948,7 @@ class EventRegression(fitting.InitFitter):
                 raise ValueError("Please specify basename for figure filename")
 
             fname = opj(fig_dir, f"{basename}_desc-modelfit.{ext}")
-            utils.verbose(f" Writing {fname}", True)
+            utils.verbose(f" Writing {bm}{fname}{end}", True)
             fig.savefig(
                 fname,
                 bbox_inches="tight",
@@ -1998,7 +2047,7 @@ class EventRegression(fitting.InitFitter):
                 raise ValueError("Please specify basename for figure filename")
 
             fname = opj(fig_dir, f"{basename}_desc-regression.{ext}")
-            utils.verbose(f" Writing {fname}", True)
+            utils.verbose(f" Writing {bm}{fname}{end}", True)
             fig.savefig(
                 fname,
                 bbox_inches="tight",
