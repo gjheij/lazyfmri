@@ -233,7 +233,7 @@ class ParseEyetrackerFile(SetAttributes):
 
     def define_hdf_file(self):
         # get basename
-        self.get_bids_info(self.edfs[0], 0)
+        self.get_bids_info(self.edf_file[0], 0)
         self.base_name = self.get_base_name(
             subID=self.sub,
             sesID=self.ses
@@ -244,7 +244,7 @@ class ParseEyetrackerFile(SetAttributes):
             if self.save_as is not None:
                 self.eye_h5 = opj(self.save_as, f"{self.base_name}_desc-preproc_eye.h5")
             else:
-                self.eye_h5 = opj(os.path.dirname(self.edfs[0]), "eye.h5")
+                self.eye_h5 = opj(os.path.dirname(self.edf_file[0]), "eye.h5")
 
         # check if we should overwrite
         if self.overwrite:
@@ -258,7 +258,7 @@ class ParseEyetrackerFile(SetAttributes):
     def write_edf_to_hdf(self):
 
         if not os.path.exists(self.eye_h5):
-            for i, edf_file in enumerate(self.edfs):
+            for i, edf_file in enumerate(self.edf_file):
 
                 if not os.path.exists(edf_file):
                     raise FileNotFoundError(
@@ -394,7 +394,7 @@ class ParseEyetrackerFile(SetAttributes):
         for attr in self.eye_attributes:
             setattr(self, attr, [])
 
-        for i, edf_file in enumerate(self.edfs):
+        for i, edf_file in enumerate(self.edf_file):
 
             utils.verbose(f"Preprocessing {gb}{edf_file}{end}", self.verbose)
             self.get_bids_info(edf_file, i)
