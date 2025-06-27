@@ -3320,7 +3320,7 @@ class Dataset(ParseFuncFile, SetAttributes):
                 store.close()
                 os.remove(h5_file)
 
-        utils.verbose(f"Saving to {mb}{h5_file}{end}", self.verbose)
+        utils.verbose(f"Saving to {bm}{h5_file}{end}", self.verbose)
         for attr in self.all_attributes:
             if hasattr(self, attr):
 
