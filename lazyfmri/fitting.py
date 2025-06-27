@@ -4,6 +4,7 @@ from . import (
     plotting,
 )
 import lmfit
+import warnings
 import numpy as np
 import pandas as pd
 import nideconv as nd
@@ -16,7 +17,6 @@ import matplotlib.pyplot as plt
 from scipy.optimize import minimize
 from joblib import Parallel, delayed
 from alive_progress import alive_bar
-
 
 class CurveFitter():
     """CurveFitter
@@ -967,6 +967,12 @@ class InitFitter():
             "onset_time",
             "positive_area",
             "undershoot",
+            "auc_simple_pos",
+            "auc_simple_neg",
+            "auc_simple_total",
+            "auc_simple_pos_norm",
+            "auc_simple_neg_norm", 
+            "auc_simple_total_norm",
             '1st_deriv_magnitude',
             '1st_deriv_time_to_peak',
             '2nd_deriv_magnitude',
@@ -996,7 +1002,6 @@ class InitFitter():
 
     def parameters_for_tc_subjects(
         self,
-        *args,
         **kwargs
         ):
 
@@ -1034,7 +1039,8 @@ class InitFitter():
 
         utils.verbose(
             f"Deriving parameters from {self} with 'HRFMetrics'",
-            self.verbose)
+            self.verbose
+        )
         subj_ids = utils.get_unique_ids(self.tc_subjects, id="subject")
 
         subjs = []
@@ -1065,7 +1071,6 @@ class InitFitter():
                     pars = HRFMetrics(
                         run_df,
                         TR=self.TR,
-                        *args,
                         **kwargs
                     ).return_metrics()
 
@@ -1073,12 +1078,16 @@ class InitFitter():
                     runs.append(pars)
 
                 # also get parameters of average across runs
-                avg_df = ev_df.groupby(
-                    ["subject", "event_type", "time"]).mean()
+                idx = ["subject", "event_type"]
+                if "time" in list(ev_df.index.names):
+                    idx += ["time"]
+                else:
+                    idx += ["t"]
+
+                avg_df = ev_df.groupby(idx).mean()
                 avg_pars = HRFMetrics(
                     avg_df,
                     TR=self.TR,
-                    *args,
                     **kwargs
                 ).return_metrics()
 
@@ -1112,6 +1121,58 @@ class InitFitter():
 
         self.pars_subjects = df_conc.set_index(idx)
         self.avg_pars_subjects = df_avg.set_index(avg_idx)
+
+    def parameters_for_epochs(
+        self,
+        df=None,
+        **kwargs
+        ):
+
+        if not isinstance(df, pd.DataFrame):
+            raise ValueError(f"Please specify an input dataframe")
+        
+        epoch_ids = utils.get_unique_ids(df, id="epoch")
+        self.tmp_pars_subjects = []
+        self.tmp_avg_pars_subjects = []
+        for i in epoch_ids:
+            epoch_df = utils.select_from_df(
+                df,
+                expression=f"epoch = {i}"
+            ).groupby(
+                ["subject", "run", "event_type", "t"]
+            ).mean()
+
+            self.tc_subjects = epoch_df.copy()
+            self.parameters_for_tc_subjects(**kwargs)
+            
+            # format (add epoch ID)
+            self.tmp_pars_subjects.append(self.format_epoch_pars(self.pars_subjects.copy(), ix=i))
+            self.tmp_avg_pars_subjects.append(self.format_epoch_pars(self.avg_pars_subjects.copy(), ix=i))
+
+        self.pars_subjects = pd.concat(self.tmp_pars_subjects)
+        self.avg_pars_subjects = pd.concat(self.tmp_avg_pars_subjects)
+    
+    def format_epoch_pars(
+        self,
+        pars_df,
+        ix=1,
+        idx=["subject", "event_type", "run", "vox"]
+        ):
+        
+        idx = list(pars_df.index.names)
+        try:
+            pars_df.reset_index(inplace=True)
+        except:
+            pass
+
+        if "index" in list(pars_df.columns):
+            pars_df.drop(["index"], axis=1, inplace=True)
+
+        pars_df["epoch"] = ix
+        idx.insert(-1, "epoch")
+        pars_df.set_index(idx, inplace=True)
+
+        return pars_df
 
     def parameters_for_tc_condition(
         self,
@@ -4137,12 +4198,9 @@ class HRFMetrics():
         TR: float = None,
         force_pos: Union[list, bool] = False,
         force_neg: Union[list, bool] = False,
-        plot: bool = False,
-        nan_policy: bool = True,
         debug: bool = False,
         progress: bool = False,
         thr_var: Union[int, float] = 0,
-        shift: Union[int, float] = 0,
         vox_as_index: bool = False,
         col_name: str = "vox",
         incl: Union[str, list] = [
@@ -4157,12 +4215,18 @@ class HRFMetrics():
             "onset_time",
             "positive_area",
             "undershoot",
+            "auc_simple_pos",
+            "auc_simple_neg",
+            "auc_simple_total",
+            "auc_simple_pos_norm",
+            "auc_simple_neg_norm",
+            "auc_simple_total_norm",            
             "1st_deriv_magnitude",
             "1st_deriv_time_to_peak",
             "2nd_deriv_magnitude",
             "2nd_deriv_time_to_peak",
         ],
-        peak=None
+        **kwargs
         ):
 
         """_get_metrics
@@ -4234,7 +4298,9 @@ class HRFMetrics():
         cols = list(filtered_df.columns)
         utils.verbose(
             f" {filtered_df.shape[1]}/{hrf.shape[1]}\tvertices survived variance threshold of {thr_var}",
-            debug)
+            debug
+        )
+
         if len(cols) == 0:
             raise ValueError(
                 f"Variance threshold of {thr_var} is too strict; no vertices survived")
@@ -4263,10 +4329,7 @@ class HRFMetrics():
                         TR=TR,
                         force_pos=force_pos[ix],
                         force_neg=force_neg[ix],
-                        plot=plot,
-                        nan_policy=nan_policy,
-                        shift=shift,
-                        peak=peak
+                        **kwargs
                     )
 
                     # progress
@@ -4276,15 +4339,13 @@ class HRFMetrics():
                     col_fwhm.append(fwhm_)
         else:
             for ix, col in enumerate(filtered_df):
+
                 pars, fwhm_, final_hrf = self._get_single_hrf_metrics(
                     filtered_df[col],
                     TR=TR,
                     force_pos=force_pos[ix],
                     force_neg=force_neg[ix],
-                    plot=plot,
-                    nan_policy=nan_policy,
-                    shift=shift,
-                    peak=peak
+                    **kwargs
                 )
 
                 col_metrics.append(pars)
@@ -4294,7 +4355,9 @@ class HRFMetrics():
             col_metrics = pd.concat(col_metrics)
 
         # insert into empty dataframe
-        metrics.iloc[filtered_variance, :] = col_metrics.values.copy()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            metrics.iloc[filtered_variance, :] = col_metrics.values.copy()
 
         if len(orig_cols) > 1:
             if vox_as_index:
@@ -4414,16 +4477,17 @@ class HRFMetrics():
                 hrf -= bsl
             elif bsl < 0:
                 hrf += abs(bsl)
-
         return hrf
 
     @classmethod
     def plot_profile_for_debugging(
-            self,
-            hrf,
-            axs=None,
-            figsize=(5, 5),
-            **kwargs):
+        self,
+        hrf,
+        extra=[],
+        axs=None,
+        figsize=(5, 5),
+        peaks=None,
+        **kwargs):
 
         """plot_profile_for_debugging
 
@@ -4451,16 +4515,73 @@ class HRFMetrics():
             _, axs = plt.subplots(figsize=figsize)
 
         time, time_col = self._get_time(hrf)
-        plotting.LazyLine(
-            hrf.values.squeeze(),
-            xx=list(time),
-            x_label="time (s)",
-            y_label="magnitude",
-            axs=axs,
-            color="r",
-            line_width=2,
+
+        kwargs = utils.update_kwargs(
+            kwargs,
+            "title",
+            {
+                "title": list(hrf.columns)[0],
+                "fontweight": "bold"
+            }
+        )
+        
+        if len(extra)>0:
+            data = [
+                hrf.values.squeeze()
+            ] + extra
+
+            colors = ["r"]+sns.color_palette("viridis", len(extra))
+            line_width = [3]+[1 for i in extra]
+        else:
+            data = hrf.values.squeeze()
+            colors = "r"
+            line_width = 3
+
+        hmin, hmax = hrf.values.squeeze().min(), hrf.values.squeeze().max()
+        
+        y_lim = [
+            hmin-abs(hmin*0.5),
+            hmax*10
+        ]
+
+        kk = {
+            "line_width": line_width,
+            "color": colors,
+            "xx": list(time),
+            "x_label": "time (s)",
+            "y_label": "magnitude",
+            "axs": axs,
+            "add_hline": 0,
+            # "y_lim": y_lim
+        }
+
+        for k, v in kk.items():
+            kwargs = utils.update_kwargs(
+                kwargs,
+                k,
+                v
+            )
+
+        pl = plotting.LazyLine(
+            data,
             **kwargs
         )
+        
+        if isinstance(peaks, (list, float)):
+            peaks = [int(i) for i in peaks]
+            if isinstance(pl.xx, list):
+                t_ax = np.array(pl.xx)
+            else:
+                t_ax = pl.xx.copy()
+
+            pl.axs.plot(
+                t_ax[peaks],
+                hrf.values.squeeze()[peaks],
+                'kx'
+            )
+
+        return pl
+            
 
     @classmethod
     def _get_riseslope(
@@ -4469,7 +4590,11 @@ class HRFMetrics():
         force_pos=False,
         force_neg=False,
         nan_policy=False,
-        peak=None
+        peak=None,
+        resample_to_shape=500,
+        t_start=0,
+        max_scaler=0.05,
+        noise_scaler=1        
         ):
 
         """_get_riseslope
@@ -4511,7 +4636,11 @@ class HRFMetrics():
             hrf,
             force_pos=force_pos,
             force_neg=force_neg,
-            peak=peak
+            peak=peak,
+            resample_to_shape=resample_to_shape,
+            t_start=t_start,
+            max_scaler=max_scaler,
+            noise_scaler=noise_scaler            
         )
 
         negative = False
@@ -4519,8 +4648,7 @@ class HRFMetrics():
             negative = True
 
         # limit search to where index of highest amplitude
-        diff = np.diff(hrf.values.squeeze()[
-                       :mag["t_ix"]]) / np.diff(time[:mag["t_ix"]])
+        diff = np.diff(hrf.values.squeeze()[:mag["t_ix"]]) / np.diff(time[:mag["t_ix"]])
 
         # find minimum/maximum depending on whether HRF is negative or not
         try:
@@ -4538,13 +4666,40 @@ class HRFMetrics():
 
         except Exception as e:  # noqa: F821
             if not nan_policy:
-                self.plot_profile_for_debugging(hrf)
+                pl = self.plot_profile_for_debugging(hrf)
                 raise ValueError(f"Could not extract rise-slope from this profile: {e}")  # noqa: F821
             else:
                 val_t = final_val = np.nan
 
         return final_val, val_t, np.nan
 
+    @classmethod
+    def _resample(
+        self,
+        hrf,
+        resample_to_shape=500
+        ):
+
+        time, time_col = self._get_time(hrf)
+        time_rs = np.linspace(
+            time[0],
+            time[-1],
+            resample_to_shape
+        )
+
+        hrf_rs = pd.DataFrame(
+            glm.resample_stim_vector(
+                hrf.values,
+                resample_to_shape,
+                interpolate="linear"
+            ).squeeze(),
+            columns=hrf.columns
+        )
+        hrf_rs[time_col] = time_rs
+        hrf_rs.set_index([time_col], inplace=True)
+
+        return time_rs, hrf_rs
+    
     @classmethod
     def _get_riseslope_siero(
         self,
@@ -4553,8 +4708,14 @@ class HRFMetrics():
         force_neg=False,
         nan_policy=False,
         window=[0.2, 0.8],
+        t_start=0,
+        resample_to_shape=500,
         reference="mag",
-        peak=None
+        peak=None,
+        max_scaler=0.05,
+        noise_scaler=1,
+        verify_slope=False,
+        **kwargs
         ):
 
         """_get_riseslope_siero
@@ -4595,16 +4756,34 @@ class HRFMetrics():
         """
 
         # fetch time stamps
+        # hrf = glm.resample_stim_vector(hrf, resample_to_shape)
         time, time_col = self._get_time(hrf)
+
+        # resample
+        time_rs, hrf_rs = self._resample(
+            hrf,
+            resample_to_shape=resample_to_shape
+        )
+
+        # correct for 0
+        time_corr, hrf_corr = self._correct_t0(
+            hrf_rs,
+            t_start=t_start
+        )
+
+        # find index where t=0
+        t0_idx = utils.find_nearest(time_rs, t_start)[0]
 
         # find slope based on fwhm
         if reference not in ["magnitude", "mag"]:
             fwhm_obj = self._get_fwhm(
-                hrf,
+                hrf_rs,
                 force_pos=force_pos,
                 force_neg=force_neg,
                 nan_policy=nan_policy,
-                peak=peak
+                peak=peak,
+                max_scaler=max_scaler,
+                noise_scaler=noise_scaler
             )
 
             # get interval around fwhm
@@ -4625,88 +4804,131 @@ class HRFMetrics():
                 hrf,
                 force_pos=force_pos,
                 force_neg=force_neg,
-                peak=peak
+                peak=peak,
+                resample_to_shape=resample_to_shape,
+                t_start=t_start,
+                max_scaler=max_scaler,
+                noise_scaler=noise_scaler                
             )
 
-            negative = False
-            if mag["amplitude"] < 0:
-                negative = True
-                ffunc = np.amin
-            else:
-                ffunc = np.amax
-
-            rf = hrf.values.squeeze()
             mag_ix = mag["t_ix"]
-            idcs = sorted(
-                [utils.find_nearest(rf[:mag_ix], ffunc(rf) * i)[0] for i in window])
-            t0 = time[idcs[0]]
-            t1 = time[idcs[1]]
-
-        df_for_slope = None
-        intsc = None
-        try:
-            df_for_slope = utils.select_from_df(
-                hrf,
-                expression=(
-                    f"{time_col} >= {t0}",
-                    "&",
-                    f"{time_col} < {t1}"
+            ttp = mag["t"]
+            mag_window = [mag["amplitude"]*i for i in window]
+            
+            relevant_samples = hrf_rs.values.squeeze()[t0_idx:mag_ix]
+            if mag_ix<t0_idx or len(relevant_samples) == 0:
+                # peak likely before 0
+                mag = self._get_amplitude(
+                    hrf_rs,
+                    force_pos=force_pos,
+                    force_neg=force_neg,
+                    peak=peak,
+                    resample_to_shape=resample_to_shape,
+                    t_start=time_rs[0],
+                    max_scaler=max_scaler,
+                    noise_scaler=noise_scaler                    
                 )
+
+                t0_idx = 0
+                mag_ix = mag["t_ix"]
+                ttp = mag["t"]
+                mag_window = [mag["amplitude"]*i for i in window]
+                
+                relevant_samples = hrf_rs.values.squeeze()[t0_idx:mag_ix]      
+
+            mag_indices = [
+                utils.find_nearest(
+                    relevant_samples,
+                    i
+                )[0]+t0_idx for i in mag_window
+            ]
+
+            # print(mag)
+            # print(mag_window)
+            # print(mag_indices)
+
+            t0, t1 = [time_rs[i] for i in mag_indices]
+            # print(t0, t1)
+
+        slope_val, intercept, intsc, y_hat = self.get_slope_between_points(
+            time_rs,
+            hrf_rs.values.squeeze(),  # the magnitude signal
+            t0,
+            t1
+        )
+
+        if intsc == np.nan or verify_slope:
+            
+            # this y_lim will scale other subplots too
+            tmp = hrf_rs.values.squeeze()
+            y_lim = [
+                tmp.min()-abs(tmp.min()*0.5),
+                tmp.max()+(tmp.max()*0.1)
+            ]
+
+            kwargs = utils.update_kwargs(
+                kwargs,
+                "y_lim",
+                y_lim
             )
-        except BaseException:
-            if not nan_policy:
-                self.plot_profile_for_debugging(hrf)
-                raise ValueError(f"Could not extract rise-slope from this profile: {e}")  # noqa: F821
-            else:
-                slope_val = np.nan
+            pl = self.plot_profile_for_debugging(
+                hrf_rs,
+                extra=[y_hat],
+                add_vline={"pos": [t0, t1, ttp], "color": "k"},
+                **kwargs
+            )
 
-        if isinstance(df_for_slope, pd.DataFrame):
-            # get time window for fitter
-            t_ = np.array(utils.get_unique_ids(df_for_slope, id=time_col))
-
-            # run fitter
-            cv = None
-            try:
-                cv = CurveFitter(
-                    df_for_slope.values.squeeze(),
-                    x=t_,
-                    verbose=False
-                )
-
-                slope_val = cv.params.get("slope").value
-            except Exception as e:
-                if not nan_policy:
-                    self.plot_profile_for_debugging(hrf)
-                    raise ValueError(f"Could not extract rise-slope from this profile: {e}")  # noqa: F821
-                else:
-                    slope_val = np.nan
-
-            if cv is not None:
-                # extrapolate function to get intercept with 0
-                y = np.full_like(rf, np.nan)
-                y[idcs[0]:idcs[1]] = cv.y_pred
-                y_hat = cv.result.eval(x=time)
-                y_hat[mag_ix:] = np.nan
-
-                try:
-
-                    # for some reason shapely needs positive arrays?
-                    if negative:
-                        y_hat = -y_hat
-
-                    intsc = utils.find_intersection(
-                        time,
-                        np.zeros_like(y_hat),
-                        y_hat
-                    )[0][0][0]
-                except Exception as e:
-                    if not nan_policy:
-                        self.plot_profile_for_debugging(hrf)
-                        raise ValueError(f"Could not extract onset-time from this profile: {e}")  # noqa: F821
-                    else:
-                        intsc = np.nan
+            if intsc == np.nan and not nan_policy:
+                raise ValueError("Could not extract onset time from profile; regression fit doesn't cross 0 ")
 
         return slope_val, intsc
+
+    @classmethod
+    def get_slope_between_points(
+        self,
+        time_array,
+        signal_array,
+        t0,
+        t1
+        ):
+        # Find nearest indices to t0 and t1
+        idx0 = np.argmin(np.abs(time_array - t0))
+        idx1 = np.argmin(np.abs(time_array - t1))
+
+        x0, x1 = time_array[idx0], time_array[idx1]
+        y0, y1 = signal_array[idx0], signal_array[idx1]
+
+        # Linear slope and intercept
+        slope = (y1 - y0) / (x1 - x0) if x1 != x0 else np.nan
+        intercept = y0 - slope * x0  # y = mx + b => b = y - mx
+
+        # Calculate y_hat: the linear fit across the full time range
+        y_hat = slope * time_array + intercept
+
+        # Onset time: where line intersects y = 0
+        intsc = -intercept / slope if slope != 0 else np.nan
+
+        return slope, intercept, intsc, y_hat
+
+
+    @classmethod
+    def _correct_t0(
+        self, 
+        hrf,
+        t_start=0
+        ):
+
+        time, time_col = self._get_time(hrf)
+
+        # correct for 0
+        hrf_corr = utils.select_from_df(
+            hrf,
+            expression=f"{time_col} >= {t_start}"
+        )
+
+        time_corr = np.array(utils.get_unique_ids(hrf_corr, id=time_col))
+
+        return time_corr, hrf_corr
 
     @classmethod
     def _get_amplitude(
@@ -4715,6 +4937,12 @@ class HRFMetrics():
         force_pos=False,
         force_neg=False,
         peak=None,
+        t_start=0,
+        resample_to_shape=500,
+        max_scaler=0.05,
+        noise_scaler=1,
+        verify_peaks=False,
+        **kwargs
         ):
 
         """_get_amplitude
@@ -4750,48 +4978,131 @@ class HRFMetrics():
         # fetch time stamps
         time, time_col = self._get_time(hrf)
 
+        # resample
+        time_rs, hrf_rs = self._resample(
+            hrf,
+            resample_to_shape=resample_to_shape
+        )
+
+        # correct for 0
+        time_corr, hrf_corr = self._correct_t0(
+            hrf_rs,
+            t_start=t_start
+        )
+
+        # find index where t=0
+        t0_idx = utils.find_nearest(time_rs, t_start)[0]
+                    
         # use scipy.signal.find_peaks to find n'th peak
         if isinstance(peak, int):
 
-            ref = hrf.values.squeeze()
-            pos = list(signal.find_peaks(ref, prominence=0.05 * ref.max())[0])
-            neg = list(signal.find_peaks(-ref, prominence=0.05 * ref.max())[0])
-            ppeaks = sorted(pos + neg)
+            ref = hrf_corr.values.squeeze()
+
+            prominence = max(max_scaler*ref.max(), noise_scaler*np.std(ref))
+            pos = list(
+                signal.find_peaks(
+                    ref,
+                    prominence=prominence
+                )[0]
+            )
+
+            # print(f"Before: {pos}")
+            pos = [i for i in pos if hrf_corr.values.squeeze()[int(i)]>0]
+            # print(f"After: {pos}")
+            
+            neg = list(
+                signal.find_peaks(
+                    -ref,
+                    prominence=prominence
+                )[0]
+            )
+
+            neg = [i for i in neg if hrf_corr.values.squeeze()[int(i)]<0]
+
+            if force_pos or force_neg:
+                if force_pos:
+                    ppeaks = pos
+            
+                if force_neg:
+                    ppeaks = neg
+            else:
+                ppeaks = sorted(pos + neg)
+
+
+
+            if verify_peaks:
+                pl = self.plot_profile_for_debugging(
+                    hrf_rs,
+                    peaks=[i+t0_idx for i in ppeaks],
+                    **kwargs
+                )
 
             if len(ppeaks) > peak - 1:
                 mag_ix = ppeaks[peak - 1]
-                ddict = {
-                    "amplitude": hrf.values.squeeze()[mag_ix],
-                    "t": time[mag_ix],
-                    "t_ix": mag_ix
-                }
+                mag = ref[mag_ix]
 
+                t_ix = utils.find_nearest(
+                    hrf_rs,
+                    mag
+                )[0]
+
+                ddict = {
+                    "amplitude": ref[mag_ix],
+                    "t": time_rs[t_ix],
+                    "t_ix": t_ix
+                }
             else:
-                raise ValueError(
-                    f"Peak #{peak} was requested, but only {len(ppeaks)} peak(s) were found..")
+                # go for absolute max
+                negative = self._check_negative(
+                    hrf_corr,
+                    force_neg=force_neg,
+                    force_pos=force_pos
+                )
+
+                if not force_pos:
+                    if negative:
+                        mag_tmp = hrf_corr.min(axis=0).values
+                    else:
+                        mag_tmp = hrf_corr.max(axis=0).values
+                else:
+                    mag_tmp = hrf_corr.max(axis=0).values
+
+                mag_ix = utils.find_nearest(
+                    hrf_rs.values.squeeze(),
+                    mag_tmp
+                )[0]
+
+                ddict = {
+                    "amplitude": mag_tmp[0],
+                    "t": time_rs[mag_ix],
+                    "t_ix": mag_ix
+                }         
 
         else:
 
             # check negative:
             negative = self._check_negative(
-                hrf,
+                hrf_corr,
                 force_neg=force_neg,
                 force_pos=force_pos
             )
 
             if not force_pos:
                 if negative:
-                    mag_tmp = hrf.min(axis=0).values
+                    mag_tmp = hrf_corr.min(axis=0).values
                 else:
-                    mag_tmp = hrf.max(axis=0).values
+                    mag_tmp = hrf_corr.max(axis=0).values
             else:
-                mag_tmp = hrf.max(axis=0).values
+                mag_tmp = hrf_corr.max(axis=0).values
 
-            mag_ix = utils.find_nearest(hrf.values.squeeze(), mag_tmp)[0]
+            mag_ix = utils.find_nearest(
+                hrf_rs.values.squeeze(),
+                mag_tmp
+            )[0]
 
             ddict = {
                 "amplitude": mag_tmp[0],
-                "t": time[mag_ix],
+                "t": time_rs[mag_ix],
                 "t_ix": mag_ix
             }
 
@@ -4842,18 +5153,25 @@ class HRFMetrics():
 
         # get derivatives
         first_derivative = np.gradient(
-            hrf.values.squeeze(), time)[..., np.newaxis]
+            hrf.values.squeeze(),
+            time
+        )[..., np.newaxis]
+
         second_derivative = np.gradient(
-            first_derivative.squeeze(), time)[..., np.newaxis]
+            first_derivative.squeeze(),
+            time
+        )[..., np.newaxis]
 
         # deriv
         ddict = {}
-        for key, val in zip(["1st_deriv", "2nd_deriv"], [
-                            first_derivative, second_derivative]):
-            df = pd.DataFrame(val)
-            df["t"] = time
-            df.set_index(["t"], inplace=True)
-            res = self._get_amplitude(df, **kwargs)
+        for key, val in zip(["1st_deriv", "2nd_deriv"], [first_derivative, second_derivative]):
+            df = pd.DataFrame(val, columns=[key])
+            df[time_col] = time
+            df.set_index([time_col], inplace=True)
+            res = self._get_amplitude(
+                df, 
+                **kwargs
+            )
 
             for i, e in res.items():
                 ddict[f"{key}_{i}"] = e
@@ -4867,7 +5185,11 @@ class HRFMetrics():
         force_pos=False,
         force_neg=False,
         nan_policy=False,
-        peak=None
+        t_start=0,
+        peak=None,
+        resample_to_shape=500,
+        max_scaler=0.05,
+        noise_scaler=1        
         ):
 
         """_get_auc
@@ -4903,25 +5225,46 @@ class HRFMetrics():
 
         # get time
         time, time_col = self._get_time(hrf)
-        dx = np.diff(time)[0]
+
+        # resample
+        time_rs, hrf_rs = self._resample(
+            hrf,
+            resample_to_shape=resample_to_shape
+        )
+
+        # correct for 0
+        time_corr, hrf_corr = self._correct_t0(
+            hrf_rs,
+            t_start=t_start
+        )
+
+        # get time
+        dx = np.diff(time_rs)[0]
+
+        # find index where t=0
+        t0_idx = utils.find_nearest(time_rs, t_start)[0]
 
         # get amplitude of HRF
         mag = self._get_amplitude(
             hrf,
             force_pos=force_pos,
             force_neg=force_neg,
-            peak=peak
+            peak=peak,
+            t_start=t_start,
+            resample_to_shape=resample_to_shape,
+            max_scaler=max_scaler,
+            noise_scaler=noise_scaler
         )
 
         # first check if the period before the peak has zero crossings
-        zeros = np.zeros_like(hrf)[:mag["t_ix"]]
+        zeros = np.zeros_like(hrf_rs.values.squeeze())[:mag["t_ix"]]
         xx = np.arange(0, zeros.shape[0])
 
         try:
             coords = utils.find_intersection(
                 xx,
                 zeros,
-                hrf.values[:mag["t_ix"]]
+                hrf_rs.values.squeeze()[:mag["t_ix"]]
             )
 
             HAS_ZEROS_BEFORE_PEAK = True
@@ -4946,14 +5289,14 @@ class HRFMetrics():
         # print(f"1st crossing = {first_cross}")
         # find the next zero crossing after "first_cross" that is after peak
         # index
-        zeros = np.zeros_like(hrf)
+        zeros = np.zeros_like(hrf_rs.values.squeeze())
         xx = np.arange(0, zeros.shape[0])
 
         try:
             coords = utils.find_intersection(
                 xx,
                 zeros,
-                hrf.values.squeeze()
+                hrf_rs.values.squeeze()
             )
 
             FAILED = False
@@ -4963,12 +5306,13 @@ class HRFMetrics():
         # if there's no zero-crossings, take end of interval
         third_cross = None
         if FAILED:
-            second_cross = hrf.shape[0] - 1
+            second_cross = hrf_rs.shape[0]-1
         else:
-
             # filter coordinates for elements BEFORE peak
-            coord_list = [int(i[0][0])
-                          for i in coords if int(i[0][0]) > mag["t_ix"]]
+            coord_list = [
+                int(i[0][0])
+                for i in coords if int(i[0][0]) > mag["t_ix"]
+            ]
             if len(coord_list) > 0:
 
                 # sort
@@ -4978,37 +5322,45 @@ class HRFMetrics():
 
                 # take last element as undershoot
                 if len(coord_list) < 2:
-                    third_cross = hrf.shape[0] - 1
+                    third_cross = hrf_rs.values.squeeze().shape[0] - 1
             else:
-                second_cross = hrf.shape[0] - 1
+                second_cross = hrf_rs.values.squeeze().shape[0] - 1
 
-            # if multple coords after peak we might have negative undershoot
-            if len(coord_list) > 1:
-                # check if sample are not too close to one another;AUC needs at
-                # least 2 samples
-                ix = 1
-                third_cross = coord_list[ix]
-                # print(coord_list)
-                # print(third_cross)
-                while (third_cross - second_cross) < 2:
-                    ix += 1
-                    if ix < len(coord_list):
-                        third_cross = coord_list[ix]
-                    else:
-                        third_cross = hrf.shape[0] - 1
+            # it's already at the end
+            end_boundary = hrf_rs.values.squeeze().shape[0]
+            if second_cross < end_boundary-2:
+                # if multple coords after peak we might have negative undershoot
+                if len(coord_list) > 1:
+                    # check if sample are not too close to one another;AUC needs at
+                    # least 2 samples
+                    ix = 1
+                    third_cross = coord_list[ix]
+                    # print(coord_list)
+                    # print(third_cross)
+                    while (third_cross - second_cross) < 2:
+                        ix += 1
+                        if ix < len(coord_list):
+                            third_cross = coord_list[ix]
+                        else:
+                            third_cross = end_boundary-1
+            else:
+                third_cross = None
 
-        # print(f"2nd crossing = {second_cross}")
         # print(f"3rd crossing = {third_cross}")
         # connect A and B (bulk of response)
-        zeros = np.zeros_like(hrf.iloc[first_cross:second_cross])
+        zeros = np.zeros_like(hrf_rs.iloc[first_cross:second_cross])
         xx = np.arange(0, zeros.shape[0])
 
+        # print(f"first: {first_cross}\t| second: {second_cross}\t| third: {third_cross}")
         try:
-            ab_area = metrics.auc(xx, hrf.iloc[first_cross:second_cross]) * dx
-        except BaseException:
+            ab_area = metrics.auc(
+                xx,
+                hrf_rs.iloc[first_cross:second_cross]
+                )*dx
+        except Exception as e:
             if not nan_policy:
-                self.plot_profile_for_debugging(hrf)
-                raise ValueError()
+                pl = self.plot_profile_for_debugging(hrf)
+                raise ValueError(f"Could not extract AUC from first {first_cross}-to-second {second_cross} crossing: {e}")
             else:
                 ab_area = np.nan
 
@@ -5016,15 +5368,23 @@ class HRFMetrics():
         ac_area = np.nan
         if isinstance(third_cross, int):
             # print(f"1st cross: {first_cross}\t2nd cross: {second_cross}\t3rd cross: {third_cross}")
-            zeros = np.zeros_like(hrf.iloc[second_cross:third_cross])
+            zeros = np.zeros_like(hrf_rs.iloc[second_cross:third_cross])
             xx = np.arange(0, zeros.shape[0])
+
             try:
-                ac_area = abs(metrics.auc(xx,
-                                          hrf.iloc[second_cross:third_cross])) * dx
-            except BaseException:
+                ac_area = abs(
+                    metrics.auc(
+                        xx,
+                        hrf_rs.iloc[second_cross:third_cross]
+                    )
+                )*dx
+            except Exception as e:
                 if not nan_policy:
-                    self.plot_profile_for_debugging(hrf, add_hline=0)
-                    raise ValueError()
+                    pl = self.plot_profile_for_debugging(
+                        hrf,
+                        add_hline=0
+                    )
+                    raise ValueError(f"Could not extract AUC from second {second_cross}-to-third {third_cross} crossing: {e}")
                 else:
                     ac_area = np.nan
 
@@ -5034,6 +5394,170 @@ class HRFMetrics():
         }
 
     @classmethod
+    def plot_hrf_auc(
+        self,
+        time,
+        signal,
+        t_start=0,
+        figsize=(5,5)
+        ):
+        # Mask time and signal starting from t_start
+        start_ix = np.argmin(np.abs(time - t_start))
+        time_corr = time[start_ix:]
+        signal_corr = signal[start_ix:]
+
+        # Positive and negative masks
+        pos_mask = signal_corr > 0
+        neg_mask = signal_corr < 0
+
+        pl = plotting.LazyLine(
+            signal,
+            xx=time,
+            labels="signal",
+            color="black", 
+            line_width=3,
+            add_hline=0,
+            figsize=figsize,
+            add_vline=start_ix,
+            x_label="time (s)",
+            y_label="signal",
+            title="AUC visualization"
+        )
+
+        # Fill positive area
+        pl.axs.fill_between(
+            time_corr[pos_mask],
+            0,
+            signal_corr[pos_mask],
+            color='tab:blue',
+            alpha=0.4,
+            label="Positive AUC"
+        )
+
+        # Fill negative area
+        pl.axs.fill_between(
+            time_corr[neg_mask],
+            0,
+            signal_corr[neg_mask],
+            color='tab:red',
+            alpha=0.4,
+            label="Negative AUC"
+        )
+
+        return pl
+
+    @classmethod
+    def _get_auc_simple(
+        self,
+        hrf,
+        t_start=0,
+        resample_to_shape=500,
+        nan_policy=True,
+        normalize=False,
+        verify_auc=False,
+        **kwargs
+        ):
+        """
+        Compute AUC for the positive and negative portions of an HRF time course.
+
+        Parameters
+        ----------
+        hrf : pd.DataFrame
+            DataFrame with time and signal columns.
+        time_col : str, optional
+            Name of the time column, by default "t".
+        signal_col : str, optional
+            Name of the signal column, by default "value".
+
+        Returns
+        -------
+        dict
+            Dictionary containing:
+            - "pos_area": Area under positive part of the HRF.
+            - "neg_area": Absolute area under negative part of the HRF.
+        """
+
+        # get time
+        time, time_col = self._get_time(hrf)
+
+        # resample
+        time_rs, hrf_rs = self._resample(
+            hrf,
+            resample_to_shape=resample_to_shape
+        )
+
+        # correct for 0
+        time_corr, hrf_corr = self._correct_t0(
+            hrf_rs,
+            t_start=t_start
+        )
+
+        hrf_corr_arr = hrf_corr.values.squeeze()
+
+        if normalize:
+            hrf_corr_arr /= hrf_corr_arr.max()
+
+        # Separate positive and negative parts
+        pos_mask = hrf_corr_arr > 0
+        neg_mask = hrf_corr_arr < 0
+
+        def compute_auc_safely(x, y):
+            valid = np.isfinite(x) & np.isfinite(y)
+            if np.any(valid) and x[valid].shape[0] > 1 and y[valid].shape[0] > 1:
+                return abs(metrics.auc(x[valid], y[valid]))
+            else:
+                return 0.0  # No valid points → area is 0
+
+        # Compute positive and negative AUCs safely
+        pos_area = compute_auc_safely(time_corr[pos_mask], hrf_corr_arr[pos_mask])
+        neg_area = compute_auc_safely(time_corr[neg_mask], hrf_corr_arr[neg_mask])
+
+        if verify_auc:
+            extra_plot = []
+
+            # Create masks and use NaNs for masking for plotting
+            pos_curve = np.where(pos_mask, hrf_corr_arr, np.nan)
+            neg_curve = np.where(neg_mask, hrf_corr_arr, np.nan)
+
+            pl = self.plot_profile_for_debugging(
+                hrf_corr,
+                **kwargs
+            )
+
+            # Use fill_between on the Axes object to shade AUC regions
+            ax = pl.axs  # Get the matplotlib Axes object
+
+            ax.fill_between(
+                time_corr,
+                np.where(pos_mask, hrf_corr_arr, np.nan),
+                y2=0,
+                color="tab:green",
+                alpha=0.3,
+                label="Positive AUC"
+            )
+
+            ax.fill_between(
+                time_corr,
+                np.where(neg_mask, hrf_corr_arr, np.nan),
+                y2=0,
+                color="tab:red",
+                alpha=0.3,
+                label="Negative AUC"
+            )
+
+            ax.legend(
+                loc="best",
+                frameon=False
+            )
+
+        return {
+            "pos_area": pos_area,
+            "neg_area": neg_area,
+            "total_area": pos_area + neg_area
+        }
+
+        
+    @classmethod
     def _get_fwhm(
         self,
         hrf,
@@ -5041,7 +5565,13 @@ class HRFMetrics():
         force_neg=False,
         nan_policy=False,
         add_fct=0.5,
-        peak=None
+        peak=None,
+        t_start=0,
+        resample_to_shape=500,
+        max_scaler=0.05,
+        noise_scaler=1      ,
+        verify_fwhm=False,
+        **kwargs  
         ):
 
         """_get_fwhm
@@ -5087,7 +5617,11 @@ class HRFMetrics():
             hrf,
             force_pos=force_pos,
             force_neg=force_neg,
-            peak=peak
+            peak=peak,
+            t_start=t_start,
+            resample_to_shape=resample_to_shape,
+            max_scaler=max_scaler,
+            noise_scaler=noise_scaler            
         )
 
         negative = False
@@ -5108,7 +5642,8 @@ class HRFMetrics():
             fwhm_val = FWHM(
                 time,
                 hrf.values,
-                negative=negative
+                negative=negative,
+                amplitude=mag["amplitude"]
             )
 
             fwhm_dict = {
@@ -5118,9 +5653,26 @@ class HRFMetrics():
                 "obj": fwhm_val
             }
 
+            if verify_fwhm:
+                pl = self.plot_profile_for_debugging(
+                    hrf,
+                    **kwargs
+                )
+
+                xlim = pl.axs.get_xlim()
+                tot = sum(list(np.abs(xlim)))
+                start = (fwhm_val.t0_-xlim[0])/tot
+                pl.axs.axhline(
+                    fwhm_val.half_max,
+                    xmin=start,
+                    xmax=start+fwhm_val.fwhm/tot,
+                    color="k",
+                    linewidth=0.5
+                )
+
         except Exception as e:
             if not nan_policy:
-                self.plot_profile_for_debugging(hrf)
+                pl = self.plot_profile_for_debugging(hrf)
                 raise ValueError(f"Could not extract FWHM from this profile: {e}")  # noqa: F821
             else:
                 fwhm_dict = {
@@ -5134,17 +5686,26 @@ class HRFMetrics():
 
     @classmethod
     def _get_single_hrf_metrics(
-            self,
-            hrf,
-            TR=None,
-            force_pos=False,
-            force_neg=False,
-            plot=False,
-            nan_policy=False,
-            debug=False,
-            shift=None,
-            peak=None,
-            **kwargs):
+        self,
+        hrf,
+        TR=None,
+        force_pos=False,
+        force_neg=False,
+        plot=False,
+        nan_policy=False,
+        debug=False,
+        shift=None,
+        peak=None,
+        resample_to_shape=500,
+        t_start=0,
+        max_scaler=0.05,
+        noise_scaler=1,
+        verify_peaks=False,
+        verify_slope=False,
+        verify_auc=False,
+        verify_fwhm=False,
+        **kwargs
+        ):
 
         """_get_single_hrf_metrics
 
@@ -5190,45 +5751,139 @@ class HRFMetrics():
         """
 
         # verify input type
-        hrf = self._verify_input(hrf, TR=TR, shift=shift)
-        utils.verbose(f"var = {abs(hrf.var().iloc[0])}", debug)
+        hrf = self._verify_input(
+            hrf,
+            TR=TR,
+            shift=shift
+        )
+        
+        # 1. Define verification flags
+        verification_flags = {
+            "verify_peaks": verify_peaks,
+            "verify_slope": verify_slope,
+            "verify_auc": verify_auc,
+            "verify_fwhm": verify_fwhm
+            # Add more flags as needed
+        }
+
+        # 2. Count how many are True
+        active_flags = {k: v for k, v in verification_flags.items() if v}
+        ncols = len(active_flags)
+
+        # 3. Create subplots and map axes
+        axs_dict = {}
+        if ncols > 0:
+            fig, axs = plt.subplots(
+                ncols=ncols,
+                figsize=(ncols * 5, 4),
+                sharey=True
+            )
+            
+            fig.suptitle(
+                list(hrf.columns)[0],
+                fontweight="bold",
+                fontsize=26,
+                y=1.12
+            )
+
+            # Ensure axs is iterable
+            if ncols == 1:
+                axs = [axs]
+
+            for ax, flag in zip(axs, active_flags.keys()):
+                axs_dict[flag] = ax
+
+        
+        utils.verbose(f"var\t= {abs(hrf.var().iloc[0])}", debug)
+        # utils.verbose(f"TR\t= {TR}", debug)
+        # utils.verbose(f"shift\t= {shift}", debug)
+
+        orig_hrf = hrf.copy()
 
         if plot:
-            self.plot_profile_for_debugging(hrf, add_hline=0)
+            pl = self.plot_profile_for_debugging(
+                orig_hrf,
+                add_hline=0,
+            )
 
         # get magnitude and amplitude
         mag = self._get_amplitude(
-            hrf,
+            orig_hrf,
             force_pos=force_pos,
             force_neg=force_neg,
-            peak=peak
+            peak=peak,
+            t_start=t_start,
+            resample_to_shape=resample_to_shape,
+            max_scaler=max_scaler,
+            noise_scaler=noise_scaler,
+            verify_peaks=verify_peaks,
+            axs=axs_dict.get("verify_peaks"),
+            title="peaks"
         )
 
         # fwhm
         fwhm_obj = self._get_fwhm(
-            hrf,
+            orig_hrf,
             force_pos=force_pos,
             force_neg=force_neg,
             nan_policy=nan_policy,
-            peak=peak
+            peak=peak,
+            t_start=t_start,
+            resample_to_shape=resample_to_shape,
+            max_scaler=max_scaler,
+            noise_scaler=noise_scaler,
+            verify_fwhm=verify_fwhm,
+            axs=axs_dict.get("verify_fwhm"),
+            title="FWHM"            
         )
 
         # rise slope
         rise_slope = self._get_riseslope_siero(
-            hrf,
+            orig_hrf,
             force_pos=force_pos,
             force_neg=force_neg,
             nan_policy=nan_policy,
-            peak=peak
+            peak=peak,
+            t_start=t_start,
+            resample_to_shape=resample_to_shape,
+            max_scaler=max_scaler,
+            noise_scaler=noise_scaler,
+            verify_slope=verify_slope,
+            axs=axs_dict.get("verify_slope"),
+            title="slope & intercept"
         )
 
         # positive area + undershoot
         auc = self._get_auc(
-            hrf,
+            orig_hrf,
             force_pos=force_pos,
             force_neg=force_neg,
             nan_policy=nan_policy,
-            peak=peak
+            peak=peak,
+            t_start=t_start,
+            resample_to_shape=resample_to_shape,
+            max_scaler=max_scaler,
+            noise_scaler=noise_scaler,
+        )
+
+        # positive area + undershoot
+        simple_auc = self._get_auc_simple(
+            orig_hrf,
+            nan_policy=nan_policy,
+            t_start=t_start,
+            resample_to_shape=resample_to_shape,
+            verify_auc=verify_auc,
+            axs=axs_dict.get("verify_auc"),
+            title="AUC"            
+        )
+        
+        # normalized peak positive area + undershoot
+        simple_auc_norm = self._get_auc_simple(
+            orig_hrf,
+            normalize=True,
+            nan_policy=nan_policy,
+            t_start=t_start,
+            resample_to_shape=resample_to_shape
         )
 
         # positive area + undershoot
@@ -5239,7 +5894,11 @@ class HRFMetrics():
             hrf,
             force_pos=force_pos,
             force_neg=force_neg,
-            peak=peak
+            peak=peak,
+            t_start=t_start,
+            resample_to_shape=resample_to_shape,
+            max_scaler=max_scaler,
+            noise_scaler=noise_scaler,
         )
 
         ddict = {
@@ -5254,6 +5913,12 @@ class HRFMetrics():
             "onset_time": [rise_slope[1]],
             "positive_area": [auc["pos_area"]],
             "undershoot": [auc["undershoot"]],
+            "auc_simple_pos": [simple_auc["pos_area"]],
+            "auc_simple_neg": [simple_auc["neg_area"]],
+            "auc_simple_total": [simple_auc["total_area"]],
+            "auc_simple_pos_norm": [simple_auc_norm["pos_area"]],
+            "auc_simple_neg_norm": [simple_auc_norm["neg_area"]],
+            "auc_simple_total_norm": [simple_auc_norm["total_area"]],            
             "1st_deriv_magnitude": [deriv["1st_deriv_amplitude"]],
             "1st_deriv_time_to_peak": [deriv["1st_deriv_t"]],
             "2nd_deriv_magnitude": [deriv["2nd_deriv_amplitude"]],
@@ -5270,6 +5935,7 @@ class FWHM():
         self,
         x,
         hrf,
+        amplitude=None,
         negative=False,
         resample=500,
         ):
@@ -5296,59 +5962,86 @@ class FWHM():
         self.hrf = hrf
         self.resample = resample
         self.negative = negative
-
+        self.amplitude = amplitude
         if x.shape[0] < self.resample:
-
-            # print(f"resample vectors of shape {x.shape} to {self.resample}")
-            self.use_x = glm.resample_stim_vector(
-                self.x, self.resample, interpolate="linear")
-            self.use_rf = glm.resample_stim_vector(
-                self.hrf, self.resample, interpolate="linear")
-
+            self.use_x = glm.resample_stim_vector(self.x, self.resample, interpolate="linear")
+            self.use_rf = glm.resample_stim_vector(self.hrf, self.resample, interpolate="linear")
         else:
             self.use_x = x.copy()
             self.use_rf = hrf.copy()
 
-        self.hmx = self.half_max_x(self.use_x, self.use_rf)
+        # Use amplitude if given
+        if self.amplitude is not None:
+            self.half_max = self.amplitude / 2.0
+        else:
+            self.half_max = min(self.use_rf) / 2.0 if self.negative else max(self.use_rf) / 2.0
+
+        # Get intersection points with half-max
+        try:
+            self.hmx = utils.find_intersection(
+                self.use_x,
+                self.use_rf,
+                np.full_like(self.use_rf, self.half_max)
+            )
+        except Exception:
+            self.hmx = []
+
+        # Try to select 2 points around the peak
+        self.ts = []
+        if isinstance(self.hmx, list) and len(self.hmx) >= 2:
+            try:
+                peak_ix = np.argmin(self.use_rf) if self.negative else np.argmax(self.use_rf)
+                peak_time = self.use_x[peak_ix]
+                hmx_times = [i[0][0] for i in self.hmx]
+
+                # Split intersections into pre- and post-peak
+                pre = [t for t in hmx_times if t < peak_time]
+                post = [t for t in hmx_times if t > peak_time]
+
+                if len(pre) > 0 and len(post) > 0:
+                    # Take the closest before and after the peak
+                    self.ts = [max(pre), min(post)]
+                else:
+                    raise ValueError("Could not find FWHM on both sides of peak.")
+            except Exception:
+                self.ts = []
 
         if len(self.hmx) < 2:
-            raise ValueError("Could not find two points close to half max..")
+            if len(self.hmx) == 1:
+                # Fallback: use single intersection and end of window
+                self.ts = [self.hmx[0][0][0], self.use_x[-1]]
+            else:
+                raise ValueError("Could not find sufficient points close to half max..")
 
-        self.ts = [i.squeeze()[0] for i in self.hmx]
-        self.ts.sort()
+        # Fallback: just grab first 2 if above fails
+        if len(self.ts) < 2 and isinstance(self.hmx, list) and len(self.hmx) >= 2:
+            self.ts = sorted([i[0][0] for i in self.hmx[:2]])
 
-        self.t0_ = self.ts[0]
-        self.t1_ = self.ts[1]
+        # If still insufficient points, use full window as fallback
+        if len(self.ts) < 2:
+            self.t0_ = self.use_x[0]
+            self.t1_ = self.use_x[-1]
+        else:
+            self.t0_, self.t1_ = self.ts
+
         self.fwhm = abs(self.t1_ - self.t0_)
 
-        if self.negative:
-            self.half_max = min(self.use_rf) / 2
+    def half_max_x(
+        self,
+        x,
+        y,
+        amplitude=None
+        ):
+
+        if max is None:
+            if not self.negative:
+                half = max(y) / 2.0
+            else:
+                half = min(y) / 2.0
         else:
-            self.half_max = max(self.use_rf) / 2
-
-        try:
-            self.half_max = self.half_max[0]
-        except Exception:
-            pass
-
-    # def lin_interp(self, x, y, i, half):
-    #     return x[i] + (x[i+1] - x[i]) * ((half - y[i]) / (y[i+1] - y[i]))
-
-    def half_max_x(self, x, y):
-
-        if not self.negative:
-            half = max(y) / 2.0
-        else:
-            half = min(y) / 2.0
+            half = amplitude / 2.0
 
         return utils.find_intersection(x, y, np.full_like(y, half))
-
-        # signs = np.sign(np.add(y, -half))
-        # zero_crossings = (signs[0:-2] != signs[1:-1])
-        # zero_crossings_i = np.where(zero_crossings)[0]
-        # return [self.lin_interp(x, y, zero_crossings_i[0], half),
-        #         self.lin_interp(x, y, zero_crossings_i[1], half)]
-
 
 def error_function(
         parameters,
@@ -5842,7 +6535,8 @@ class Epoch(InitFitter):
         onsets,
         TR=0.105,
         interval=[-2, 14],
-        merge=False
+        merge=False,
+        verbose=False
         ):
 
         self.func = func
@@ -5850,6 +6544,7 @@ class Epoch(InitFitter):
         self.TR = TR
         self.interval = interval
         self.merge = merge
+        self.verbose = verbose
 
         # prepare data
         super().__init__(
@@ -6013,8 +6708,8 @@ class Epoch(InitFitter):
                     if len(time) != len(stim_epoch):
                         print(
                             f"""WARNING: could not extract full epoch around event; onset={round(t,2)}s,
-                            t_start={round(t_start,2)}s with {n_sampl} samples ({samples}s).
-                            Epoch has {len(stim_epoch)} samples""")
+t_start={round(t_start,2)}s with {n_sampl} samples ({samples}s).
+Epoch has {len(stim_epoch)} samples""")
 
                     df_stim_epoch["t"], df_stim_epoch["epoch"], df_stim_epoch["event_type"] = time[:len(
                         stim_epoch)], i, ev
