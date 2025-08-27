@@ -238,9 +238,8 @@ class Defaults():
             ax.spines[axis].set_linewidth(self.axis_width)
 
     def _set_axlabel(self, ax, lbl, axis="x"):
-        """_set_axlabel
 
-        Internal function to set the x/y/z-labels of a plot.
+        """Internal function to set the x/y/z-labels of a plot.
 
         Parameters
         ----------
@@ -318,9 +317,7 @@ class Defaults():
         )
 
     def _set_title(self, ax, title):
-        """_set_title
-
-        Internal function to set the main title of the axis object.
+        """Internal function to set the main title of the axis object.
 
         Parameters
         ----------
@@ -762,9 +759,7 @@ class Defaults():
         **kwargs
         ):
 
-        """_add_line
-        
-        Add horizontal and/or vertical reference lines to an Axes.
+        """Add horizontal and/or vertical reference lines to an Axes.
 
         Reads configuration from the instance attributes :pyattr:`self.add_hline` and
         :pyattr:`self.add_vline` and draws one or more ``axhline``/``axvline`` objects
