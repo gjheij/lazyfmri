@@ -160,6 +160,8 @@ class Defaults():
             "x_dec",
             "add_vline",
             "add_hline",
+            "add_vspan",
+            "add_hspan",            
             "dpi",
             "figure_background_color",
             "bbox_inches",
@@ -194,6 +196,8 @@ class Defaults():
         self.color = None
         self.add_vline = None
         self.add_hline = None
+        self.add_vspan = None
+        self.add_hspan = None        
         self.dpi = 300
         self.figure_background_color = "white"
         self.bbox_inches = "tight"
@@ -233,23 +237,76 @@ class Defaults():
         for axis in ['top', 'bottom', 'left', 'right']:
             ax.spines[axis].set_linewidth(self.axis_width)
 
-    def _set_axlabel(self, ax, lbl, axis="x", **kwargs):
-        """set y-label"""
-        if hasattr(ax, f"set_{axis}label"):
-            if axis == "x":
-                ffunc = ax.set_xlabel
-            elif axis == "y":
-                ffunc = ax.set_ylabel
-            else:
-                ffunc = ax.set_zlabel
+    def _set_axlabel(self, ax, lbl, axis="x"):
+        """_set_axlabel
 
-            if isinstance(lbl, (str, list)):
-                ffunc(
-                    lbl,
-                    fontsize=self.font_size,
-                    fontname=self.fontname,
-                    **kwargs
-                )
+        Internal function to set the x/y/z-labels of a plot.
+
+        Parameters
+        ----------
+        ax: <AxesSubplot:>, optional
+            Subplot axis to put the plot on, by default None
+        lbl: str, dict
+            if `lbl` is a string, we'll just simply use this as the label annotation. By default, `fontsize` and `fontname` are set by :class:`lazyfmri.plotting.Defaults()`.
+
+            .. code-block:: python
+
+                # update with defaults
+                defaults_kws = {
+                    "fontsize": self.font_size,
+                    "fontname": self.fontname,
+                }
+
+            `lbl` can also be a dictionary collecting keys relevant for '<ax>.set_{x|y|z}label':
+
+            .. code-block:: python
+        
+                title_dict = {
+                    "label": "this is the actual label",
+                    "color: "b"
+                    "fontweight": "bold"
+                }
+
+        axis: str
+            which axis to label. Must be one of 'x', 'y', or 'z'
+        """
+
+        allowed_axes = ["x", "y", 'z']
+        assert axis in allowed_axes, f"axis must be one of {allowed_axes}, not {axis}"
+        assert hasattr(ax, f"set_{axis}label"), f"{ax}-object does not have 'set_{axis}label' attribute. Make sure to specify a valid axis object"
+            
+        kwargs = {}
+        if isinstance(lbl, dict):
+            assert "label" in lbl, f"dictionary must contain a key 'label' with a string representing the actual label, dictionary now has: {lbl.keys()}"
+
+            kwargs = lbl
+            lbl = kwargs.pop("label")
+        
+        # update with defaults
+        defaults_kws = {
+            "fontsize": self.font_size,
+            "fontname": self.fontname,
+        }
+        
+        for key, val in defaults_kws.items():
+            kwargs = utils.update_kwargs(
+                kwargs,
+                key,
+                val
+            )
+
+        if axis == "x":
+            ffunc = ax.set_xlabel
+        elif axis == "y":
+            ffunc = ax.set_ylabel
+        else:
+            ffunc = ax.set_zlabel
+
+        if isinstance(lbl, (str, list)):
+            ffunc(
+                lbl,
+                **kwargs
+            )
 
     def _set_tick_params(self, ax, **kwargs):
         """set width/length/labelsize of ticks"""
@@ -257,42 +314,74 @@ class Defaults():
             width=self.tick_width,
             length=self.tick_length,
             labelsize=self.label_size,
-            **kwargs)
+            **kwargs
+        )
 
-    def _set_title(self, ax, title, **kwargs):
-        """set title of plot"""
+    def _set_title(self, ax, title):
+        """_set_title
+
+        Internal function to set the main title of the axis object.
+
+        Parameters
+        ----------
+        ax: <AxesSubplot:>, optional
+            Subplot axis to put the plot on, by default None
+        title: str, dict
+            if `title` is a string, we'll just simply use this as the label annotation. By default, `fontsize` and `fontname` are set by :class:`lazyfmri.plotting.Defaults()`.
+
+            .. code-block:: python
+
+                # update with defaults
+                defaults_kws = {
+                    "fontsize": self.font_size,
+                    "fontname": self.fontname,
+                }
+
+            `title` can also be a dictionary collecting keys relevant for '<ax>.set_title':
+
+            .. code-block:: python
+        
+                title_dict = {
+                    "title": "this is the actual title",
+                    "color: "b"
+                    "fontweight": "bold"
+                }
+
+        """
 
         if isinstance(self.title_size, str):
             if hasattr(self, self.title_size):
                 self.title_size = getattr(self, self.title_size)
 
-        if isinstance(title, (str, dict)):
-            default_dict = {
-                'color': 'k',
-                'fontweight': 'normal'
-            }
+        assert isinstance(title, (dict, str)), f"title must be a string or a dictionary with a 'title' key representing the title, as well as additional arguments passed to ax.set_title(**kwargs)"
 
-            if isinstance(title, str):
-                title_dict = {"title": self.title}
-            elif isinstance(title, dict):
-                title_dict = title.copy()
-            else:
-                raise ValueError(
-                    f"title input must be a string or dictionary, not {type(title)}: '{title}'")
+        default_dict = {
+            'color': 'k',
+            'fontweight': 'normal',
+            "fontsize": self.title_size,
+            "fontname": self.fontname,
+            "pad": self.pad_title
+        }
+    
+        # pop 'title' key
+        kwargs = {}
+        if isinstance(title, dict):
+            assert "title" in title, f"dictionary must contain a key 'title' with a string representing the actual title, dictionary now has: {title.keys()}"
+            kwargs = title.copy()
+            title = kwargs.pop("title")
 
-            # add default keys if they're missing in dictionary
-            for key in list(default_dict.keys()):
-                if key not in list(title_dict.keys()):
-                    title_dict[key] = default_dict[key]
-
-            ax.set_title(
-                title_dict["title"],
-                color=title_dict["color"],
-                fontweight=title_dict["fontweight"],
-                fontname=self.fontname,
-                fontsize=self.title_size,
-                pad=self.pad_title,
-                **kwargs)
+        # add default keys if they're missing in dictionary
+        for key, val in default_dict.items():
+            kwargs = utils.update_kwargs(
+                kwargs,
+                key,
+                val
+            )
+        
+        ax.set_title(
+            title,
+            **kwargs
+        )
 
     def _set_bar_lim(self, ax, lim):
         if isinstance(lim, list):
@@ -385,11 +474,20 @@ class Defaults():
     def _despine(self, ax, **kwargs):
         """despine plot"""
 
+        default_dict = {
+            "offset": self.sns_offset,
+            "trim": self.sns_trim
+        }
+
+        for key, val in default_dict.items():
+            kwargs = utils.update_kwargs(
+                kwargs,
+                key,
+                val
+            )
         if self.sns_despine:
             sns.despine(
                 ax=ax,
-                offset=self.sns_offset,
-                trim=self.sns_trim,
                 **kwargs
             )
 
@@ -410,12 +508,13 @@ class Defaults():
                 ffunc.set_major_formatter(FormatStrFormatter(f"%.{dec}f"))
 
     def _set_shaded_error(
-            self,
-            x: np.ndarray = None,
-            tc: np.ndarray = None,
-            ax: mpl.axes._axes.Axes = None,
-            yerr: np.ndarray = None,
-            **kwargs):
+        self,
+        x: np.ndarray = None,
+        tc: np.ndarray = None,
+        ax: mpl.axes._axes.Axes = None,
+        yerr: np.ndarray = None,
+        **kwargs
+        ):
 
         if isinstance(yerr, (int, float, list, np.ndarray)):
             if np.isscalar(yerr) or len(yerr) == len(tc):
@@ -431,16 +530,18 @@ class Defaults():
                 x,
                 ymax,
                 ymin,
-                **kwargs)
+                **kwargs
+            )
 
     def _draw_errorbar(
-            self,
-            x: np.ndarray = None,
-            y: np.ndarray = None,
-            ax: mpl.axes._axes.Axes = None,
-            yerr: np.ndarray = None,
-            xerr: np.ndarray = None,
-            **kwargs):
+        self,
+        x: np.ndarray = None,
+        y: np.ndarray = None,
+        ax: mpl.axes._axes.Axes = None,
+        yerr: np.ndarray = None,
+        xerr: np.ndarray = None,
+        **kwargs
+        ):
 
         # set bunch of defaults
         if "linewidth" not in list(
@@ -474,7 +575,8 @@ class Defaults():
             y,
             yerr=yerr,
             xerr=xerr,
-            **kwargs)
+            **kwargs
+        )
 
     def _set_legend_labels(self, ax, labels=None):
         if isinstance(labels, (list, np.ndarray)):
@@ -514,11 +616,301 @@ class Defaults():
         else:
             return ddict[el]
 
+    def _add_span(
+        self,
+        ax=None
+        ):
+
+        """Add shaded horizontal and/or vertical spans to an Axes.
+
+        Reads configuration from :pyattr:`self.add_hspan` and :pyattr:`self.add_vspan`
+        and draws rectangular highlight regions using ``ax.axhspan`` (horizontal band)
+        and/or ``ax.axvspan`` (vertical band). Each attribute can be a concise list
+        ``[start, stop]`` or a dictionary for full control.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes, optional
+            Target axes to draw on. Required; drawn in place. Default = None.
+
+        Configuration (via ``self.add_hspan`` / ``self.add_vspan``)
+        -----------------------------------------------------------
+        Each attribute may be:
+
+        - ``list`` :
+            Two-element list ``[start, stop]`` in **data coordinates** along the
+            oriented axis (y for horizontal spans, x for vertical spans).
+        - ``dict`` :
+            Must contain a ``'loc'`` key with ``[start, stop]`` as above. May also
+            include any valid matplotlib span kwargs (e.g., ``color``, ``alpha``) and
+            the special keys ``'min'`` / ``'max'`` to control the extent along the
+            **orthogonal axis** in **axes coordinates** [0, 1].
+
+        Dictionary keys
+        ----------------
+        loc : list of 2 floats, **required**
+            Span limits in data coords along the oriented axis:
+            - For ``add_hspan`` → ``ymin=loc[0]``, ``ymax=loc[1]``.
+            - For ``add_vspan`` → ``xmin=loc[0]``, ``xmax=loc[1]``.
+        min : float, optional
+            Lower bound along the orthogonal axis, in axes fraction [0, 1].
+            - Maps to ``xmin`` for ``axhspan``; to ``ymin`` for ``axvspan``.
+            Default = 0.
+        max : float, optional
+            Upper bound along the orthogonal axis, in axes fraction [0, 1].
+            - Maps to ``xmax`` for ``axhspan``; to ``ymax`` for ``axvspan``.
+            Default = 1.
+        color : str, optional
+            Face color of the span. Default = '#cccccc'.
+        alpha : float, optional
+            Opacity of the span. Default = 0.3.
+        **other matplotlib kwargs**
+            Any additional keyword args accepted by
+            :meth:`matplotlib.axes.Axes.axhspan` / :meth:`~matplotlib.axes.Axes.axvspan`
+            (e.g., ``zorder``, ``linewidth``, ``edgecolor``). These are merged with
+            defaults; explicit values override defaults.
+
+        Defaults
+        --------
+        - color = '#cccccc'
+        - alpha = 0.3
+        - min = 0, max = 1 (full extent across the orthogonal axis)
+
+        Behavior
+        --------
+        - Horizontal spans use ``ax.axhspan(ymin, ymax, xmin=min, xmax=max, **kwargs)``.
+        - Vertical spans use ``ax.axvspan(xmin, xmax, ymin=min, ymax=max, **kwargs)``.
+        - When a dict is provided, ``'loc'`` is extracted; optional ``'min'``/``'max'``
+        are popped and mapped to the correct kwargs depending on orientation.
+        - User kwargs are merged with defaults via ``utils.update_kwargs`` so you can
+        override only the settings you need.
+
+        Returns
+        -------
+        None
+            Draws on ``ax`` in place.
+
+        Examples
+        --------
+        Full-width horizontal band between y=0.5 and y=1.0:
+
+        .. code-block:: python
+
+            self.add_hspan = [0.5, 1.0]
+            self._add_span(ax)
+
+        Vertical band from x=2 to x=3 covering the central 30–90% of the axis height:
+
+        .. code-block:: python
+
+            self.add_vspan = {'loc': [2, 3], 'min': 0.30, 'max': 0.90, 'color': 'tab:blue', 'alpha': 0.15}
+            self._add_span(ax)
+        """
+        
+        default_dict = {
+            "color": "#cccccc",
+            "alpha": 0.3,
+        }
+
+        min, max = [0, 1]
+        for ii, ffunc in zip(["hspan", "vspan"], [ax.axhspan, ax.axvspan]):
+
+            kwargs = {}
+            test_attr = getattr(self, f"add_{ii}")
+            if isinstance(test_attr, (list, dict)):
+                
+                if isinstance(test_attr, dict):
+                    assert "loc" in test_attr, f"Input must contain a 'loc'-key, representing a [start, stop] list. Dictionary now contains: {test_attr.keys()}"
+                    
+                    # extract loc
+                    kwargs = test_attr
+                    loc = kwargs.pop("loc")
+
+                    if "min" in kwargs:
+                        min = kwargs.pop("min")
+                    
+                    if "max" in kwargs:
+                        max = kwargs.pop("max")
+                else:
+                    loc = test_attr
+
+                if ii == "hspan":
+                    default_dict["xmin"] = min
+                    default_dict["xmax"] = max
+                    default_dict["ymin"] = loc[0]
+                    default_dict["ymax"] = loc[1]
+                else:
+                    default_dict["xmin"] = loc[0]
+                    default_dict["xmax"] = loc[1]
+                    default_dict["ymin"] = min
+                    default_dict["ymax"] = max
+
+                # update with defaults
+                for key, val in default_dict.items():
+                    kwargs = utils.update_kwargs(
+                        kwargs,
+                        key,
+                        val
+                    )
+
+                # plop into function
+                ffunc(**kwargs)
+
     def _add_line(
         self,
         ax=None,
         **kwargs
-    ):
+        ):
+
+        """_add_line
+        
+        Add horizontal and/or vertical reference lines to an Axes.
+
+        Reads configuration from the instance attributes :pyattr:`self.add_hline` and
+        :pyattr:`self.add_vline` and draws one or more ``axhline``/``axvline`` objects
+        with sensible defaults. Each attribute can be provided in several shorthand
+        forms (see below). Optionally, labels can be attached to each line.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes, optional
+            Target axes to draw on. Must be provided; no internal fallback. Default = None.
+        **kwargs
+            Currently unused; accepted for API compatibility.
+
+        Configuration (via ``self.add_hline`` / ``self.add_vline``)
+        -----------------------------------------------------------
+        Each of these attributes may be:
+
+        - ``"default"`` :
+            Draw a single line at position ``0`` using defaults.
+        - ``float`` or ``int`` :
+            Draw a single line at the given data position.
+        - ``list`` or ``numpy.ndarray`` of numbers:
+            Draw multiple lines at the given positions.
+        - ``dict`` :
+            Full control via keys described below.
+
+        Dictionary keys
+        ----------------
+        The following keys are recognized when the attribute is a ``dict``. Scalars
+        apply to all lines; lists/arrays are indexed per position.
+
+        pos : float, int, list, or numpy.ndarray, **required**
+            Position(s) of the line(s) in data coordinates (x for vertical, y for horizontal).
+            If omitted, a ``ValueError`` is raised.
+        color : str or list, optional
+            Line color(s). Default = 'k'.
+        ls : str or list, optional
+            Line style(s), e.g. 'dashed'. Default = 'dashed'.
+        lw : float or list, optional
+            Line width(s). Default = 0.5.
+        min : float or list, optional
+            For horizontal lines this maps to ``xmin`` (axes fraction in [0, 1]);
+            for vertical lines to ``ymin``. Default = 0.
+        max : float or list, optional
+            For horizontal lines this maps to ``xmax``; for vertical lines to ``ymax``.
+            Default = 1.
+        add_label : list, dict or any, optional
+            If this key is present, a label is added at each line via
+            :meth:`add_label_to_line`. When ``add_label`` is a ``dict``, its contents
+            are forwarded as keyword arguments to ``add_label_to_line`` (e.g.,
+            ``{'lbl': 'threshold', 'l_max': 0.9}``). If ``add_label`` is present but
+            not a dict, a label is still added with default settings and the text
+            defaults to the line position.
+            If `lbl`-key contains `=pos`, this will be substituted for the actual value of ``pos``
+            For further customization, generate the list of dictionaries before passing them to 
+            the function
+
+        Defaults
+        --------
+        - color = 'k'
+        - ls = 'dashed'
+        - lw = 0.5
+        - min = 0, max = 1 (interpreted as axes fractions; mapped to ``xmin/xmax`` or
+        ``ymin/ymax`` depending on orientation)
+
+        Behavior
+        --------
+        - Lines are drawn with :meth:`matplotlib.axes.Axes.axhline` (for ``add_hline``)
+        or :meth:`matplotlib.axes.Axes.axvline` (for ``add_vline``).
+        - Positions provided as scalars are internally normalized to a list so that
+        per-line styling can be broadcast via lists/arrays of the same length.
+        - If a provided style key is a list/array, the *i*-th element is used for the
+        *i*-th line; otherwise the scalar value is reused for all lines.
+
+        Returns
+        -------
+        None
+            This method draws on ``ax`` in-place and does not return a value.
+
+        Examples
+        --------
+        How to call with :class:`lazyfmri.plotting.LazyLine()`
+
+        .. code-block:: python
+
+            # simple line at 0
+            pl = plotting.LazyLine(
+                <some data>,
+                xx=<some axis>,
+                figsize=(5,5),
+                add_vline=5 # relative to <some axis>
+            )
+
+        .. code-block:: python
+
+            # list of positions
+            pl = plotting.LazyLine(
+                <some data>,
+                xx=<some axis>,
+                figsize=(5,5),
+                add_vline=[0, 2, 10] # relative to <some axis>
+            )
+
+            # list of annotations ('pos' in lbl will be subsituted for the actual 'pos' value)
+            pl = plotting.LazyLine(
+                <some data>,
+                xx=<some axis>,
+                figsize=(5,5),
+                add_vline={
+                    "pos": [0, 1, 4],
+                    "add_label": [
+                        {
+                            "lbl": "t=pos", # t=0
+                            "l_max": 0.15,
+                        },
+                        {
+                            "lbl": "t=pos", # t=1
+                            "l_max": 0.15,
+                        },
+                        {
+                            "lbl": "t=pos", # t=4
+                            "l_max": 0.15,
+                        }
+                    ]
+                }
+            )            
+
+        .. code-block:: python
+            
+            # full control + annotation
+            pl = plotting.LazyLine(
+                <some data>,
+                xx=<some axis),
+                figsize=(5,5),
+                add_vline={
+                    "pos": 0,
+                    "add_label": {
+                        "lbl": "onset",
+                        "l_max": 0.15,
+                        "fontweight": "bold",
+                        "color": "r",
+                        "fontsize": 20
+                    }
+                }
+            )
+        """
 
         for ii in ["hline", "vline"]:
 
@@ -560,39 +952,233 @@ class Defaults():
 
                     # enforce list so we only need to call functions once
                     if "pos" not in list(test_attr.keys()):
-                        raise ValueError(
-                            "Need the 'pos' key to denote position..")
+                        raise ValueError("Need the 'pos' key to denote position..")
                     else:
                         if isinstance(test_attr['pos'], (int, float)):
                             test_attr['pos'] = [test_attr['pos']]
 
                     # loop through elements
                     if isinstance(test_attr['pos'], (list, np.ndarray)):
-                        for ix, line in enumerate(test_attr['pos']):
+                        for ix, pos in enumerate(test_attr['pos']):
 
                             # define function
+                            kwargs_list = ["color", "lw", "ls"]
                             if ii == "hline":
                                 ffunc = ax.axhline
-                                kwargs_list = [
-                                    "color", "lw", "ls", "xmin", "xmax"]
+                                kwargs_list += ["xmin", "xmax"]
                             else:
                                 ffunc = ax.axvline
-                                kwargs_list = [
-                                    "color", "lw", "ls", "ymin", "ymax"]
+                                kwargs_list += ["ymin", "ymax"]
 
                             # update kwargs
                             for key, val in zip(
                                 ["color", "lw", "ls", "min", "max"],
                                 kwargs_list
-                            ):
+                                ):
 
-                                line_kw[val] = self._return_element(
-                                    test_attr, key, ix=ix)
+                                line_kw[val] = self._return_element(test_attr, key, ix=ix)
 
                             # run func
-                            ffunc(line, **line_kw, **kwargs)
+                            kwargs = {}
+                            ffunc(
+                                pos,
+                                **line_kw,
+                                **kwargs
+                            )
+
+                            # check if we should add label
+                            if "add_label" in test_attr:
+                                lbl = test_attr["add_label"]
+                                
+                                if not isinstance(lbl, list):
+                                    lbl = [lbl]
+                                    
+                                lbl_kws = {}
+                                if isinstance(lbl[ix], dict):
+                                    lbl_kws = lbl[ix]
+                                
+                                self.add_label_to_line(
+                                    ax,
+                                    pos,
+                                    ori=ii,
+                                    **lbl_kws
+                                )
 
 
+    def add_label_to_line(
+        self,
+        ax,
+        pos,
+        lbl=None,
+        ori="vline",
+        l_max=0.85,
+        boxstyle="round",
+        pad=0.2,
+        fc="white",
+        ec="white",
+        alpha=1,
+        **kwargs
+        ):
+
+        """Add a label to a vertical or horizontal reference line.
+
+        Places a text label at a fixed position along an axis-aligned line using
+        mixed data/axes transforms. For vertical lines, *x* is in data units and
+        *y* in axes coordinates; for horizontal lines, *y* is in data units and *x*
+        in axes coordinates. A rounded text box is added by default.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes
+            Target axes to draw on.
+        pos : float
+            Line position in data coordinates. Interpreted as *x* when `ori='vline'`
+            and as *y* when `ori!='vline'` (i.e., horizontal line).
+        lbl : str or float, optional
+            Label text. If `None`, the value of `pos` is used. Default = None.
+        ori : {'vline', 'hline'}, optional
+            Orientation of the line to label. `'vline'` places a label on a vertical
+            line with text rotated 90°, `'hline'` on a horizontal line with no rotation.
+            Default = 'vline'.
+        l_max : float, optional
+            Position along the orthogonal axis in axes coordinates [0, 1] where the
+            label is placed (e.g., height within the axes for a vertical line).
+            Default = 0.85.
+        boxstyle : str, optional
+            Matplotlib fancy box style string (e.g., 'round', 'round4', 'square',
+            'larrow', 'rarrow'). Combined internally as
+            ``f"{boxstyle},pad={pad}"``. Default = 'round'.
+        pad : float, optional
+            Padding for the text box (in fraction of font size) passed to the
+            boxstyle. Default = 0.2.
+        fc : str, optional
+            Face color of the label's bounding box. Default = 'white'.
+        ec : str, optional
+            Edge color of the label's bounding box. Default = 'white'.
+        alpha : float, optional
+            Transparency of the label's bounding box. Default = 1.
+        **kwargs
+            Additional keyword arguments forwarded to :meth:`matplotlib.axes.Axes.text`.
+            If `bbox` is provided here, it is merged with the defaults; any provided
+            keys (e.g., `fontsize`, `fontweight`, `bbox`, `ha`, `va`, `rotation`)
+            override the internal defaults.
+
+        Notes
+        -----
+        - Transform logic:
+            - `ori='vline'`: coordinates are ``(x=data, y=axes)`` via
+            ``ax.get_xaxis_transform()``, with default rotation 90°.
+            - `ori!='vline'` (horizontal): coordinates are ``(x=axes, y=data)`` via
+            ``ax.get_yaxis_transform()``, with default rotation 0°.
+        - Default text alignment is centered both horizontally and vertically.
+        - The text is drawn with ``clip_on=False`` and ``zorder=3``.
+        - The function merges user-supplied `bbox`/style kwargs with sensible
+        defaults so you can override only what you need.
+
+        Returns
+        -------
+        matplotlib.axes.Axes
+            The same `ax` object, to allow for method chaining.
+
+        Examples
+        --------
+        Add a label to a vertical line at x=0 near the bottom of the axes with 'onset' text:
+
+        .. code-block:: python
+
+            # example argument passed on :class:`lazyfmri.plotting.LazyLine()`
+            add_vline={
+                "pos": 0,
+                "add_label": {
+                    "lbl": "onset",
+                    "l_max": 0.15
+                }
+            }
+        
+        .. code-block:: python
+
+            # multi-position lines
+            add_vline={
+                "pos": [0, 1, 4],
+                "add_label": [
+                    {
+                        "lbl": "t=pos", # t=0
+                        "l_max": 0.15,
+                    },
+                    {
+                        "lbl": "t=pos", # t=1
+                        "l_max": 0.15,
+                    },
+                    {
+                        "lbl": "t=pos", # t=4
+                        "l_max": 0.15,
+                    }
+                ]
+            }
+
+        """
+        if ori == "vline":
+            rot = 90
+            coord = (pos, l_max)
+            # x in data units, y in axes [0..1]
+            tfm = ax.get_xaxis_transform()
+        else:
+            rot = 0
+            coord= (l_max, pos)
+            # y in data units, x in axes [0..1]
+            tfm = ax.get_yaxis_transform()
+
+        # text box kwargs
+        bbox_defaults = {
+            "boxstyle": f"{boxstyle},pad={pad}",
+            "fc": fc,
+            "ec": ec,
+            "alpha": alpha,
+        }
+        
+        # position kwargs
+        defaults = {
+            "ha": "center",
+            "va": "center",
+            "rotation": rot
+        }
+
+        # initialize bbox kwargs if absent
+        if not "bbox" in kwargs:
+            kwargs["bbox"] = {}
+
+        # append defaults if not specified
+        for key, val in bbox_defaults.items():
+            kwargs["bbox"] = utils.update_kwargs(
+                kwargs["bbox"],
+                key,val
+            )
+
+        # add regular defaults
+        for key, val in defaults.items():
+            kwargs = utils.update_kwargs(
+                kwargs,
+                key,
+                val
+            )
+
+        # set label to pos if not specified
+        if lbl is None:
+            lbl = pos
+        else:
+            lbl = lbl.replace("=pos", f"={str(pos)}")
+
+        ax.text(
+            coord[0], coord[1],
+            lbl,
+            transform=tfm,
+            clip_on=False,
+            zorder=3,
+            **kwargs
+        )
+
+        return ax
+    
 class LazyPRF(Defaults):
     """LazyPRF
 
@@ -1183,6 +1769,7 @@ class LazyLine(Defaults):
 
         # draw horizontal/vertical lines with ax?line
         self._add_line(ax=self.axs)
+        self._add_span(ax=self.axs)
 
         # despine
         self._despine(self.axs)
@@ -1475,8 +2062,7 @@ class LazyCorr(Defaults):
 
         # c-arguments clashes with "color" argument if you pass it to
         # sns.regplot in "scatter_kws"; hence this solution
-        if isinstance(self.color_by, (list, np.ndarray,
-                      pd.DataFrame, pd.Series)):
+        if isinstance(self.color_by, (list, np.ndarray, pd.DataFrame, pd.Series)):
 
             # get array
             if isinstance(self.color_by, (pd.DataFrame, pd.Series)):
@@ -1493,7 +2079,8 @@ class LazyCorr(Defaults):
                 self.x,
                 self.y,
                 c=self.color_by,
-                **self.scatter_kwargs)
+                **self.scatter_kwargs
+            )
 
             # set colorbar
             if add_cbar:
@@ -1502,7 +2089,8 @@ class LazyCorr(Defaults):
                     self.cbar.set_label(
                         self.scatter_kwargs["label"],
                         fontsize=self.font_size,
-                        fontname=self.fontname)
+                        fontname=self.fontname
+                    )
 
                 # sort out ticks
                 self._set_tick_params(self.cbar.ax)
@@ -1529,8 +2117,7 @@ class LazyCorr(Defaults):
             **self.error_kwargs
         )
 
-        self.kde_color = utils.make_between_cm(
-            self.color, self.color, as_list=True)
+        self.kde_color = utils.make_between_cm(self.color, self.color, as_list=True)
         self.reg_ = sns.regplot(
             x=self.x,
             y=self.y,
@@ -1564,6 +2151,7 @@ class LazyCorr(Defaults):
 
         # draw horizontal/vertical lines with ax?line
         self._add_line(ax=self.axs)
+        self._add_span(ax=self.axs)
 
         # set tickers & despine
         self._despine(self.axs)
@@ -2169,6 +2757,7 @@ class LazyBar():
 
         # draw horizontal/vertical lines with ax?line
         self.kw_defaults._add_line(ax=self.ff)
+        self.kw_defaults._add_span(ax=self.ff)
 
         # set tickers & despine
         # set ticks
@@ -2371,10 +2960,6 @@ class LazyHist(Defaults):
     def return_kde(self):
         return self.ff.get_lines()[0].get_data()
 
-    def force_kde_color(self):
-        line_cols = self.ff.get_lines()
-        line_cols[-1].set_color(self.color)
-
     def _set_color(self):
         if isinstance(self.cmap, str):
             self.color = sns.color_palette(self.cmap, 1)[0]
@@ -2388,9 +2973,16 @@ class LazyHist(Defaults):
         self._set_figure_axs()
 
         if self.hist:
+            if self.kde:
+                # ensure density for KDE
+                self.hist_kwargs = utils.update_kwargs(
+                    self.hist_kwargs,
+                    "density",
+                    True
+                )
+
             self.vals, self.bins, self.patches = self.axs.hist(
                 self.data,
-                density=True,
                 bins=self.bins,
                 color=self.color,
                 **self.hist_kwargs
@@ -2429,10 +3021,14 @@ class LazyHist(Defaults):
             if "legend" not in list(self.kde_kwargs):
                 self.kde_kwargs["legend"] = False
 
-            if not self.hist:
-                if "color" not in list(self.kde_kwargs):
-                    self.kde_kwargs["color"] = self.color
-
+            # if not self.hist:
+            self.kde_kwargs = utils.update_kwargs(
+                self.kde_kwargs,
+                "color",
+                self.color,
+                force=True
+            )
+        
             self.ff = sns.kdeplot(
                 data=self.data,
                 x=self.x,
@@ -2441,10 +3037,6 @@ class LazyHist(Defaults):
                 fill=self.fill,
                 **self.kde_kwargs
             )
-
-            # the color argument is very unstable for some reason..
-            if self.hist:
-                self.force_kde_color()
 
         # there's no self.ff if kde=False
         if hasattr(self, "ff"):
@@ -2503,15 +3095,18 @@ class LazyHist(Defaults):
 
         # draw horizontal/vertical lines with ax?line
         self._add_line(ax=self.active_axs)
+        self._add_span(ax=self.active_axs)
 
         # set title
         self._set_title(self.active_axs, self.title)
 
 
 def conform_ax_to_obj(
-        ax,
-        obj=None,
-        **kwargs):
+    ax,
+    obj=None,
+    **kwargs
+    ):
+
     """conform_ax_to_obj
 
     Function to conform any plot to the aesthetics of this plotting module. Can be used when a plot is created with functions
@@ -2588,8 +3183,9 @@ def conform_ax_to_obj(
 
     for x in ["x", "y", "z"]:
         for ff, el in zip(
-                loop_funcs,
-                ["ticks", "ticklabels", "dec", "label"]):
+            loop_funcs,
+            ["ticks", "ticklabels", "dec", "label"]
+            ):
 
             add_to_ax = getattr(obj, f"{x}_{el}")
             getattr(obj, ff)(ax, add_to_ax, axis=x)
@@ -2603,6 +3199,7 @@ def conform_ax_to_obj(
 
     # draw horizontal/vertical lines with ax?line
     obj._add_line(ax=ax)
+    obj._add_span(ax=ax)
 
     # despine
     try:
@@ -2616,23 +3213,23 @@ def conform_ax_to_obj(
 class LazyColorbar(Defaults):
 
     def __init__(
-            self,
-            cmap="magma_r",
-            txt=None,
-            vmin=0,
-            vmax=10,
-            ori="vertical",
-            ticks=None,
-            labels=None,
-            flip_ticks=False,
-            flip_label=False,
-            figsize=(6, 0.5),
-            save_as=None,
-            cm_nr=5,
-            cm_decimal=3,
-            cb_kws={},
-            font_kws={},
-            **kwargs):
+        self,
+        cmap="magma_r",
+        txt=None,
+        vmin=0,
+        vmax=10,
+        ori="vertical",
+        ticks=None,
+        labels=None,
+        flip_ticks=False,
+        flip_label=False,
+        figsize=(6, 0.5),
+        save_as=None,
+        cm_nr=5,
+        cm_decimal=3,
+        cb_kws={},
+        font_kws={},
+        **kwargs):
 
         self.cmap = cmap
         self.txt = txt
@@ -2749,11 +3346,12 @@ class LazyColorbar(Defaults):
 
     @staticmethod
     def colormap_ticks(
-            vmin=None,
-            vmax=None,
-            key=None,
-            dec=3,
-            nr=5):
+        vmin=None,
+        vmax=None,
+        key=None,
+        dec=3,
+        nr=5
+        ):
 
         # store colormaps
         if isinstance(key, str):
@@ -2786,16 +3384,17 @@ class LazyColorbar(Defaults):
 
 
 def fig_annot(
-        fig,
-        axs=None,
-        y=1.01,
-        x0_corr=0,
-        x_corr=-0.09,
-        fontsize=28,
-        lower=False,
-        brackets=False,
-        square=False,
-        **kwargs):
+    fig,
+    axs=None,
+    y=1.01,
+    x0_corr=0,
+    x_corr=-0.09,
+    fontsize=28,
+    lower=False,
+    brackets=False,
+    square=False,
+    **kwargs
+    ):
 
     # get figure letters
     if lower:
@@ -2848,7 +3447,8 @@ def fig_annot(
             (pos, y_pos),
             fontsize=fontsize,
             xycoords="axes fraction",
-            **kwargs)
+            **kwargs
+        )
 
 
 turbo_colormap_data = np.array(
@@ -3217,3 +3817,5 @@ def add_axvspan(
         color=color,
         **kwargs
     )
+
+    return axs
