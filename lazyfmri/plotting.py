@@ -238,8 +238,9 @@ class Defaults():
             ax.spines[axis].set_linewidth(self.axis_width)
 
     def _set_axlabel(self, ax, lbl, axis="x"):
+        """_set_axlabel
 
-        """Internal function to set the x/y/z-labels of a plot.
+        Internal function to set the x/y/z-labels of a plot.
 
         Parameters
         ----------
@@ -270,42 +271,45 @@ class Defaults():
             which axis to label. Must be one of 'x', 'y', or 'z'
         """
 
-        allowed_axes = ["x", "y", 'z']
-        assert axis in allowed_axes, f"axis must be one of {allowed_axes}, not {axis}"
-        assert hasattr(ax, f"set_{axis}label"), f"{ax}-object does not have 'set_{axis}label' attribute. Make sure to specify a valid axis object"
-            
         kwargs = {}
-        if isinstance(lbl, dict):
-            assert "label" in lbl, f"dictionary must contain a key 'label' with a string representing the actual label, dictionary now has: {lbl.keys()}"
+        if isinstance(lbl, (dict, str)):
 
-            kwargs = lbl
-            lbl = kwargs.pop("label")
-        
-        # update with defaults
-        defaults_kws = {
-            "fontsize": self.font_size,
-            "fontname": self.fontname,
-        }
-        
-        for key, val in defaults_kws.items():
-            kwargs = utils.update_kwargs(
-                kwargs,
-                key,
-                val
-            )
+            if isinstance(lbl, dict):
+                assert "label" in lbl, f"dictionary must contain a key 'label' with a string representing the actual label, dictionary now has: {lbl.keys()}"
 
-        if axis == "x":
-            ffunc = ax.set_xlabel
-        elif axis == "y":
-            ffunc = ax.set_ylabel
-        else:
-            ffunc = ax.set_zlabel
+                kwargs = lbl
+                lbl = kwargs.pop("label")
 
-        if isinstance(lbl, (str, list)):
-            ffunc(
-                lbl,
-                **kwargs
-            )
+            allowed_axes = ["x", "y", 'z']
+            assert axis in allowed_axes, f"axis must be one of {allowed_axes}, not {axis}"
+            assert hasattr(ax, f"set_{axis}label"), f"{ax}-object does not have 'set_{axis}label' attribute. Make sure to specify a valid axis object"
+                
+            
+            # update with defaults
+            defaults_kws = {
+                "fontsize": self.font_size,
+                "fontname": self.fontname,
+            }
+            
+            for key, val in defaults_kws.items():
+                kwargs = utils.update_kwargs(
+                    kwargs,
+                    key,
+                    val
+                )
+
+            if axis == "x":
+                ffunc = ax.set_xlabel
+            elif axis == "y":
+                ffunc = ax.set_ylabel
+            else:
+                ffunc = ax.set_zlabel
+
+            if isinstance(lbl, (str, list)):
+                ffunc(
+                    lbl,
+                    **kwargs
+                )
 
     def _set_tick_params(self, ax, **kwargs):
         """set width/length/labelsize of ticks"""
@@ -317,7 +321,9 @@ class Defaults():
         )
 
     def _set_title(self, ax, title):
-        """Internal function to set the main title of the axis object.
+        """_set_title
+
+        Internal function to set the main title of the axis object.
 
         Parameters
         ----------
@@ -346,39 +352,40 @@ class Defaults():
 
         """
 
-        if isinstance(self.title_size, str):
-            if hasattr(self, self.title_size):
-                self.title_size = getattr(self, self.title_size)
+        if isinstance(title, (str, dict)):
+            if isinstance(self.title_size, str):
+                if hasattr(self, self.title_size):
+                    self.title_size = getattr(self, self.title_size)
 
-        assert isinstance(title, (dict, str)), f"title must be a string or a dictionary with a 'title' key representing the title, as well as additional arguments passed to ax.set_title(**kwargs)"
+            assert isinstance(title, (dict, str)), f"title must be a string or a dictionary with a 'title' key representing the title, as well as additional arguments passed to ax.set_title(**kwargs)"
 
-        default_dict = {
-            'color': 'k',
-            'fontweight': 'normal',
-            "fontsize": self.title_size,
-            "fontname": self.fontname,
-            "pad": self.pad_title
-        }
-    
-        # pop 'title' key
-        kwargs = {}
-        if isinstance(title, dict):
-            assert "title" in title, f"dictionary must contain a key 'title' with a string representing the actual title, dictionary now has: {title.keys()}"
-            kwargs = title.copy()
-            title = kwargs.pop("title")
-
-        # add default keys if they're missing in dictionary
-        for key, val in default_dict.items():
-            kwargs = utils.update_kwargs(
-                kwargs,
-                key,
-                val
-            )
+            default_dict = {
+                'color': 'k',
+                'fontweight': 'normal',
+                "fontsize": self.title_size,
+                "fontname": self.fontname,
+                "pad": self.pad_title
+            }
         
-        ax.set_title(
-            title,
-            **kwargs
-        )
+            # pop 'title' key
+            kwargs = {}
+            if isinstance(title, dict):
+                assert "title" in title, f"dictionary must contain a key 'title' with a string representing the actual title, dictionary now has: {title.keys()}"
+                kwargs = title.copy()
+                title = kwargs.pop("title")
+
+            # add default keys if they're missing in dictionary
+            for key, val in default_dict.items():
+                kwargs = utils.update_kwargs(
+                    kwargs,
+                    key,
+                    val
+                )
+            
+            ax.set_title(
+                title,
+                **kwargs
+            )
 
     def _set_bar_lim(self, ax, lim):
         if isinstance(lim, list):
@@ -759,7 +766,9 @@ class Defaults():
         **kwargs
         ):
 
-        """Add horizontal and/or vertical reference lines to an Axes.
+        """_add_line
+        
+        Add horizontal and/or vertical reference lines to an Axes.
 
         Reads configuration from the instance attributes :pyattr:`self.add_hline` and
         :pyattr:`self.add_vline` and draws one or more ``axhline``/``axvline`` objects
@@ -987,7 +996,11 @@ class Defaults():
                                 
                                 if not isinstance(lbl, list):
                                     lbl = [lbl]
-                                    
+
+                                # ensure lists are the same length
+                                if len(test_attr['pos']) != len(lbl):
+                                    lbl = [lbl[0] for _ in range(len(test_attr['pos']))]
+
                                 lbl_kws = {}
                                 if isinstance(lbl[ix], dict):
                                     lbl_kws = lbl[ix]
