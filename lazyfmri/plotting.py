@@ -170,9 +170,9 @@ class Defaults():
         ]
 
         self.pad_title = 20
-        self.font_size = 18
-        self.title_size = 24
-        self.label_size = 14
+        self.font_size = 14
+        self.title_size = 16
+        self.label_size = 10
         self.tick_width = 0.5
         self.tick_length = 0
         self.axis_width = 0.5
@@ -1245,7 +1245,7 @@ class LazyPRF(Defaults):
             alpha=None,
             shrink_factor=1,
             axis_off=True,
-            figsize=(8, 8),
+            figsize=(3.54, 3.54),
             full_axis=False,
             vf_only=False,
             cross_width=0.5,
@@ -1493,7 +1493,7 @@ class LazyLine(Defaults):
             xx=None,
             error=None,
             error_alpha=0.3,
-            figsize=(14, 4),
+            figsize=(7.1, 3.54),
             cmap='viridis',
             labels=None,
             markers=None,
@@ -1875,7 +1875,7 @@ class LazyCorr(Defaults):
             x: Union[str, np.ndarray] = None,
             y: Union[str, np.ndarray] = None,
             color: str = "#cccccc",
-            figsize: tuple = (7, 7),
+            figsize: tuple = (3.54, 3.54),
             points: bool = True,
             label: str = None,
             scatter_kwargs: dict = {},
@@ -2265,7 +2265,7 @@ class LazyBar():
             palette: Union[list, sns.palettes._ColorPalette] = None,
             cmap: str = "inferno",
             hue: str = None,
-            figsize=(4, 7),
+            figsize=(1.77, 3.54),
             add_labels: bool = False,
             lim: list = None,
             ticks: list = None,
@@ -2910,7 +2910,7 @@ class LazyHist(Defaults):
             data,
             x=None,
             y=None,
-            figsize=(5, 5),
+            figsize=(3.54, 3.54),
             kde=False,
             hist=True,
             bins="auto",
@@ -3231,7 +3231,7 @@ class LazyColorbar(Defaults):
         labels=None,
         flip_ticks=False,
         flip_label=False,
-        figsize=(6, 0.5),
+        figsize=(3.54, 0.5),
         save_as=None,
         cm_nr=5,
         cm_decimal=3,
