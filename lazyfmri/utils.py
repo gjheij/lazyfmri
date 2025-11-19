@@ -620,6 +620,36 @@ def copy_hdr(source_img, dest_img):
     new = nb.Nifti1Image(targ_img.get_fdata(), affine=src_img.affine, header=src_img.header)
     return new
 
+
+def ants_truncate_intensities(
+    in_file, 
+    out_file, 
+    lower=0.01, 
+    upper=0.99, 
+    n_bins=256):
+
+    import nibabel as nb
+    import os
+
+    if not isinstance(in_file, str):
+        raise TypeError(f"Input must be a string pointing to a nifti file or a nb.Nifti1Image-object, not '{type(in_file)}'")
+    else:
+        dims = nb.load(in_file).header["dim"][0]
+
+    if not isinstance(out_file, str):
+        out_file = os.path.abspath(in_file)
+        raise TypeError(f"out_file must be a string, not '{type(out_file)}'")
+    else:
+        out_file = os.path.abspath(out_file)
+
+    cmd = f"ImageMath {dims} {out_file} TruncateImageIntensity {in_file} {lower} {upper} {n_bins}"
+    
+    # print command if verb = True
+    print(cmd)
+    os.system(cmd)
+    
+    return out_file
+
 def ants_to_spm_moco(affine, deg=False, convention="SPM"):
 
     """SPM output = x [LR], y [AP], z [SI], rx, ry, rz. ANTs employs an LPS system, so y value should be switched"""
