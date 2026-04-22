@@ -462,6 +462,10 @@ class InitFitter():
                 if ix not in self.final_index:
                     self.drop_cols.append(ix)
 
+        # filter for None
+        self.drop_cols = list(filter(lambda x: x is not None, self.drop_cols)) 
+        
+        # check  if survived
         if len(self.drop_cols) > 0:
             self.onsets = self.onsets.drop(self.drop_cols, axis=1)
 
