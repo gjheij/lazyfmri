@@ -178,7 +178,7 @@ class Defaults():
         self.axis_width = 0.5
         self.line_width = 1
         self.line_style = "solid"
-        self.sns_offset = None
+        self.sns_offset = 0
         self.sns_trim = False
         self.sns_bottom = False
         self.sns_ori = "v"
@@ -237,7 +237,7 @@ class Defaults():
         for axis in ['top', 'bottom', 'left', 'right']:
             ax.spines[axis].set_linewidth(self.axis_width)
 
-    def _set_axlabel(self, ax, lbl, axis="x"):
+    def _set_axlabel(self, ax, lbl, axis="x", **kwargs):
         """_set_axlabel
 
         Internal function to set the x/y/z-labels of a plot.
@@ -414,7 +414,7 @@ class Defaults():
             self._set_ticks(ax, ticks, axis=fc)
 
     @staticmethod
-    def _set_ticks(ax, ticks, axis="x"):
+    def _set_ticks(ax, ticks, axis="x", **kwargs):
         """set ticks"""
 
         if hasattr(ax, f"set_{axis}ticks"):
@@ -439,6 +439,7 @@ class Defaults():
 
                 ffunc(ticks)
 
+
     @staticmethod
     def _set_ticklabels(ax, ticks, axis="x", **kwargs):
 
@@ -459,6 +460,7 @@ class Defaults():
             if isinstance(ticks, list):
                 ffunc(ticks, **kwargs)
 
+
     @staticmethod
     def _set_ylim(ax, lim):
         """set y-limit"""
@@ -467,6 +469,7 @@ class Defaults():
         elif isinstance(lim, (int, float)):
             ax.set_ylim(top=lim)
 
+
     @staticmethod
     def _set_xlim(ax, lim):
         """set x-limit"""
@@ -474,6 +477,7 @@ class Defaults():
             ax.set_xlim(lim)
         elif isinstance(lim, (int, float)):
             ax.set_xlim(left=lim)
+
 
     def _despine(self, ax, **kwargs):
         """despine plot"""
@@ -495,8 +499,9 @@ class Defaults():
                 **kwargs
             )
 
+
     @staticmethod
-    def _set_ticker(ax, dec, axis="x"):
+    def _set_ticker(ax, dec, axis="x", **kwargs):
         """set all y-ticks to decimal"""
 
         if hasattr(ax, f"{axis}axis"):
@@ -511,6 +516,7 @@ class Defaults():
                 from matplotlib.ticker import FormatStrFormatter
                 ffunc.set_major_formatter(FormatStrFormatter(f"%.{dec}f"))
 
+
     def _set_shaded_error(
         self,
         x: np.ndarray = None,
@@ -520,22 +526,48 @@ class Defaults():
         **kwargs
         ):
 
-        if isinstance(yerr, (int, float, list, np.ndarray)):
-            if np.isscalar(yerr) or len(yerr) == len(tc):
-                if not np.isscalar(yerr):
-                    if all([np.isnan(i) for i in yerr]):
-                        raise TypeError("Error contains only NaNs")
+        if yerr is None:
+            return
+
+        if not isinstance(yerr, (int, float, list, tuple, np.ndarray)):
+            return
+
+        # scalar symmetric error or vector symmetric error
+        if np.isscalar(yerr):
+            ymin = tc - yerr
+            ymax = tc + yerr
+
+        else:
+            # explicit lower/upper bounds
+            if isinstance(yerr, (list, tuple)) and len(yerr) == 2:
+                ymin = np.asarray(yerr[0])
+                ymax = np.asarray(yerr[1])
+
+            else:
+                yerr = np.asarray(yerr)
+
+                if len(yerr) != len(tc):
+                    raise ValueError(
+                        f"Error vector length ({len(yerr)}) does not match data length ({len(tc)})"
+                    )
+
+                if np.all(np.isnan(yerr)):
+                    raise TypeError("Error contains only NaNs")
+
                 ymin = tc - yerr
                 ymax = tc + yerr
-            elif len(yerr) == 2:
-                ymin, ymax = yerr
 
-            ax.fill_between(
-                x,
-                ymax,
-                ymin,
-                **kwargs
+        if len(ymin) != len(tc) or len(ymax) != len(tc):
+            raise ValueError(
+                f"Shaded bounds must match data length ({len(tc)}); got {len(ymin)} and {len(ymax)}"
             )
+
+        ax.fill_between(
+            x,
+            ymin,
+            ymax,
+            **kwargs
+        )
 
     def _draw_errorbar(
         self,
@@ -582,6 +614,7 @@ class Defaults():
             **kwargs
         )
 
+
     def _set_legend_labels(self, ax, labels=None):
         if isinstance(labels, (list, np.ndarray)):
             if "font_size" not in list(self.legend_kwargs.keys(
@@ -594,6 +627,7 @@ class Defaults():
                 **self.legend_kwargs,
             )
 
+
     def _save_as(self, save_as, **kwargs):
         """simple save function"""
         if isinstance(save_as, str):
@@ -605,6 +639,7 @@ class Defaults():
                 **kwargs
             )
 
+
     def _save_figure(self, save_as):
         """save same figure with multiple extensions"""
         if isinstance(save_as, (list, str)):
@@ -614,11 +649,13 @@ class Defaults():
             for ii in save_as:
                 self._save_as(ii)
 
+
     def _return_element(self, ddict, el, ix=0):
         if isinstance(ddict[el], list):
             return ddict[el][ix]
         else:
             return ddict[el]
+
 
     def _add_span(
         self,
@@ -759,6 +796,7 @@ class Defaults():
 
                 # plop into function
                 ffunc(**kwargs)
+
 
     def _add_line(
         self,
@@ -1187,6 +1225,7 @@ class Defaults():
 
         return ax
     
+
 class LazyPRF(Defaults):
     """LazyPRF
 
@@ -1587,21 +1626,43 @@ class LazyLine(Defaults):
                 else:
                     self.error = [self.error]
 
-            # filter out all NaNs
-            if self.fix_error:
-                self.tmp_error = [None for ii in range(len(self.array))]
-                for ix, err in enumerate(self.error):
-                    if isinstance(err, (int, float)):
-                        self.tmp_error[ix] = err
-                    else:
-                        if not all([np.isnan(i) for i in err]):
+                # filter out all-NaN errors
+                if self.fix_error:
+                    self.tmp_error = [None for _ in range(len(self.array))]
+
+                    for ix, err in enumerate(self.error):
+                        if err is None:
+                            continue
+
+                        if isinstance(err, (int, float)):
+                            self.tmp_error[ix] = err
+                            continue
+
+                        # explicit bounds: (ymin, ymax) or [ymin, ymax]
+                        if isinstance(err, (list, tuple)) and len(err) == 2:
+                            ymin = np.asarray(err[0])
+                            ymax = np.asarray(err[1])
+
+                            if ymin.shape != ymax.shape:
+                                raise ValueError(
+                                    f"Lower/upper error bounds must have same shape; got {ymin.shape} and {ymax.shape}"
+                                )
+
+                            if not (np.all(np.isnan(ymin)) and np.all(np.isnan(ymax))):
+                                self.tmp_error[ix] = (ymin, ymax)
+                            continue
+
+                        # regular 1D error vector
+                        err = np.asarray(err)
+                        if not np.all(np.isnan(err)):
                             self.tmp_error[ix] = err
 
-                self.error = self.tmp_error.copy()
+                    self.error = self.tmp_error.copy()
 
-                if len(self.error) != len(self.array):
-                    raise ValueError(
-                        f"Error list ({len(self.error)}) does not match length of data list ({len(self.array)})")
+                    if len(self.error) != len(self.array):
+                        raise ValueError(
+                            f"Error list ({len(self.error)}) does not match length of data list ({len(self.array)})"
+                        )
 
             if not isinstance(self.markersize, list):
                 if self.markersize is None:
@@ -2276,6 +2337,10 @@ class LazyBar():
             points_legend: bool = False,
             points_alpha: float = 1,
             error: str = "se",
+            ci_mode: str = "auto",
+            ci_low: str = None,
+            ci_high: str = None,
+            ci_kws: dict={},
             fancy: bool = False,
             fancy_rounding: float = 0.15,
             fancy_pad: float = -0.004,
@@ -2286,7 +2351,8 @@ class LazyBar():
             strip_kw: dict = {},
             connect: bool = False,
             connect_kw: dict = {},
-            **kwargs):
+            **kwargs
+        ):
 
         self.data = data
         self.x = x
@@ -2316,6 +2382,10 @@ class LazyBar():
         self.strip_kw = strip_kw
         self.connect = connect
         self.connect_kw = connect_kw
+        self.ci_mode = ci_mode
+        self.ci_low = ci_low
+        self.ci_high = ci_high
+        self.ci_kws = ci_kws
         self.kw_defaults = Defaults()
 
         # avoid that these kwargs are passed down to matplotlib.bar.. Throws
@@ -2368,6 +2438,83 @@ class LazyBar():
         # save
         self.kw_defaults._save_figure(self.save_as)
 
+    def _resolve_ci_mode(self):
+        if self.ci_mode is None:
+            return None
+
+        if self.ci_mode == "auto":
+            if isinstance(self.ci_low, str) and isinstance(self.ci_high, str):
+                return "columns"
+            return "raw"
+
+        if self.ci_mode not in ["raw", "columns"]:
+            raise ValueError("ci_mode must be one of {'auto', 'raw', 'columns', None}")
+
+        return self.ci_mode
+
+
+    def _add_dataframe_cis(self):
+        if not isinstance(self.ci_low, str) or not isinstance(self.ci_high, str):
+            raise ValueError("When ci_mode='columns', ci_low and ci_high must be column names")
+
+        if self.ci_low not in self.data.columns:
+            raise ValueError(f"Column '{self.ci_low}' not found in dataframe")
+        if self.ci_high not in self.data.columns:
+            raise ValueError(f"Column '{self.ci_high}' not found in dataframe")
+
+        patches_ = [p for p in self.ff.patches if p.get_height() != 0 or p.get_width() != 0]
+
+        n_rows = self.data.shape[0]
+        if len(patches_) < n_rows:
+            raise ValueError(
+                f"Found fewer bar patches ({len(patches_)}) than dataframe rows ({n_rows}). "
+                "This can happen when using incompatible input for manual CI drawing."
+            )
+
+        # numeric column depends on orientation
+        value_col = self.y if self.sns_ori == "v" else self.x
+
+        ci_defs = {
+            "fmt": "none",
+            "ecolor": "black",
+            "capsize": 0,
+            "lw": 1
+        }
+
+        for key, val in ci_defs.items():
+            if key not in self.ci_kws:
+                self.ci_kws = utils.update_kwargs(
+                    self.ci_kws,
+                    key,
+                    val
+                ) 
+
+        for patch, (_, row) in zip(patches_, self.data.iterrows()):
+            value = row[value_col]
+            low = row[self.ci_low]
+            high = row[self.ci_high]
+
+            err_low = value - low
+            err_high = high - value
+
+            if self.sns_ori == "v":
+                x_center = patch.get_x() + patch.get_width() / 2
+                self.ff.errorbar(
+                    x=x_center,
+                    y=value,
+                    yerr=np.array([[err_low], [err_high]]),
+                    **self.ci_kws
+                )
+            else:
+                y_center = patch.get_y() + patch.get_height() / 2
+                self.ff.errorbar(
+                    x=value,
+                    y=y_center,
+                    xerr=np.array([[err_low], [err_high]]),
+                    **self.ci_kws
+                )
+
+
     def connect_hue_pairs(self, **kwargs):
 
         n_xs = utils.get_unique_ids(self.data, id=self.xx, sort=False)
@@ -2379,6 +2526,7 @@ class LazyBar():
                 hue_id=i,
                 **kwargs
             )
+
 
     def connect_pairs(
             self,
@@ -2459,6 +2607,7 @@ class LazyBar():
                 y1 = [locs1[i, y_idx], locs2_sorted[i, y_idx]]
                 self.ff.plot(x1, y1, **kwargs)
 
+
     def plot(self, **kw_sns):
 
         # set figure axis
@@ -2508,8 +2657,8 @@ class LazyBar():
                 self.data[self.x] = self.labels
 
         if self.sns_ori == "h":
-            self.xx = self.y
-            self.yy = self.x
+            self.xx = self.x
+            self.yy = self.y
             self.trim_bottom = False
             self.trim_left = True
         elif self.sns_ori == "v":
@@ -2544,19 +2693,26 @@ class LazyBar():
             elif self.error.lower() == "std":
                 self.error = "sd"
 
+        ci_mode = self._resolve_ci_mode()
+
+        sns_errorbar = self.error if ci_mode == "raw" else None
+
         self.ff = sns.barplot(
             data=self.data,
             x=self.xx,
             y=self.yy,
             ax=self.axs,
             orient=self.sns_ori,
-            errorbar=self.error,
+            errorbar=sns_errorbar,
             hue=self.hue,
             **dict(
                 kw_sns,
                 color=self.color,
                 palette=self.palette
             ))
+
+        if ci_mode == "columns":
+            self._add_dataframe_cis()
 
         multi_strip = False
 
@@ -3076,7 +3232,12 @@ class LazyHist(Defaults):
                     ["ticks", "ticklabels", "dec", "label"]):
 
                 add_to_ax = getattr(self, f"{x}_{el}")
-                getattr(self, ff)(self.active_axs, add_to_ax, axis=x)
+                getattr(self, ff)(
+                    self.active_axs,
+                    add_to_ax,
+                    axis=x,
+                    fontname=self.fontname
+                )
 
         # set axis labels
         if not isinstance(self.x_label, str):
@@ -3161,6 +3322,8 @@ def conform_ax_to_obj(
     if len(kwargs) > 0:
         for key, val in kwargs.items():
             setattr(obj, key, val)
+
+        obj.update_rc(obj.fontname)
 
     # try to read some stuff from the passed axis
     if not isinstance(ax, mpl.colorbar.Colorbar):
@@ -3392,16 +3555,16 @@ class LazyColorbar(Defaults):
 
 
 def fig_annot(
-    fig,
-    axs=None,
-    y=1.01,
-    x0_corr=0,
-    x_corr=-0.09,
-    fontsize=28,
-    lower=False,
-    brackets=False,
-    square=False,
-    **kwargs
+        fig,
+        axs=None,
+        y=1.01,
+        x0_corr=0,
+        x_corr=-0.09,
+        fontsize=28,
+        lower=False,
+        brackets=False,
+        square=False,
+        **kwargs
     ):
 
     # get figure letters
