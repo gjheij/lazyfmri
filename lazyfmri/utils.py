@@ -915,6 +915,88 @@ def find_missing(lst):
     return [i for x, y in zip(lst, lst[1:])
             for i in range(x + 1, y) if y - x > 1]
 
+def make_diverging_list(
+    values,
+    neg_color="#4b3b8f",
+    pos_color="#c24e00",
+    as_hex=True,
+    use_magnitude=True,
+    **kwargs
+):
+    """Create a diverging color list mapped to values.
+
+    Parameters
+    ----------
+    values : array-like
+        Input values (e.g., effects)
+    neg_color : str
+        Color for negative values
+    pos_color : str
+        Color for positive values
+    as_hex : bool
+        Return hex colors (default True)
+    use_magnitude : bool
+        If True, assign gradient based on magnitude
+
+    Returns
+    -------
+    list
+        List of colors aligned with `values`
+    """
+
+    import seaborn as sns
+    
+    values = np.asarray(values)
+
+    neg_mask = values < 0
+    pos_mask = values >= 0
+
+    neg_vals = values[neg_mask]
+    pos_vals = values[pos_mask]
+
+    # create palettes
+    neg_palette = sns.light_palette(
+        neg_color,
+        n_colors=len(neg_vals),
+        reverse=True
+    )
+
+    pos_palette = sns.light_palette(
+        pos_color,
+        n_colors=len(pos_vals)
+    )
+
+    colors = np.empty(len(values), dtype=object)
+
+    if use_magnitude:
+        # sort within each side by magnitude
+        neg_order = np.argsort(neg_vals)          # most negative → least
+        pos_order = np.argsort(pos_vals)          # smallest → largest
+
+        for rank, idx in enumerate(neg_order):
+            orig_idx = np.where(neg_mask)[0][idx]
+            colors[orig_idx] = neg_palette[rank]
+
+        for rank, idx in enumerate(pos_order):
+            orig_idx = np.where(pos_mask)[0][idx]
+            colors[orig_idx] = pos_palette[rank]
+
+    else:
+        # assign in original order
+        neg_i = pos_i = 0
+        for i, v in enumerate(values):
+            if v < 0:
+                colors[i] = neg_palette[neg_i]
+                neg_i += 1
+            else:
+                colors[i] = pos_palette[pos_i]
+                pos_i += 1
+
+    if as_hex:
+        return [mcolors.rgb2hex(c) for c in colors]
+    else:
+        return list(colors)
+    
 
 def make_between_cm(
         col1,
