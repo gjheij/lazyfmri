@@ -996,6 +996,28 @@ def make_diverging_list(
         return [mcolors.rgb2hex(c) for c in colors]
     else:
         return list(colors)
+
+def make_diverging_cm(
+        neg_color,
+        pos_color,
+        neutral="#f2f2f2",
+        as_list=False,
+        **kwargs):
+
+    input_list = [neg_color, neutral, pos_color]
+
+    # scale to 0-1
+    col_list = []
+    for color in input_list:
+        scaled_color = convert_to_rgb(color)
+        col_list.append(scaled_color)
+
+    cm = mcolors.LinearSegmentedColormap.from_list("", col_list, **kwargs)
+
+    if as_list:
+        [mcolors.rgb2hex(cm(i / (cm.N - 1))) for i in range(cm.N)]
+    else:
+        return cm
     
 
 def make_between_cm(
