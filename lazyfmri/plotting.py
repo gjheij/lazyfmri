@@ -1043,9 +1043,12 @@ class Defaults():
                                 if isinstance(lbl[ix], dict):
                                     lbl_kws = lbl[ix]
                                 
+                                # set 'pos' if not specified in add_labels; allows custom position
+                                if not "pos" in lbl_kws:
+                                    lbl_kws["pos"] = pos
+
                                 self.add_label_to_line(
                                     ax,
-                                    pos,
                                     ori=ii,
                                     **lbl_kws
                                 )
@@ -1054,7 +1057,7 @@ class Defaults():
     def add_label_to_line(
         self,
         ax,
-        pos,
+        pos=None,
         lbl=None,
         ori="vline",
         l_max=0.85,
@@ -2452,8 +2455,8 @@ class LazyBar():
 
         return self.ci_mode
 
-
     def _add_dataframe_cis(self):
+        
         if not isinstance(self.ci_low, str) or not isinstance(self.ci_high, str):
             raise ValueError("When ci_mode='columns', ci_low and ci_high must be column names")
 
@@ -2462,7 +2465,10 @@ class LazyBar():
         if self.ci_high not in self.data.columns:
             raise ValueError(f"Column '{self.ci_high}' not found in dataframe")
 
-        patches_ = [p for p in self.ff.patches if p.get_height() != 0 or p.get_width() != 0]
+        patches_ = [
+            p for p in self.ff.patches
+            if p.get_height() != 0 or p.get_width() != 0
+        ]
 
         n_rows = self.data.shape[0]
         if len(patches_) < n_rows:
@@ -2471,7 +2477,6 @@ class LazyBar():
                 "This can happen when using incompatible input for manual CI drawing."
             )
 
-        # numeric column depends on orientation
         value_col = self.y if self.sns_ori == "v" else self.x
 
         ci_defs = {
@@ -2483,19 +2488,78 @@ class LazyBar():
 
         for key, val in ci_defs.items():
             if key not in self.ci_kws:
-                self.ci_kws = utils.update_kwargs(
-                    self.ci_kws,
-                    key,
-                    val
-                ) 
+                self.ci_kws = utils.update_kwargs(self.ci_kws, key, val)
 
-        for patch, (_, row) in zip(patches_, self.data.iterrows()):
+        # Reorder dataframe to match seaborn patch order
+        data_ci = self.data.copy()
+
+        x_col = self.x if self.sns_ori == "v" else self.y
+        hue_col = self.hue
+
+        if hue_col is not None:
+            # seaborn draws grouped bar patches hue-first, then x
+            if hasattr(self, "hue_order") and self.hue_order is not None:
+                hue_order = list(self.hue_order)
+            else:
+                hue_order = list(data_ci[hue_col].dropna().unique())
+
+            if hasattr(self, "order") and self.order is not None:
+                x_order = list(self.order)
+            else:
+                x_order = list(data_ci[x_col].dropna().unique())
+
+            data_ci[x_col] = pd.Categorical(
+                data_ci[x_col],
+                categories=x_order,
+                ordered=True
+            )
+            data_ci[hue_col] = pd.Categorical(
+                data_ci[hue_col],
+                categories=hue_order,
+                ordered=True
+            )
+
+            data_ci = (
+                data_ci
+                .sort_values([hue_col, x_col])
+                .reset_index(drop=True)
+            )
+
+        else:
+            if hasattr(self, "order") and self.order is not None:
+                x_order = list(self.order)
+
+                data_ci[x_col] = pd.Categorical(
+                    data_ci[x_col],
+                    categories=x_order,
+                    ordered=True
+                )
+
+                data_ci = (
+                    data_ci
+                    .sort_values(x_col)
+                    .reset_index(drop=True)
+                )
+            else:
+                data_ci = data_ci.reset_index(drop=True)
+
+        # Draw CIs
+        for patch, (_, row) in zip(patches_, data_ci.iterrows()):
             value = row[value_col]
             low = row[self.ci_low]
             high = row[self.ci_high]
 
+            if pd.isna(value) or pd.isna(low) or pd.isna(high):
+                continue
+
             err_low = value - low
             err_high = high - value
+
+            if err_low < 0 or err_high < 0:
+                raise ValueError(
+                    f"CI bounds inconsistent for row: value={value}, "
+                    f"low={low}, high={high}. Expected low <= value <= high."
+                )
 
             if self.sns_ori == "v":
                 x_center = patch.get_x() + patch.get_width() / 2
