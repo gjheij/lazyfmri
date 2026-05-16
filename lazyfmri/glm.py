@@ -649,7 +649,10 @@ def define_hrf(
                 array describing the HRF, or None (for standard double gamma)""")
 
     elif isinstance(hrf_pars, np.ndarray):
-        hrf = [hrf_pars]
+        if hrf_pars.ndim == 1:
+            hrf = [hrf_pars]
+        else:
+            hrf = [arr for arr in hrf_pars]
     elif isinstance(hrf_pars, list):
 
         hrf = np.array(
@@ -945,8 +948,148 @@ def resample_stim_vector(convolved_array, scan_length, interpolate='nearest'):
     return downsampled
 
 
-def first_level_matrix(stims_dict, regressors=None,
-                       add_intercept=True, names=None):
+def get_event_prediction(
+    ev,
+    X,
+    betas,
+    ev_names,
+    include_intercept=False,
+    include_derivatives=True,
+    rf_mode=False,
+):
+    """
+    Get prediction for one event by selecting matching design columns and betas.
+
+    Parameters
+    ----------
+    ev : str
+        Event name to match in `col_names`, e.g. "CSm", "CSpr", "CSpu".
+    X : ndarray
+        Convolved design matrix, shape (n_timepoints, n_regressors).
+    betas : ndarray
+        Beta vector, shape (n_regressors,) or compatible.
+    col_names : list of str
+        Column names corresponding to columns in `X_conv`.
+    include_intercept : bool
+        Whether to always include the intercept column.
+    include_regressor : bool
+        Whether to include columns containing "regressor".
+
+    Returns
+    -------
+    ev_preds : ndarray
+        Predicted signal for this event.
+    event : ndarray
+        Event-specific design matrix.
+    betas : ndarray
+        Event-specific beta values.
+    beta_idx : list[int]
+        Selected column indices.
+    """
+
+    if rf_mode:
+        include_intercept = False
+
+    beta_idx = [
+        ix for ix, name in enumerate(ev_names)
+        if (
+            name == ev
+            or (include_derivatives and name.startswith(f"{ev}_"))
+            or (include_intercept and name == "intercept")
+        )
+    ]
+
+    ev_betas = np.asarray(betas)[beta_idx].squeeze()
+
+    if rf_mode:
+        if X.shape[1] != ev_betas.shape[0]:
+            raise ValueError(
+                f"{ev}: RF basis has {X.shape[1]} columns, "
+                f"but selected {ev_betas.shape[0]} betas: "
+                f"{[ev_names[i] for i in beta_idx]}"
+            )
+
+        ev_preds = X @ ev_betas
+        return ev_preds, X, ev_betas, beta_idx
+
+    event = X[:, beta_idx]
+    ev_preds = event @ ev_betas
+    return ev_preds, event, ev_betas, beta_idx
+
+
+def get_event_prediction(
+    ev,
+    X,
+    betas,
+    ev_names,
+    rf_mode=False,
+    include_intercept=True,
+    include_derivatives=True,
+):
+    """
+    Get prediction for one event by selecting matching design columns and betas.
+
+    Parameters
+    ----------
+    ev : str
+        Event name to match in `col_names`, e.g. "CSm", "CSpr", "CSpu".
+    X : ndarray
+        Convolved design matrix, shape (n_timepoints, n_regressors).
+    betas : ndarray
+        Beta vector, shape (n_regressors,) or compatible.
+    col_names : list of str
+        Column names corresponding to columns in `X_conv`.
+    include_intercept : bool
+        Whether to always include the intercept column.
+    include_derivatives : bool
+        Whether to include columns containing "regressor" representing the derivatives.
+    rf_mode : bool
+        If True, interpret X as basis set and return RF.
+
+        
+    Returns
+    -------
+    ev_preds : ndarray
+        Predicted signal for this event.
+    event : ndarray
+        Event-specific design matrix.
+    betas : ndarray
+        Event-specific beta values.
+    beta_idx : list[int]
+        Selected column indices.
+    """
+    # --- select relevant betas ---
+    beta_idx = [
+        ix for ix, name in enumerate(ev_names)
+        if (
+            name == ev
+            or (include_derivatives and name.startswith(f"{ev}_"))
+            or (include_intercept and name == "intercept")
+        )
+    ]
+
+    ev_betas = betas[beta_idx]
+
+    print(ev_betas.shape)
+    # --- RF mode: X is basis set ---
+    if rf_mode:
+        # IMPORTANT: here X should already be the basis set for THIS event
+        ev_preds = X @ ev_betas
+        return ev_preds, X, ev_betas, beta_idx
+
+    # --- standard mode: X is design matrix ---
+    event = X[:, beta_idx]
+    ev_preds = event @ ev_betas
+
+    return ev_preds, event, ev_betas, beta_idx
+    
+
+def first_level_matrix(
+        stims_dict,
+        regressors=None,
+        add_intercept=True,
+        names=None
+    ):
 
     # make dataframe of stimulus vectors
     if isinstance(stims_dict, np.ndarray):
@@ -997,6 +1140,19 @@ def first_level_matrix(stims_dict, regressors=None,
         return pd.concat([X_matrix, regressors], axis=1)
     else:
         return X_matrix
+
+
+def get_event_predictions(events, X, betas, ev_names, **kwargs):
+    return {
+        ev: get_event_prediction(
+            ev=ev,
+            X=X,
+            betas=betas,
+            ev_names=ev_names,
+            **kwargs,
+        )[0]
+        for ev in events
+    }
 
 
 def fit_first_level(
@@ -1188,21 +1344,20 @@ def fit_first_level(
             # make list so we can loop
             if isinstance(plot_event, str):
                 plot_event = [plot_event]
+            else:
+                if isinstance(plot_event, int):
+                    plot_event = [col_names[plot_event]]
 
             signals = [data[:, best_vox]]
             labels = ['True signal']
             for ev in plot_event:
 
-                # always include intercept
-                beta_idx = [ix for ix, ii in enumerate(
-                    col_names) if ev in ii or "regressor" in ii or "intercept" in ii]
-
-                # get betas for all voxels
-                betas = betas_conv[beta_idx]
-                event = X_conv[:, beta_idx]
-
-                # get predictions
-                ev_preds = event @ betas
+                ev_preds, _, _, _ = get_event_prediction(
+                    ev=ev,
+                    X=X_conv,
+                    betas=betas_conv,
+                    ev_names=col_names,
+                )
 
                 signals.append(ev_preds[:, best_vox])
                 labels.append(f"Event '{ev}'")
