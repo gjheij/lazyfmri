@@ -1290,13 +1290,18 @@ def percent_change(
         return psc
 
 
-def split_bids_components(fname, entities=False):
+def split_bids_components(fname, entities=False, add_elements=None):
 
     comp_list = fname.split('_')
     comps = {}
 
     ids = ['sub', 'ses', 'task', 'acq', 'rec', 'run',
            'space', 'hemi', 'model', 'stage', 'desc', 'vox']
+    
+    if add_elements is not None:
+        if isinstance(add_elements, str):
+            add_elements = [add_elements]
+        ids += add_elements
 
     full_entities = [
         "subject",
