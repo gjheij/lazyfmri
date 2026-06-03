@@ -863,54 +863,26 @@ class FindFiles:
 
     @staticmethod
     def find_files(directory, pattern, maxdepth=None):
-        """find_files
 
-        Static method to recursively find files in a directory matching a given pattern.
-
-        Parameters
-        ----------
-        directory : str
-            Path to the directory to search in.
-        pattern : str
-            Filename pattern to match (e.g., "*.nii", "*.csv").
-        maxdepth : int, optional
-            Maximum depth of recursion for subdirectories. If None, no limit is imposed.
-
-        Yields
-        ----------
-        str
-            Paths to files that match the specified pattern.
-
-        Example
-        ----------
-        .. code-block:: python
-
-            from lazyfmri.utils import FindFiles
-            finder = FindFiles("/data", ".nii")
-            print(finder.files)  # List of NIfTI files in the directory
-
-            for file in FindFiles.find_files("/data", "*.csv"):
-                print(file)  # Prints paths to CSV files in the directory
-        """
-
-        start = None
-        if isinstance(maxdepth, int):
-            start = 0
+        directory = os.path.abspath(directory)
+        base_depth = directory.rstrip(os.sep).count(os.sep)
 
         for root, dirs, files in os.walk(directory, followlinks=True):
 
+            depth = root.rstrip(os.sep).count(os.sep) - base_depth
+
+            if maxdepth is not None and depth > maxdepth:
+                dirs[:] = []
+                continue
+
+            if maxdepth is not None and depth >= maxdepth:
+                dirs[:] = []
+
             for basename in files:
                 if fnmatch.fnmatch(basename, pattern):
-                    filename = os.path.join(root, basename)
-                    yield filename
+                    yield os.path.join(root, basename)
 
-            if isinstance(maxdepth, int):
-                if start > maxdepth:
-                    break
-
-            if isinstance(start, int):
-                start += 1
-
+                    
 def find_missing(lst):
     return [i for x, y in zip(lst, lst[1:])
             for i in range(x + 1, y) if y - x > 1]
