@@ -2455,8 +2455,8 @@ class LazyBar():
 
         return self.ci_mode
 
+
     def _add_dataframe_cis(self):
-        
         if not isinstance(self.ci_low, str) or not isinstance(self.ci_high, str):
             raise ValueError("When ci_mode='columns', ci_low and ci_high must be column names")
 
@@ -2465,10 +2465,7 @@ class LazyBar():
         if self.ci_high not in self.data.columns:
             raise ValueError(f"Column '{self.ci_high}' not found in dataframe")
 
-        patches_ = [
-            p for p in self.ff.patches
-            if p.get_height() != 0 or p.get_width() != 0
-        ]
+        patches_ = [p for p in self.ff.patches if p.get_height() != 0 or p.get_width() != 0]
 
         n_rows = self.data.shape[0]
         if len(patches_) < n_rows:
@@ -2477,6 +2474,7 @@ class LazyBar():
                 "This can happen when using incompatible input for manual CI drawing."
             )
 
+        # numeric column depends on orientation
         value_col = self.y if self.sns_ori == "v" else self.x
 
         ci_defs = {
@@ -2488,78 +2486,19 @@ class LazyBar():
 
         for key, val in ci_defs.items():
             if key not in self.ci_kws:
-                self.ci_kws = utils.update_kwargs(self.ci_kws, key, val)
+                self.ci_kws = utils.update_kwargs(
+                    self.ci_kws,
+                    key,
+                    val
+                ) 
 
-        # Reorder dataframe to match seaborn patch order
-        data_ci = self.data.copy()
-
-        x_col = self.x if self.sns_ori == "v" else self.y
-        hue_col = self.hue
-
-        if hue_col is not None:
-            # seaborn draws grouped bar patches hue-first, then x
-            if hasattr(self, "hue_order") and self.hue_order is not None:
-                hue_order = list(self.hue_order)
-            else:
-                hue_order = list(data_ci[hue_col].dropna().unique())
-
-            if hasattr(self, "order") and self.order is not None:
-                x_order = list(self.order)
-            else:
-                x_order = list(data_ci[x_col].dropna().unique())
-
-            data_ci[x_col] = pd.Categorical(
-                data_ci[x_col],
-                categories=x_order,
-                ordered=True
-            )
-            data_ci[hue_col] = pd.Categorical(
-                data_ci[hue_col],
-                categories=hue_order,
-                ordered=True
-            )
-
-            data_ci = (
-                data_ci
-                .sort_values([hue_col, x_col])
-                .reset_index(drop=True)
-            )
-
-        else:
-            if hasattr(self, "order") and self.order is not None:
-                x_order = list(self.order)
-
-                data_ci[x_col] = pd.Categorical(
-                    data_ci[x_col],
-                    categories=x_order,
-                    ordered=True
-                )
-
-                data_ci = (
-                    data_ci
-                    .sort_values(x_col)
-                    .reset_index(drop=True)
-                )
-            else:
-                data_ci = data_ci.reset_index(drop=True)
-
-        # Draw CIs
-        for patch, (_, row) in zip(patches_, data_ci.iterrows()):
+        for patch, (_, row) in zip(patches_, self.data.iterrows()):
             value = row[value_col]
             low = row[self.ci_low]
             high = row[self.ci_high]
 
-            if pd.isna(value) or pd.isna(low) or pd.isna(high):
-                continue
-
             err_low = value - low
             err_high = high - value
-
-            if err_low < 0 or err_high < 0:
-                raise ValueError(
-                    f"CI bounds inconsistent for row: value={value}, "
-                    f"low={low}, high={high}. Expected low <= value <= high."
-                )
 
             if self.sns_ori == "v":
                 x_center = patch.get_x() + patch.get_width() / 2
@@ -3334,6 +3273,435 @@ class LazyHist(Defaults):
         self._set_title(self.active_axs, self.title)
 
 
+class LazyButterfly:
+    """LazyButterfly
+
+    Wrapper for creating butterfly (tornado-style) horizontal bar plots
+    comparing two metrics with different units or scales. The left and right
+    metrics are independently normalized so that both occupy equal visual
+    space around a central zero line, while value labels and tick labels
+    retain their original units.
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        Input dataframe containing the variables to plot.
+    left : str
+        Name of the column plotted on the left-hand side of the butterfly.
+    right : str
+        Name of the column plotted on the right-hand side of the butterfly.
+    y : str
+        Column containing the row labels.
+    sort_by : str, optional
+        Column used for sorting the rows. Defaults to `right`.
+    ascending : bool, optional
+        Sort in ascending order. Default is False.
+    labels : list, optional
+        Custom labels replacing the values in `y`.
+    figsize : tuple, optional
+        Figure size passed to matplotlib.
+    left_label : str, optional
+        Axis label describing the left-hand metric.
+    right_label : str, optional
+        Axis label describing the right-hand metric.
+    left_color : str, optional
+        Color of the left-hand bars.
+    right_color : str, optional
+        Color of the right-hand bars.
+    thr_color : str, optional
+        Color used for threshold (irrelevance) shading.
+    thr_alpha : float, optional
+        Alpha transparency of the threshold shading.
+    left_fmt : str, optional
+        Format string used for left-hand value labels.
+    right_fmt : str, optional
+        Format string used for right-hand value labels.
+    title : str, optional
+        Figure title.
+    axs : matplotlib.axes.Axes, optional
+        Existing axes to plot on. If None, a new figure is created.
+    add_grid : bool, optional
+        Draw vertical grid lines.
+    left_thr : float, optional
+        Threshold (in original units) for the left metric to indicate
+        negligible or irrelevant values. The corresponding normalized
+        region is shaded.
+    right_thr : float, optional
+        Threshold (in original units) for the right metric to indicate
+        negligible or irrelevant values. The corresponding normalized
+        region is shaded.
+    lim : float, optional
+        Symmetric axis limit after normalization. Default is 1.12.
+    bar_height : float, optional
+        Height of each horizontal bar.
+    label_offset : float, optional
+        Offset between bar end and value label in normalized units.
+    add_value_labels : bool, optional
+        Draw numeric values next to each bar.
+    add_legend : bool, optional
+        Display the legend.
+    save_as : str, optional
+        Path to save the figure.
+    add_grid: bool, optional
+        Add grid lines (default = True)
+    grid_style: str, optional
+        Maps to ``linestyle`` argument for grid (default = '--')
+    grid_alpha: float, optional
+        Maps to ``alpha`` argument for grid (default = 0.18)
+    **kwargs
+        Additional keyword arguments passed to the LazyPlot defaults.
+
+    Example
+    -------
+    .. code-block:: python
+
+        pl = LazyButterfly(
+            data=effects_df,
+            left="delta_d",
+            right="delta_LBF",
+            y="parameter",
+            labels=pretty_names,
+            sort_by="delta_LBF",
+            left_label="Loss in Cohen's d",
+            right_label="Loss in LogBF",
+            title="Parameter sensitivity",
+            fontname="Arial",
+            lim=1.2,
+            right_thr=3,
+            left_thr=0.05
+        )
+
+    Notes
+    -----
+    The left and right metrics are independently normalized to occupy equal
+    visual space around zero. Bar lengths therefore reflect relative changes
+    within each metric rather than absolute magnitudes across metrics.
+    Thresholds (`left_thr` and `right_thr`) are specified in the original
+    units and are automatically mapped onto the normalized axis.
+    """
+
+
+    def __init__(
+        self,
+        data: pd.DataFrame,
+        left: str,
+        right: str,
+        y: str,
+        sort_by: str = None,
+        ascending: bool = False,
+        labels: list = None,
+        figsize=(7.1, 3.54),
+        left_label: str = "Left metric",
+        right_label: str = "Right metric",
+        left_color: str = "#c24e00",
+        right_color: str = "#4b3b8f",
+        thr_color: str = "#cccccc",
+        thr_alpha: float = 0.2,
+        left_fmt: str = "{:.3f}",
+        right_fmt: str = "{:.2f}",
+        title: str = None,
+        axs=None,
+        add_grid: bool = True, 
+        right_thr: float = None,
+        left_thr: float = None,
+        lim: float = 1.12,
+        bar_height: float = 0.42,
+        label_offset: float = 0.025,
+        add_value_labels: bool = True,
+        add_legend: bool = True,
+        save_as: str = None,
+        grid_style: str = "--",
+        grid_alpha: float = 0.18,
+        **kwargs
+    ):
+
+        self.data = data.copy()
+        self.left = left
+        self.right = right
+        self.y = y
+        self.sort_by = sort_by if sort_by is not None else right
+        self.ascending = ascending
+        self.labels = labels
+        self.figsize = figsize
+        self.left_label = left_label
+        self.right_label = right_label
+        self.left_color = left_color
+        self.right_color = right_color
+        self.thr_color = thr_color
+        self.thr_alpha = thr_alpha
+        self.left_fmt = left_fmt
+        self.right_fmt = right_fmt
+        self.title = title
+        self.axs = axs
+        self.lim = lim
+        self.bar_height = bar_height
+        self.label_offset = label_offset
+        self.add_value_labels = add_value_labels
+        self.add_legend = add_legend
+        self.save_as = save_as
+        self.add_grid = add_grid
+        self.right_thr = right_thr
+        self.left_thr = left_thr
+        self.thr_color = thr_color
+        self.grid_style = grid_style
+        self.grid_alpha = grid_alpha
+
+        self.kw_defaults = Defaults()
+        self.__dict__.update(**self.kw_defaults.__dict__)
+        self.__dict__.update(**kwargs)
+        self.kw_defaults.update_rc(self.fontname)
+
+        if self.xkcd:
+            with plt.xkcd():
+                self.plot()
+        else:
+            self.plot()
+
+        self.kw_defaults._save_figure(self.save_as)
+
+    def _scale_side(self, values):
+        max_val = np.nanmax(values)
+
+        if not np.isfinite(max_val) or max_val == 0:
+            return np.zeros_like(values, dtype=float), 1
+
+        return values / max_val, max_val
+
+    def add_butterfly_relevance_spans(self):
+        """
+        Add shaded 'irrelevant / barely relevant' regions around zero
+        for a scaled butterfly plot.
+
+        Assumes both sides are scaled to [-1, 1], while thresholds are
+        given in the original units.
+        """
+
+        if self.left_thr is not None and self.left_max > 0:
+            left_scaled = min(self.left_thr / self.left_max, 1)
+            self.ff.axvspan(
+                -left_scaled,
+                0,
+                color=self.thr_color,
+                alpha=self.thr_alpha,
+                zorder=0,
+                lw=0,
+            )
+
+        if self.right_thr is not None and self.right_max > 0:
+            right_scaled = min(self.right_thr / self.right_max, 1)
+            self.ff.axvspan(
+                0,
+                right_scaled,
+                color=self.thr_color,
+                alpha=self.thr_alpha,
+                zorder=0,
+                lw=0,
+            )
+
+    def _add_butterfly_xlabel(
+        self,
+        ax,
+        left_label="Left metric",
+        right_label="Right metric",
+        y=-0.08,
+        fontsize=None,
+        **kwargs,
+    ):
+        """
+        Draw separate x-axis labels centred halfway between zero and each
+        side of a butterfly plot.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes
+            Axis to draw on.
+        left_label : str
+            Label for the left half.
+        right_label : str
+            Label for the right half.
+        y : float
+            Vertical position in Axes coordinates.
+        fontsize : int, optional
+            Font size. Defaults to self.font_size if available.
+        kwargs : dict
+            Passed to ax.text().
+        """
+
+        import matplotlib.transforms as transforms
+
+        if fontsize is None:
+            fontsize = getattr(self, "font_size", 10)
+
+        xmin, xmax = ax.get_xlim()
+
+        left_mid = (xmin + 0) / 2
+        right_mid = (0 + xmax) / 2
+
+        trans = transforms.blended_transform_factory(
+            ax.transData,
+            ax.transAxes,
+        )
+
+        # remove existing xlabel
+        ax.set_xlabel("")
+
+        ax.text(
+            left_mid,
+            y,
+            f"← {left_label}",
+            transform=trans,
+            ha="center",
+            va="center",
+            fontsize=fontsize,
+            **kwargs,
+        )
+
+        ax.text(
+            right_mid,
+            y,
+            f"{right_label} →",
+            transform=trans,
+            ha="center",
+            va="center",
+            fontsize=fontsize,
+            **kwargs,
+        )
+    
+    def plot(self):
+
+        self.data[self.left] = pd.to_numeric(self.data[self.left], errors="coerce")
+        self.data[self.right] = pd.to_numeric(self.data[self.right], errors="coerce")
+        self.data = self.data.dropna(subset=[self.left, self.right, self.y])
+
+        self.data = (
+            self.data
+            .sort_values(self.sort_by, ascending=self.ascending)
+            .reset_index(drop=True)
+        )
+
+        if isinstance(self.labels, (list, np.ndarray)):
+            if len(self.labels) != len(self.data):
+                raise ValueError("`labels` must have the same length as `data` after dropping missing values.")
+            self.data["_lazy_butterfly_label"] = self.labels
+        else:
+            self.data["_lazy_butterfly_label"] = self.data[self.y].astype(str)
+
+        y_pos = np.arange(len(self.data))
+
+        left_values = self.data[self.left].to_numpy(dtype=float)
+        right_values = self.data[self.right].to_numpy(dtype=float)
+
+        self.left_scaled, self.left_max = self._scale_side(left_values)
+        self.right_scaled, self.right_max = self._scale_side(right_values)
+
+        if self.axs is None:
+            self.fig, self.axs = plt.subplots(figsize=self.figsize)
+        else:
+            self.fig = self.axs.figure
+
+        self.ff = self.axs
+
+        self.ff.barh(
+            y_pos,
+            -self.left_scaled,
+            height=self.bar_height,
+            color=self.left_color,
+            alpha=0.9,
+            label=self.left_label,
+            zorder=3,
+        )
+
+        self.ff.barh(
+            y_pos,
+            self.right_scaled,
+            height=self.bar_height,
+            color=self.right_color,
+            alpha=0.95,
+            label=self.right_label,
+            zorder=2,
+        )
+
+        self._add_butterfly_xlabel(
+            self.ff,
+            left_label=self.left_label,
+            right_label=self.right_label,
+        )
+
+        self.ff.axvline(0, color="black", lw=1.1, alpha=0.75, zorder=5)
+
+        self.ff.set_xlim(-self.lim, self.lim)
+        self.ff.set_yticks(y_pos)
+        self.ff.set_yticklabels(self.data["_lazy_butterfly_label"])
+        self.ff.invert_yaxis()
+
+        self.ff.set_xticks([-1, -0.5, 0, 0.5, 1])
+        self.ff.set_xticklabels([
+            self.left_fmt.format(self.left_max),
+            "",
+            "0",
+            "",
+            self.right_fmt.format(self.right_max),
+        ])
+
+        if self.add_value_labels:
+            for i, (lv, rv, ls, rs) in enumerate(
+                zip(left_values, right_values, self.left_scaled, self.right_scaled)
+            ):
+                self.ff.text(
+                    -ls - self.label_offset,
+                    i,
+                    self.left_fmt.format(lv),
+                    ha="right",
+                    va="center",
+                    fontsize=self.label_size,
+                    clip_on=False,
+                )
+
+                self.ff.text(
+                    rs + self.label_offset,
+                    i,
+                    self.right_fmt.format(rv),
+                    ha="left",
+                    va="center",
+                    fontsize=self.label_size,
+                    clip_on=False,
+                )
+        
+        # add shaded relevance bars
+        self.add_butterfly_relevance_spans()
+
+        # plot aesthetics
+        self.kw_defaults._set_tick_params(self.ff)
+        self.kw_defaults._set_spine_width(self.ff)
+
+        if self.add_grid:
+            self.ff.xaxis.grid(
+                True,
+                linestyle=self.grid_style,
+                alpha=self.grid_alpha,
+                zorder=0
+            )
+
+        self.kw_defaults._set_title(self.ff, self.title)
+
+        if self.add_legend:
+            self.legend = self.ff.legend(
+                frameon=False,
+                fontsize=self.label_size,
+                loc="lower right",
+            )
+        else:
+            self.legend = self.ff.legend([], [], frameon=False)
+
+        self.kw_defaults._despine(
+            self.ff,
+            left=False,
+            bottom=False,
+        )
+
+        plt.tight_layout()
+
+
 def conform_ax_to_obj(
     ax,
     obj=None,
@@ -3459,7 +3827,6 @@ class LazyColorbar(Defaults):
         flip_ticks=False,
         flip_label=False,
         figsize=(3.54, 0.5),
-        save_as=None,
         cm_nr=5,
         cm_decimal=3,
         cb_kws={},
@@ -3475,7 +3842,6 @@ class LazyColorbar(Defaults):
         self.flip_ticks = flip_ticks
         self.flip_label = flip_label
         self.figsize = figsize
-        self.save_as = save_as
         self.cm_nr = cm_nr
         self.cm_decimal = cm_decimal
         self.labels = labels
@@ -3493,10 +3859,7 @@ class LazyColorbar(Defaults):
         self.update_rc(self.fontname)
 
         if self.axs is None:
-            if isinstance(self.save_as, str):
-                self.fig, self.axs = plt.subplots(figsize=self.figsize)
-            else:
-                self.fig, self.axs = plt.subplots(figsize=self.figsize)
+            self.fig, self.axs = plt.subplots(figsize=self.figsize)
 
         # make colorbase instance
         if isinstance(self.cmap, str):

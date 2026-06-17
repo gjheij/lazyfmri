@@ -859,7 +859,11 @@ class FindFiles:
             else:
                 self.filters = []
 
-            self.files = get_file_from_substring(self.filters, self.files, exclude=self.exclude)
+            self.files = get_file_from_substring(
+                self.filters,
+                self.files,
+                exclude=self.exclude
+            )
 
     @staticmethod
     def find_files(directory, pattern, maxdepth=None):
