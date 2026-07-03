@@ -996,6 +996,16 @@ def make_diverging_cm(
         return cm
     
 
+def plt2sns(cmap, n):
+    from matplotlib.pyplot import get_cmap
+
+    colors = get_cmap("viridis")
+    palette = colors(np.linspace(0, 1, n + 2)[1:-1])
+    cmap = mcolors.ListedColormap(palette)
+
+    return palette, cmap
+
+
 def make_between_cm(
         col1,
         col2,
