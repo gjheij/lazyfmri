@@ -620,7 +620,12 @@ class Defaults():
             if "font_size" not in list(self.legend_kwargs.keys(
             )) and "fontsize" not in list(self.legend_kwargs.keys()):
                 self.legend_kwargs["fontsize"] = self.label_size
-
+            
+            handles, _ = ax.get_legend_handles_labels()
+            if len(handles) == 0:
+                for artist, lbl in zip(ax.lines, labels):
+                    artist.set_label(lbl)
+                    
             ax.legend(
                 frameon=False,
                 handletextpad=self.legend_handletext,
@@ -1941,6 +1946,7 @@ class LazyCorr(Defaults):
             color: str = "#cccccc",
             figsize: tuple = (3.54, 3.54),
             points: bool = True,
+            add_regline: bool = True,
             label: str = None,
             scatter_kwargs: dict = {},
             stat_kwargs: dict = {},
@@ -1953,7 +1959,9 @@ class LazyCorr(Defaults):
             result_loc: tuple = (0.55, 0.1),
             result_ec: tuple = (1., 0.5, 0.5),
             result_fc: tuple = (1., 0.8, 0.8),
-            result_dec: int = 2,
+            result_dec: int = 3,
+            add_identity: bool = False,
+            identity_kwargs: dict = {},
             verbose=False,
             *args,
             **kwargs):
@@ -1974,6 +1982,7 @@ class LazyCorr(Defaults):
         self.regression = regression
         self.correlation = correlation
         self.reg_kwargs = reg_kwargs
+        self.add_regline = add_regline
         self.error_kwargs = error_kwargs
         self.result_to_plot = result_to_plot
         self.result_loc = result_loc
@@ -1981,6 +1990,8 @@ class LazyCorr(Defaults):
         self.result_ec = result_ec
         self.result_dec = result_dec
         self.verbose = verbose
+        self.add_identity = add_identity
+        self.identity_kwargs = identity_kwargs
 
         if self.xkcd:
             with plt.xkcd():
@@ -2011,7 +2022,7 @@ class LazyCorr(Defaults):
 
         if hasattr(self, "correlation_result"):
             met_name = "r"
-            p_name = "p-unc"
+            p_name = "p_unc"
             test = "correlation"
             result_obj = self.correlation_result
             meth = result_obj["method"].values[0]
@@ -2045,9 +2056,20 @@ class LazyCorr(Defaults):
             meth_txt = ""
 
         r, m, v, p = res["test"], res["metric"], res["value"], res["p"]
+
+        threshold = 10 ** (-self.result_dec)
+
+        p_str = (
+            f"<{threshold:.{self.result_dec}f}"
+            if p < threshold
+            else f"={p:.{self.result_dec}f}"
+        )
+
         utils.verbose(
-            f"Test={r}{meth_txt}{col_txt} | {m}={round(v,self.result_dec)},\tp={round(p,self.result_dec)}",
-            True)
+            f"Test={r}{meth_txt}{col_txt} | "
+            f"{m}={v:.{self.result_dec}f}, p{p_str}",
+            True,
+        )
 
         if return_result:
             return res
@@ -2055,12 +2077,20 @@ class LazyCorr(Defaults):
     def add_result_to_plot(self):
 
         res = self.print_results(return_result=True)
+        threshold = 10 ** (-self.result_dec)
+
+        p_str = (
+            f"<{threshold:.{self.result_dec}f}"
+            if res["p"] < threshold
+            else f"={res['p']:.{self.result_dec}f}"
+        )
+
         self.axs.text(
             *self.result_loc,
-            f"{res['metric']}={round(res['value'],self.result_dec)}, p={round(res['p'],self.result_dec)}",
+            f"{res['metric']}={res['value']:.{self.result_dec}f}, p{p_str}",
             size=self.font_size * 0.8,
             bbox=dict(boxstyle="round", ec=self.result_ec, fc=self.result_fc),
-            transform=self.axs.transAxes
+            transform=self.axs.transAxes,
         )
 
     def _run_regression(self):
@@ -2097,6 +2127,31 @@ class LazyCorr(Defaults):
             **self.stat_kwargs
         )
 
+    def _add_identity(self):
+
+        if not self.add_identity:
+            return
+
+        lims = [
+            min(self.axs.get_xlim()[0], self.axs.get_ylim()[0]),
+            max(self.axs.get_xlim()[1], self.axs.get_ylim()[1]),
+        ]
+
+        defaults = dict(
+            ls="--",
+            color='0.6',
+            alpha=0.5,
+            lw=1,
+            zorder=3,
+        )
+        defaults.update(self.identity_kwargs)
+
+        self.axs.plot(lims, lims, **defaults)
+
+        # Preserve original limits
+        self.axs.set_xlim(lims)
+        self.axs.set_ylim(lims)
+
     def plot(self):
 
         # set figure axis
@@ -2117,7 +2172,16 @@ class LazyCorr(Defaults):
             self.y = self.data[self.y].values
 
             if isinstance(self.color_by, str):
-                self.color_by = self.data[self.color_by].values.astype(float)
+                col = self.data[self.color_by]
+
+                try:
+                    self.color_by = col.astype(float).values
+                except (ValueError, TypeError):
+                    codes, categories = pd.factorize(col)
+                    self.color_by = codes.astype(float)
+
+                    # optional: store mapping for later use (e.g., colorbar ticks)
+                    self.color_map = dict(enumerate(categories))
 
             self.data = None
         else:
@@ -2190,16 +2254,17 @@ class LazyCorr(Defaults):
         )
 
         self.kde_color = utils.make_between_cm(self.color, self.color, as_list=True)
-        self.reg_ = sns.regplot(
-            x=self.x,
-            y=self.y,
-            color=self.color,
-            ax=self.axs,
-            scatter=self.points,
-            label=self.label,
-            scatter_kws=self.scatter_kwargs,
-            **self.reg_kwargs
-        )
+        if self.add_regline:
+            self.reg_ = sns.regplot(
+                x=self.x,
+                y=self.y,
+                color=self.color,
+                ax=self.axs,
+                scatter=self.points,
+                label=self.label,
+                scatter_kws=self.scatter_kwargs,
+                **self.reg_kwargs
+            )
 
         # sort out ticks
         self._set_spine_width(self.axs)
@@ -2224,6 +2289,9 @@ class LazyCorr(Defaults):
         # draw horizontal/vertical lines with ax?line
         self._add_line(ax=self.axs)
         self._add_span(ax=self.axs)
+
+        # add identity
+        self._add_identity()
 
         # set tickers & despine
         self._despine(self.axs)
@@ -3012,6 +3080,352 @@ class LazyBar():
         self.kw_defaults._set_title(self.ff, self.title)
 
 
+class LazyPoints(Defaults):
+    """LazyPoints
+
+    Wrapper for plotting jittered observations together with a summary statistic
+    (mean ± SEM). This class provides a lightweight alternative to
+    :class:`LazyBar` when individual data points should remain visible rather
+    than aggregated into bars.
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        Input dataframe containing the data to plot.
+    x : str
+        Column name defining the categorical grouping variable. Each unique
+        value will be plotted at a separate x-position.
+    y : str
+        Column name containing the dependent variable.
+    figsize : tuple, optional
+        Figure dimensions as per matplotlib conventions, by default (3.54, 3.54).
+    axs : matplotlib.axes.Axes, optional
+        Existing matplotlib axis to plot on. If ``None`` (default), a new
+        figure and axis are created using ``figsize``. If supplied,
+        ``figsize`` is ignored.        
+    jitter : float, optional
+        Standard deviation of the Gaussian jitter applied to the x-positions of
+        individual observations, by default 0.05.
+    alpha : float, optional
+        Transparency of the individual data points, by default 0.7.
+    point_size : float, optional
+        Size of the individual scatter points, by default 30.
+    point_color : str or tuple, optional
+        Fixed color for all points. If omitted, colors are taken from
+        ``palette`` or generated from ``cmap``.
+    palette : list or seaborn color palette, optional
+        Colors assigned to each category. If omitted, a palette is generated
+        from ``cmap``.
+    order : list, optional
+        Order in which the categories specified by ``x`` should be plotted.
+        By default, categories are plotted in the order in which they appear
+        in ``data``. This argument behaves similarly to the ``order`` argument
+        in seaborn categorical plotting functions.
+
+        Example
+        -------
+
+        .. code-block:: python
+
+            plotting.LazyPoints(
+                data=df,
+                x="condition",
+                y="coef",
+                order=["CSm", "CSpu", "CSpr"]
+            )        
+    cmap : str, optional
+        Colormap used to generate colors when ``palette`` is not specified,
+        by default ``"viridis"``.
+    summary_color : str or tuple, optional
+        Color of the summary marker and error bar, by default ``"k"``.
+    summary_marker : str, optional
+        Marker style for the summary statistic, by default ``"o"``.
+    capsize : float, optional
+        Capsize of the SEM error bars, by default 4.
+    scatter_kws : dict, optional
+        Additional keyword arguments passed to
+        :meth:`matplotlib.axes.Axes.scatter`. The following parameters are
+        automatically set by :class:`LazyPoints` unless explicitly overridden
+        through ``scatter_kws``:
+
+        - ``s``: point size (``point_size``)
+        - ``alpha``: point transparency (``alpha``)
+        - ``color``: ``point_color`` or the corresponding entry from
+          ``palette``
+        - ``zorder``: 2
+    error_kws : dict, optional
+        Additional keyword arguments passed to
+        :meth:`matplotlib.axes.Axes.errorbar`. The following parameters are
+        automatically set by :class:`LazyPoints` unless explicitly overridden
+        through ``error_kws``:
+
+        - ``fmt``: summary marker (``summary_marker``)
+        - ``color``: summary color (``summary_color``)
+        - ``lw``: 2
+        - ``capsize``: ``capsize``
+        - ``zorder``: 3
+
+        The x-position, mean, and ``yerr`` (SEM) are computed internally and
+        cannot be supplied through ``error_kws``.
+
+    Notes
+    -----
+    For each category in ``x``, the class:
+
+    1. Draws all observations as horizontally jittered scatter points.
+    2. Computes the mean of ``y``.
+    3. Computes the standard error of the mean (SEM).
+    4. Overlays the mean ± SEM as an error bar.
+
+    The resulting plot combines the interpretability of raw data visualization
+    with a compact summary statistic, making it useful for small-to-moderate
+    sample sizes where displaying individual observations is preferred over
+    conventional bar plots.
+
+    Examples
+    --------
+
+    .. code-block:: python
+
+        plotting.LazyPoints(
+            data=df,
+            x="condition",
+            y="coef",
+            figsize=(4, 5),
+            jitter=0.05,
+            point_color="tab:blue",
+            summary_color="k",
+            y_label="Coefficient"
+        )
+
+    Notes
+    -----
+    See the documentation of :class:`lazyfmri.plotting.Defaults` for
+    formatting options common to all ``Lazy*`` plotting classes.
+    """
+
+    def __init__(
+        self,
+        data,
+        x,
+        y,
+        axs=None,
+        figsize=None,
+        jitter=0.05,
+        alpha=0.7,
+        point_size=30,
+        point_color=None,
+        order=None,
+        palette=None,
+        error="sem",
+        summary_color="k",
+        summary_marker="o",
+        capsize=4,
+        scatter_kws={},
+        error_kws={},
+        connect_summary=False,
+        connect_kws={},        
+        **kwargs,
+    ):
+
+        super().__init__(**kwargs)
+
+        self.data = data
+        self.x = x
+        self.y = y
+        self.axs = axs
+        self.order = order
+        self.figsize = figsize
+        self.jitter = jitter
+        self.alpha = alpha
+        self.point_size = point_size
+        self.point_color = point_color
+        self.palette = palette
+        self.summary_color = summary_color
+        self.summary_marker = summary_marker
+        self.capsize = capsize
+        self.scatter_kws = scatter_kws
+        self.error_kws = error_kws
+        self.connect_summary = connect_summary
+        self.connect_kws = connect_kws
+        self.error = error
+
+        self.plot()
+
+    def plot(self):
+
+        # get conditions
+        if self.order is None:
+            conds = list(self.data[self.x].unique())
+        else:
+            conds = list(self.order)
+
+            # sanity check
+            missing = set(conds) - set(self.data[self.x].unique())
+            if len(missing) > 0:
+                raise ValueError(
+                    f"Conditions {missing} are not present in column '{self.x}'."
+                )
+
+        n_cond = len(conds)
+
+        # default figsize scales with number of conditions
+        if self.figsize is None:
+            self.figsize = (0.5 * n_cond, 3.54)
+
+        self._set_figure_axs(figsize=self.figsize)
+
+        if self.palette is None:
+            colors = sns.color_palette("viridis", len(conds))
+        else:
+            colors = self.palette
+
+        scatter_defaults = {
+            "s": self.point_size,
+            "alpha": self.alpha,
+            "zorder": 2
+        }
+
+        for key, val in scatter_defaults.items():
+            self.scatter_kws = utils.update_kwargs(
+                self.scatter_kws,
+                key,
+                val
+            )
+
+        means = []
+        for i, cond in enumerate(conds):
+
+            vals = self.data.loc[self.data[self.x] == cond, self.y]
+            means.append(vals.mean())
+
+            # jittered points
+            xx = np.random.normal(i, self.jitter, len(vals))
+
+            # force color
+            self.scatter_kws = utils.update_kwargs(
+                self.scatter_kws,
+                "color",
+                self.point_color or colors[i],
+                force=True
+            )
+
+            self.axs.scatter(
+                xx,
+                vals,
+                **self.scatter_kws
+            )
+
+            # mean ± SEM
+            error_defaults = {
+                "fmt": self.summary_marker,
+                "color": self.summary_color,
+                "lw": 2,
+                "capsize": self.capsize,
+                "zorder": 3
+            }
+
+            for key, val in error_defaults.items():
+                self.error_kws = utils.update_kwargs(
+                    self.error_kws,
+                    key,
+                    val
+                )
+
+            val_sd = vals.std()
+            if self.error in ["sem", "se"]:
+                val_sem = val_sd / np.sqrt(len(vals))
+                yerr = val_sem
+            elif self.error in ["std", "sd"]:
+                yerr = val_sd
+            else:
+                yerr = None
+
+            self.axs.errorbar(
+                i,
+                vals.mean(),
+                yerr=yerr,
+                **self.error_kws
+            )
+        
+        self.axs.set_xlim(-self.sns_offset, n_cond - 1 + self.sns_offset)
+
+        # set tick locations
+        self.axs.set_xticks(range(n_cond))
+        self.axs.set_xticklabels(conds)
+
+        # set tickers & despine
+        loop_funcs = [
+            "_set_ticks",
+            "_set_ticklabels",
+            "_set_ticker",
+            "_set_axlabel"
+        ]
+        for x in ["x", "y"]:
+            for ff, el in zip(
+                    loop_funcs,
+                    ["ticks", "ticklabels", "dec", "label"]):
+
+                add_to_ax = getattr(self, f"{x}_{el}")
+                getattr(self, ff)(
+                    self.axs,
+                    add_to_ax,
+                    axis=x,
+                    fontname=self.fontname
+                )
+
+        # set axis labels
+        if not isinstance(self.x_label, str):
+            self.axs.set(xlabel=None)
+
+        if not isinstance(self.y_label, str):
+            self.axs.set(ylabel=None)
+
+        if hasattr(self, "trim_left"):
+            trim_left = self.trim_left
+        else:
+            trim_left = False
+
+        self._despine(
+            self.axs,
+            left=trim_left,
+        )
+
+        # draw horizontal/vertical lines with ax?line
+        self._add_line(ax=self.axs)
+        self._add_span(ax=self.axs)
+
+        # set title
+        self._set_title(self.axs, self.title)
+
+        self._set_spine_width(self.axs)
+        self._set_tick_params(self.axs)
+
+        self._add_line(ax=self.axs)
+        self._add_span(ax=self.axs)
+        self._despine(self.axs)
+
+        if self.connect_summary:
+            defaults = {
+                "color": self.summary_color,
+                "lw": 0.5,
+                "zorder": 2.5,
+            }
+
+            for key, val in defaults.items():
+                self.connect_kws = utils.update_kwargs(
+                    self.connect_kws,
+                    key,
+                    val
+                )
+
+            self.axs.plot(
+                range(len(conds)),
+                means,
+                **self.connect_kws,
+            )
+
+
 class LazyHist(Defaults):
     """LazyHist
 
@@ -3400,7 +3814,6 @@ class LazyButterfly:
         left_fmt: str = "{:.3f}",
         right_fmt: str = "{:.2f}",
         title: str = None,
-        axs=None,
         add_grid: bool = True, 
         right_thr: float = None,
         left_thr: float = None,
@@ -3432,7 +3845,6 @@ class LazyButterfly:
         self.left_fmt = left_fmt
         self.right_fmt = right_fmt
         self.title = title
-        self.axs = axs
         self.lim = lim
         self.bar_height = bar_height
         self.label_offset = label_offset
@@ -3445,12 +3857,24 @@ class LazyButterfly:
         self.thr_color = thr_color
         self.grid_style = grid_style
         self.grid_alpha = grid_alpha
-
         self.kw_defaults = Defaults()
+
+        kw_sns = {}
+        for ii in kwargs:
+            # filter out non-ls kwargs
+            if ii not in self.kw_defaults.ls_kwargs:
+                kw_sns[ii] = kwargs[ii]
+            else:
+                # overwrite ls-kwargs
+                if ii in self.kw_defaults.ls_kwargs:
+                    if not getattr(self.kw_defaults, ii) == kwargs[ii]:
+                        setattr(self.kw_defaults, ii, kwargs[ii])
+
         self.__dict__.update(**self.kw_defaults.__dict__)
         self.__dict__.update(**kwargs)
         self.kw_defaults.update_rc(self.fontname)
 
+        print(self.axs)
         if self.xkcd:
             with plt.xkcd():
                 self.plot()
@@ -3532,38 +3956,35 @@ class LazyButterfly:
         if fontsize is None:
             fontsize = getattr(self, "font_size", 10)
 
-        xmin, xmax = ax.get_xlim()
+        if y is None:
+            y = -0.12  # tweakable; close to normal xlabel position
 
-        left_mid = (xmin + 0) / 2
-        right_mid = (0 + xmax) / 2
+        xmin, xmax = ax.get_xlim()
+        left_mid = xmin / 2
+        right_mid = xmax / 2
 
         trans = transforms.blended_transform_factory(
-            ax.transData,
-            ax.transAxes,
+            ax.transData,   # x in data units
+            ax.transAxes,   # y in axes units
         )
 
-        # remove existing xlabel
         ax.set_xlabel("")
 
         ax.text(
-            left_mid,
-            y,
-            f"← {left_label}",
+            left_mid, y, f"← {left_label}",
             transform=trans,
-            ha="center",
-            va="center",
+            ha="center", va="top",
             fontsize=fontsize,
+            clip_on=False,
             **kwargs,
         )
 
         ax.text(
-            right_mid,
-            y,
-            f"{right_label} →",
+            right_mid, y, f"{right_label} →",
             transform=trans,
-            ha="center",
-            va="center",
+            ha="center", va="top",
             fontsize=fontsize,
+            clip_on=False,
             **kwargs,
         )
     
@@ -3594,13 +4015,9 @@ class LazyButterfly:
         self.left_scaled, self.left_max = self._scale_side(left_values)
         self.right_scaled, self.right_max = self._scale_side(right_values)
 
-        if self.axs is None:
-            self.fig, self.axs = plt.subplots(figsize=self.figsize)
-        else:
-            self.fig = self.axs.figure
+        self.kw_defaults._set_figure_axs(figsize=self.figsize)
 
-        self.ff = self.axs
-
+        self.ff = getattr(self.kw_defaults, "axs")
         self.ff.barh(
             y_pos,
             -self.left_scaled,
@@ -3621,11 +4038,6 @@ class LazyButterfly:
             zorder=2,
         )
 
-        self._add_butterfly_xlabel(
-            self.ff,
-            left_label=self.left_label,
-            right_label=self.right_label,
-        )
 
         self.ff.axvline(0, color="black", lw=1.1, alpha=0.75, zorder=5)
 
@@ -3667,6 +4079,12 @@ class LazyButterfly:
                     clip_on=False,
                 )
         
+        self._add_butterfly_xlabel(
+            self.ff,
+            left_label=self.left_label,
+            right_label=self.right_label,
+        )
+        
         # add shaded relevance bars
         self.add_butterfly_relevance_spans()
 
@@ -3698,8 +4116,6 @@ class LazyButterfly:
             left=False,
             bottom=False,
         )
-
-        plt.tight_layout()
 
 
 def conform_ax_to_obj(
@@ -3803,6 +4219,10 @@ def conform_ax_to_obj(
     # draw horizontal/vertical lines with ax?line
     obj._add_line(ax=ax)
     obj._add_span(ax=ax)
+
+    # axis labels and titles
+    if hasattr(obj, "labels"):
+        obj._set_legend_labels(ax, labels=obj.labels)
 
     # despine
     try:
