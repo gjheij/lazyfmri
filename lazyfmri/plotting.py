@@ -1,3 +1,4 @@
+from os import error
 import string
 import numpy as np
 from . import utils
@@ -7,6 +8,7 @@ import matplotlib as mpl
 from typing import Union
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+from matplotlib.gridspec import GridSpec
 
 
 class Defaults():
@@ -4116,6 +4118,285 @@ class LazyButterfly:
             left=False,
             bottom=False,
         )
+
+class LazySpecificationCurve(Defaults):
+    """Specification-curve plot with an ordered estimate panel and parameter raster.
+
+    Designed to live in the same module as ``Defaults`` and the other ``Lazy*``
+    plotting classes.
+
+    Parameters
+    ----------
+    data : pandas.DataFrame
+        One row per analytical approach/specification.
+    effect_col : str
+        Column containing the point estimate used for ordering and plotting.
+    param_cols : list[str]
+        Columns shown in the lower parameter raster.
+    lower_col, upper_col : str, optional
+        Columns containing confidence-interval bounds. Supply both or neither.
+    error_col : str, optional
+        Column containing symmetric errors. Ignored when lower/upper are supplied.
+    id_col : str, optional
+        Column used to identify/highlight a selected approach.
+    highlight : scalar, optional
+        Value in ``id_col`` to highlight.
+    reference_lines : sequence[float], optional
+        Horizontal reference lines in the effect-size panel.
+    category_orders : dict, optional
+        Mapping ``column -> ordered category list``.
+    display_names : dict, optional
+        Mapping from raw column names to labels shown at left.
+    """
+
+    def __init__(
+        self,
+        data,
+        effect_col,
+        param_cols=None,
+        lower_col=None,
+        upper_col=None,
+        error_col=None,
+        id_col=None,
+        highlight=None,
+        reference_lines=None,
+        category_orders=None,
+        display_names=None,
+        figsize=None,
+        top_height=2,
+        row_height=0.62,
+        point_color="#b5b5b5",
+        error_color="#b5b5b5",
+        highlight_color="k",
+        reference_color="red",
+        marker="o",
+        markersize=3,
+        error_lw=0.8,
+        raster_lw=1.0,
+        raster_height=0.55,
+        sharex=True,
+        top_kws=None,
+        raster_kws=None,
+        **kwargs,
+    ):
+        
+        super().__init__(**kwargs)
+
+        self.data = data.copy()
+        self.effect_col = effect_col
+        self.param_cols = param_cols
+        self.lower_col = lower_col
+        self.upper_col = upper_col
+        self.error_col = error_col
+        self.id_col = id_col
+        self.highlight = highlight
+        self.reference_lines = reference_lines
+        self.category_orders = category_orders or {}
+        self.display_names = display_names or {}
+        self.top_height = top_height
+        self.row_height = row_height
+        self.point_color = point_color
+        self.error_color = error_color
+        self.highlight_color = highlight_color
+        self.reference_color = reference_color
+        self.marker = marker
+        self.markersize = markersize
+        self.error_lw = error_lw
+        self.raster_lw = raster_lw
+        self.raster_height = raster_height
+        self.sharex = sharex
+        self.top_kws = {} if top_kws is None else top_kws.copy()
+        self.raster_kws = {} if raster_kws is None else raster_kws.copy()
+
+        if self.param_cols is None and len(self.category_orders)>0:
+            self.param_cols = list(self.category_orders.keys())
+        
+        if figsize is None:
+            figsize = (10, top_height + row_height * len(self.param_cols))
+        self.figsize = figsize
+
+        self._validate()
+        self.plot()
+        self._save_figure(self.save_as)
+
+    def _validate(self):
+        needed = [self.effect_col] + self.param_cols
+        for col in [self.lower_col, self.upper_col, self.error_col, self.id_col]:
+            if col is not None:
+                needed.append(col)
+
+        missing = [c for c in needed if c not in self.data.columns]
+        if missing:
+            raise ValueError(f"Missing columns: {missing}")
+
+        if (self.lower_col is None) ^ (self.upper_col is None):
+            raise ValueError("Supply both lower_col and upper_col, or neither.")
+
+        if self.highlight is not None and self.id_col is None:
+            raise ValueError("highlight requires id_col.")
+
+    @staticmethod
+    def _category_values(series, supplied_order=None):
+        observed = list(pd.unique(series.dropna()))
+        if supplied_order is None:
+            return observed
+
+        missing = [v for v in observed if v not in supplied_order]
+        return list(supplied_order) + missing
+
+    def plot(self):
+        plot_df = (
+            self.data
+            .dropna(subset=[self.effect_col])
+            # .sort_values(self.effect_col, kind="mergesort")
+            .reset_index(drop=True)
+        )
+        self.plot_data = plot_df
+        n = len(plot_df)
+        x = np.arange(n)
+
+        fig = plt.figure(figsize=self.figsize)
+        gs = GridSpec(
+            nrows=2 + len(self.param_cols),
+            ncols=1,
+            height_ratios=[
+                self.top_height,
+                0.6,
+                *([self.row_height] * len(self.param_cols)),
+            ],
+            hspace=0.0,
+            figure=fig,
+        )
+
+        ax_top = fig.add_subplot(gs[0, 0])
+
+        raster_axes = [
+            fig.add_subplot(
+                gs[i + 2, 0],
+                sharex=ax_top if self.sharex else None,
+            )
+            for i in range(len(self.param_cols))
+        ]
+        self.fig = fig
+        self.axs = [ax_top] + raster_axes
+
+        y = plot_df[self.effect_col].to_numpy()
+
+        if self.lower_col is not None:
+            lower = plot_df[self.lower_col].to_numpy()
+            upper = plot_df[self.upper_col].to_numpy()
+            yerr = np.vstack([y - lower, upper - y])
+        elif self.error_col is not None:
+            yerr = plot_df[self.error_col].to_numpy()
+        else:
+            yerr = None
+
+        defaults = dict(
+            fmt=self.marker,
+            ms=self.markersize,
+            mfc=self.point_color,
+            mec=self.point_color,
+            ecolor=self.error_color,
+            elinewidth=self.error_lw,
+            capsize=0,
+            linestyle="none",
+            zorder=1,
+        )
+        defaults.update(self.top_kws)
+        ax_top.errorbar(x, y, yerr=yerr, **defaults)
+
+        highlight_mask = np.zeros(n, dtype=bool)
+        if self.highlight is not None:
+            highlight_mask = plot_df[self.id_col].eq(self.highlight).to_numpy()
+            if highlight_mask.any():
+                hx, hy = x[highlight_mask], y[highlight_mask]
+                if yerr is None:
+                    hyerr = None
+                elif np.ndim(yerr) == 1:
+                    hyerr = yerr[highlight_mask]
+                else:
+                    hyerr = yerr[:, highlight_mask]
+
+                ax_top.errorbar(
+                    hx, hy, yerr=hyerr,
+                    fmt=self.marker,
+                    ms=max(self.markersize + 2, 5),
+                    mfc=self.highlight_color,
+                    mec=self.highlight_color,
+                    ecolor=self.highlight_color,
+                    elinewidth=max(self.error_lw, 1.2),
+                    capsize=0,
+                    linestyle="none",
+                    zorder=3,
+                )
+
+        if self.reference_lines is not None:
+            refs = np.atleast_1d(self.reference_lines)
+            for ref in refs:
+                ax_top.axhline(
+                    ref, color=self.reference_color, ls=(0, (5, 5)), lw=1
+                )
+
+        ax_top.set_xlim(-0.75, n - 0.25)
+        ax_top.set_ylabel(
+            self.y_label if isinstance(self.y_label, str) else self.effect_col,
+            fontsize=self.font_size,
+            fontname=self.fontname,
+        )
+        ax_top.set_xlabel(
+            self.x_label if isinstance(self.x_label, str)
+            else "approach number ordered by effect size",
+            fontsize=self.font_size,
+            fontname=self.fontname,
+        )
+        ax_top.tick_params(axis="x", labelbottom=True)
+        self._set_title(ax_top, self.title)
+        self._set_spine_width(ax_top)
+        self._set_tick_params(ax_top)
+        self._despine(ax_top)
+
+        for ax, col in zip(raster_axes, self.param_cols):
+            values = self._category_values(
+                plot_df[col], self.category_orders.get(col)
+            )
+            y_lookup = {value: i for i, value in enumerate(values)}
+
+            for xi, value in zip(x, plot_df[col]):
+                if pd.isna(value):
+                    continue
+                yi = y_lookup[value]
+                kws = dict(
+                    color=self.highlight_color if highlight_mask[xi] else "k",
+                    lw=self.raster_lw,
+                    solid_capstyle="butt",
+                )
+                kws.update(self.raster_kws)
+                ax.plot(
+                    [xi, xi],
+                    [yi - self.raster_height / 2, yi + self.raster_height / 2],
+                    **kws,
+                )
+
+            ax.set_ylim(-0.7, len(values) - 0.3)
+            ax.set_yticks(range(len(values)))
+            ax.set_yticklabels([str(v) for v in values])
+            ax.set_ylabel(
+                self.display_names.get(col, col),
+                rotation=0,
+                va="center",
+                labelpad=18,
+                fontsize=self.font_size,
+                fontname=self.fontname,
+            )
+            ax.tick_params(axis="x", bottom=False, labelbottom=False)
+            self._set_tick_params(ax)
+            self._despine(ax, left=True, bottom=True)
+            for spine in ax.spines.values():
+                spine.set_visible(False)
+
+        fig.align_ylabels(self.axs)
+
+        return self
 
 
 def conform_ax_to_obj(
