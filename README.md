@@ -20,6 +20,7 @@ I have been using these functions for several of my publications:
 
 - ["A selection and targeting framework of cortical locations for line-scanning fMRI"](https://onlinelibrary.wiley.com/doi/full/10.1002/hbm.26459)
 - ["Quantitative MRI at 7-Tesla reveals novel frontocortical myeloarchitecture anomalies in major depressive disorder](https://www.nature.com/articles/s41398-024-02976-y)
+- ["Contextual responses drive a unique laminar signature in human V1"](https://www.cell.com/iscience/fulltext/S2589-0042(25)01228-3)
 
 ### I/O
 
