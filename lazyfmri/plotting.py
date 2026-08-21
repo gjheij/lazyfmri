@@ -3085,10 +3085,10 @@ class LazyBar():
 class LazyPoints(Defaults):
     """LazyPoints
 
-    Wrapper for plotting jittered observations together with a summary statistic
-    (mean ± SEM). This class provides a lightweight alternative to
-    :class:`LazyBar` when individual data points should remain visible rather
-    than aggregated into bars.
+    Wrapper for plotting jittered individual observations, with optional summary
+    statistics and connecting lines. This class provides a lightweight alternative
+    to :class:`LazyBar` when individual data points should remain visible rather
+    than being represented only by aggregated bars.
 
     Parameters
     ----------
@@ -3096,15 +3096,16 @@ class LazyPoints(Defaults):
         Input dataframe containing the data to plot.
     x : str
         Column name defining the categorical grouping variable. Each unique
-        value will be plotted at a separate x-position.
+        value is plotted at a separate x-position.
     y : str
         Column name containing the dependent variable.
     figsize : tuple, optional
-        Figure dimensions as per matplotlib conventions, by default (3.54, 3.54).
+        Figure dimensions as per matplotlib conventions. If ``None``, the width
+        is determined from the number of conditions.
     axs : matplotlib.axes.Axes, optional
         Existing matplotlib axis to plot on. If ``None`` (default), a new
         figure and axis are created using ``figsize``. If supplied,
-        ``figsize`` is ignored.        
+        ``figsize`` is ignored.
     jitter : float, optional
         Standard deviation of the Gaussian jitter applied to the x-positions of
         individual observations, by default 0.05.
@@ -3114,36 +3115,28 @@ class LazyPoints(Defaults):
         Size of the individual scatter points, by default 30.
     point_color : str or tuple, optional
         Fixed color for all points. If omitted, colors are taken from
-        ``palette`` or generated from ``cmap``.
+        ``palette`` or generated automatically.
+    order : list, optional
+        Order in which the categories specified by ``x`` are plotted.
+        By default, categories are plotted in the order in which they appear
+        in ``data``.
     palette : list or seaborn color palette, optional
         Colors assigned to each category. If omitted, a palette is generated
-        from ``cmap``.
-    order : list, optional
-        Order in which the categories specified by ``x`` should be plotted.
-        By default, categories are plotted in the order in which they appear
-        in ``data``. This argument behaves similarly to the ``order`` argument
-        in seaborn categorical plotting functions.
-
-        Example
-        -------
-
-        .. code-block:: python
-
-            plotting.LazyPoints(
-                data=df,
-                x="condition",
-                y="coef",
-                order=["CSm", "CSpu", "CSpr"]
-            )        
-    cmap : str, optional
-        Colormap used to generate colors when ``palette`` is not specified,
-        by default ``"viridis"``.
+        automatically.
+    error : {"sem", "se", "std", "sd", None}, optional
+        Error statistic displayed around the category mean when
+        ``add_summary=True``. ``"sem"`` and ``"se"`` show the standard error
+        of the mean, while ``"std"`` and ``"sd"`` show the standard deviation.
+        If ``None``, only the summary marker is drawn.
+    add_summary : bool, optional
+        Whether to overlay the category mean and associated error bars,
+        by default True.
     summary_color : str or tuple, optional
         Color of the summary marker and error bar, by default ``"k"``.
     summary_marker : str, optional
-        Marker style for the summary statistic, by default ``"o"``.
+        Marker style used for the category mean, by default ``"o"``.
     capsize : float, optional
-        Capsize of the SEM error bars, by default 4.
+        Capsize of the summary error bars, by default 4.
     scatter_kws : dict, optional
         Additional keyword arguments passed to
         :meth:`matplotlib.axes.Axes.scatter`. The following parameters are
@@ -3153,8 +3146,9 @@ class LazyPoints(Defaults):
         - ``s``: point size (``point_size``)
         - ``alpha``: point transparency (``alpha``)
         - ``color``: ``point_color`` or the corresponding entry from
-          ``palette``
+        ``palette``
         - ``zorder``: 2
+
     error_kws : dict, optional
         Additional keyword arguments passed to
         :meth:`matplotlib.axes.Axes.errorbar`. The following parameters are
@@ -3167,25 +3161,40 @@ class LazyPoints(Defaults):
         - ``capsize``: ``capsize``
         - ``zorder``: 3
 
-        The x-position, mean, and ``yerr`` (SEM) are computed internally and
-        cannot be supplied through ``error_kws``.
+        The x-position, category mean, and error magnitude are computed
+        internally and cannot be supplied through ``error_kws``.
+    connect_summary : bool, optional
+        Connect category summary means with a line, by default False.
+    connect_points : str, optional
+        Column identifying repeated or paired observations that should be
+        connected across categories. For example, ``connect_points="subject"``
+        connects observations belonging to the same subject across levels of
+        ``x``. By default, individual observations are not connected.
+    connect_kws : dict, optional
+        Additional keyword arguments passed to
+        :meth:`matplotlib.axes.Axes.plot` when drawing connecting lines.
+        These options apply to lines generated by ``connect_summary`` or
+        ``connect_points``.
 
     Notes
     -----
-    For each category in ``x``, the class:
+    For each category in ``x``, :class:`LazyPoints` draws the individual
+    observations as horizontally jittered scatter points.
 
-    1. Draws all observations as horizontally jittered scatter points.
-    2. Computes the mean of ``y``.
-    3. Computes the standard error of the mean (SEM).
-    4. Overlays the mean ± SEM as an error bar.
+    When ``add_summary=True``, the category mean is overlaid together with the
+    error statistic specified by ``error``.
 
-    The resulting plot combines the interpretability of raw data visualization
-    with a compact summary statistic, making it useful for small-to-moderate
-    sample sizes where displaying individual observations is preferred over
-    conventional bar plots.
+    When ``connect_summary=True``, the category means are connected across
+    x-axis categories.
+
+    When ``connect_points`` is the name of a dataframe column, observations
+    sharing the same value in that column are connected across categories using
+    their actual jittered plotting positions. This is useful for paired or
+    repeated-measures data.
 
     Examples
     --------
+    Plot individual observations with mean ± SEM:
 
     .. code-block:: python
 
@@ -3198,6 +3207,47 @@ class LazyPoints(Defaults):
             point_color="tab:blue",
             summary_color="k",
             y_label="Coefficient"
+        )
+
+    Specify the order of categorical conditions:
+
+    .. code-block:: python
+
+        plotting.LazyPoints(
+            data=df,
+            x="condition",
+            y="coef",
+            order=["CSm", "CSpu", "CSpr"]
+        )
+
+    Connect paired observations across conditions:
+
+    .. code-block:: python
+
+        plotting.LazyPoints(
+            data=df,
+            x="method",
+            y="delta",
+            order=["LSA", "LSS"],
+            connect_points="subject"
+        )
+
+    Plot paired observations without summary statistics:
+
+    .. code-block:: python
+
+        plotting.LazyPoints(
+            data=df,
+            x="method",
+            y="delta",
+            order=["LSA", "LSS"],
+            connect_points="subject",
+            add_summary=False,
+            connect_kws={
+                "color": "0.7",
+                "lw": 0.5,
+                "alpha": 0.7
+            }
         )
 
     Notes
@@ -3220,13 +3270,17 @@ class LazyPoints(Defaults):
         order=None,
         palette=None,
         error="sem",
+        add_summary=True,
         summary_color="k",
         summary_marker="o",
         capsize=4,
         scatter_kws={},
         error_kws={},
         connect_summary=False,
-        connect_kws={},        
+        connect_points=None,
+        connect_kws={},
+        annotate=False,
+        annotate_kws={},
         **kwargs,
     ):
 
@@ -3243,16 +3297,98 @@ class LazyPoints(Defaults):
         self.point_size = point_size
         self.point_color = point_color
         self.palette = palette
+        self.add_summary = add_summary
         self.summary_color = summary_color
         self.summary_marker = summary_marker
         self.capsize = capsize
         self.scatter_kws = scatter_kws
         self.error_kws = error_kws
         self.connect_summary = connect_summary
+        self.connect_points = connect_points
         self.connect_kws = connect_kws
         self.error = error
+        self.annotate = annotate
+        self.annotate_kws = annotate_kws
 
         self.plot()
+
+    def _connect_points(self, point_positions):
+        """Connect repeated observations across x-axis conditions."""
+
+        if not isinstance(self.connect_points, str):
+            return
+
+        if self.connect_points not in self.data.columns:
+            raise ValueError(
+                f"Column '{self.connect_points}' not found in dataframe."
+            )
+
+        pos_df = pd.DataFrame(
+            point_positions,
+            columns=["_id", "_x", "_y"],
+        )
+
+        # line defaults
+        defaults = {
+            "color": "0.65",
+            "lw": 0.6,
+            "alpha": 0.6,
+            "zorder": 1,
+        }
+
+        kws = self.connect_kws.copy()
+
+        for key, val in defaults.items():
+            kws = utils.update_kwargs(
+                kws,
+                key,
+                val,
+            )
+
+        # annotation defaults
+        annotate_defaults = {
+            "fontsize": self.font_size * 0.6,
+            "color": "0.35",
+            "ha": "left",
+            "va": "center",
+            "zorder": 4,
+        }
+
+        ann_kws = self.annotate_kws.copy()
+
+        for key, val in annotate_defaults.items():
+            ann_kws = utils.update_kwargs(
+                ann_kws,
+                key,
+                val,
+            )
+
+        for identifier, grp in pos_df.groupby("_id", sort=False):
+
+            if len(grp) < 2:
+                continue
+
+            grp = grp.sort_values("_x")
+
+            self.axs.plot(
+                grp["_x"].values,
+                grp["_y"].values,
+                **kws,
+            )
+
+            if self.annotate:
+                # annotate next to the final point
+                point = grp.iloc[-1]
+
+                label = str(identifier).replace("sub-", "")
+                self.axs.annotate(
+                    str(label),
+                    xy=(point["_x"], point["_y"]),
+                    xytext=(3, 0),
+                    textcoords="offset points",
+                    **ann_kws,
+                )
+                
 
     def plot(self):
 
@@ -3296,13 +3432,25 @@ class LazyPoints(Defaults):
             )
 
         means = []
+        point_positions = []
         for i, cond in enumerate(conds):
 
-            vals = self.data.loc[self.data[self.x] == cond, self.y]
-            means.append(vals.mean())
+            mask = self.data[self.x] == cond
 
-            # jittered points
+            vals = self.data.loc[mask, self.y]
             xx = np.random.normal(i, self.jitter, len(vals))
+
+            # store the actual plotted coordinates + pairing ID
+            if isinstance(self.connect_points, str):
+                ids = self.data.loc[mask, self.connect_points]
+
+                point_positions.extend(
+                    zip(
+                        ids.values,
+                        xx,
+                        vals.values,
+                    )
+                )
 
             # force color
             self.scatter_kws = utils.update_kwargs(
@@ -3319,37 +3467,42 @@ class LazyPoints(Defaults):
             )
 
             # mean ± SEM
-            error_defaults = {
-                "fmt": self.summary_marker,
-                "color": self.summary_color,
-                "lw": 2,
-                "capsize": self.capsize,
-                "zorder": 3
-            }
+            if self.add_summary:
 
-            for key, val in error_defaults.items():
-                self.error_kws = utils.update_kwargs(
-                    self.error_kws,
-                    key,
-                    val
+                error_defaults = {
+                    "fmt": self.summary_marker,
+                    "color": self.summary_color,
+                    "lw": 2,
+                    "capsize": self.capsize,
+                    "zorder": 3,
+                }
+
+                for key, val in error_defaults.items():
+                    self.error_kws = utils.update_kwargs(
+                        self.error_kws,
+                        key,
+                        val,
+                    )
+
+                val_sd = vals.std()
+
+                if self.error in ["sem", "se"]:
+                    yerr = val_sd / np.sqrt(len(vals))
+                elif self.error in ["std", "sd"]:
+                    yerr = val_sd
+                else:
+                    yerr = None
+
+                self.axs.errorbar(
+                    i,
+                    vals.mean(),
+                    yerr=yerr,
+                    **self.error_kws,
                 )
 
-            val_sd = vals.std()
-            if self.error in ["sem", "se"]:
-                val_sem = val_sd / np.sqrt(len(vals))
-                yerr = val_sem
-            elif self.error in ["std", "sd"]:
-                yerr = val_sd
-            else:
-                yerr = None
+        # connect points?
+        self._connect_points(point_positions)
 
-            self.axs.errorbar(
-                i,
-                vals.mean(),
-                yerr=yerr,
-                **self.error_kws
-            )
-        
         self.axs.set_xlim(-self.sns_offset, n_cond - 1 + self.sns_offset)
 
         # set tick locations
