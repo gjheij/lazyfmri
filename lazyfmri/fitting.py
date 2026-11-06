@@ -5,6 +5,10 @@ from . import (
 )
 import lmfit
 import warnings
+import fnmatch
+import operator
+from contextlib import nullcontext
+from itertools import combinations
 import numpy as np
 import pandas as pd
 import nideconv as nd
@@ -12,11 +16,19 @@ import seaborn as sns
 import matplotlib as mpl
 from typing import Union
 from scipy import signal
-from sklearn import metrics
+from sklearn import metrics, linear_model
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize
 from joblib import Parallel, delayed
 from alive_progress import alive_bar
+
+
+def _sample_time_grid(interval, step):
+    start, stop = map(float, interval)
+    if not np.isfinite([start, stop, step]).all() or step <= 0 or stop <= start:
+        raise ValueError('Specify a positive step and increasing finite interval')
+    count = int(np.ceil((stop - start) / step - 1e-10))
+    return start + np.arange(count) * step
 
 class CurveFitter():
     """CurveFitter
@@ -363,11 +375,13 @@ class InitFitter():
         self.og_onsets = self.onsets.copy()
 
         # create concatenator dictionary
-        self.concat_obj = self.concat_runs(self.func, self.onsets)
+        self.concat_obj = self.concat_runs(self.func, self.onsets, TR=self.TR)
 
         # store new dataframes
         self.func = self.concat_obj["func"]
         self.onsets = self.concat_obj["onsets"]
+        if getattr(self, 'confounds', None) is not None:
+            self.confounds = self.concat_runs(self.confounds, self.og_onsets, TR=self.TR)['func']
 
     def _get_timepoints(self):
 
@@ -390,299 +404,119 @@ class InitFitter():
         return list(np.arange(0, self.func.shape[0]) * self.TR)
 
     def prepare_onsets(self):
-
-        """prepare_onsets
-
-        Prepares the onset DataFrame by ensuring proper indexing and adding necessary columns.
-
-        Returns
-        -------
-        None
-            Updates `self.onsets` with formatted data.
-
-        Example
-        ----------
-        .. code-block:: python
-
-            fitter.prepare_onsets()
-        """
-
-        # store copy of original data
+        """Keep session/task labels and event covariates when preparing onsets."""
         self.orig_onsets = self.onsets.copy()
-
-        # put in dataframe
-        self.old_index = []
         if isinstance(self.onsets, np.ndarray):
-            self.onsets = pd.DataFrame(self.onsets)
+            frame = pd.DataFrame(self.onsets)
+            if frame.shape[1] == 1:
+                frame.columns = ['onset']
         else:
-            try:
-                # check old index
-                try:
-                    self.old_index = list(self.onsets.index.names)
-                except BaseException:
-                    pass
-                self.onsets.reset_index(inplace=True)
-            except BaseException:
-                pass
-
-        # format dataframe with subject, run, and t
-        try:
-            self.task_ids = utils.get_unique_ids(self.onsets, id="task")
-            self.final_index = [
-                "subject",
-                "task",
-                "run",
-                "event_type"
-            ]
-
-            self.final_elements = [1, None, 1, "stim"]
-
-        except BaseException:
-            self.task_ids = None
-            self.final_index = [
-                "subject",
-                "run",
-                "event_type"
-            ]
-            self.final_elements = [1, 1, "stim"]
-
-        self.onset_index = [
-            "subject",
-            "run",
-            "event_type"
-        ]
-
-        for key, val in zip(self.final_index, self.final_elements):
-            if key not in list(self.onsets.columns):
-                self.onsets[key] = val
-
-        self.drop_cols = []
-        if len(self.old_index) > 0:
-            for ix in self.old_index:
-                if ix not in self.final_index:
-                    self.drop_cols.append(ix)
-
-        # filter for None
-        self.drop_cols = list(filter(lambda x: x is not None, self.drop_cols)) 
-        
-        # check  if survived
-        if len(self.drop_cols) > 0:
-            self.onsets = self.onsets.drop(self.drop_cols, axis=1)
-
-        self.onsets.set_index(self.final_index, inplace=True)
+            frame = self.onsets.copy()
+            if any(name is not None for name in frame.index.names):
+                frame = frame.reset_index()
+            else:
+                frame = frame.reset_index(drop=True)
+        frame = frame.rename(columns={k: v for k, v in
+            [('ses', 'session'), ('trial_type', 'event_type'), ('event type', 'event_type')]
+            if k in frame and v not in frame})
+        for field, default in [('subject', 1), ('run', 1), ('event_type', 'stim')]:
+            if field not in frame:
+                frame[field] = default
+        if 'onset' not in frame:
+            raise ValueError('Onset data must contain an onset column')
+        frame['onset'] = pd.to_numeric(frame['onset'], errors='raise')
+        if not np.isfinite(frame['onset'].to_numpy()).all():
+            raise ValueError('Event onsets must be finite')
+        acquisition = [k for k in ('subject', 'session', 'task', 'run') if k in frame]
+        self.final_index = acquisition + ['event_type']
+        self.onset_index = self.final_index.copy()
+        self.onsets = frame.set_index(self.final_index)
 
     def prepare_data(self):
-
-        """prepare_data
-
-        Prepares the functional data DataFrame by ensuring proper indexing and adding necessary columns.
-
-        Returns
-        -------
-        None
-            Updates `self.func` with formatted data.
-
-        Example
-        ----------
-        .. code-block:: python
-
-            fitter.prepare_data()
-        """
-
-        # store copy of original data
+        """Prepare signal data without dropping acquisition identifiers."""
         self.orig_data = self.func.copy()
-
-        # put in dataframe
-        self.time = self._get_timepoints()
-        self.old_index = []
         if isinstance(self.func, np.ndarray):
-            self.func = pd.DataFrame(self.func)
+            frame = pd.DataFrame(self.func)
         else:
-            try:
-                # check old index
-                try:
-                    self.old_index = list(self.func.index.names)
-                except BaseException:
-                    pass
-                self.func = self.func.reset_index()
-            except BaseException:
-                pass
-
-        # format dataframe with subject, run, and t
-        try:
-            self.task_ids = utils.get_unique_ids(self.func, id="task")
-            self.final_index = [
-                "subject",
-                "task",
-                "run",
-                "t"
-            ]
-
-            self.final_elements = [1, None, 1, self.time]
-
-        except BaseException:
-            self.task_ids = None
-            self.final_index = [
-                "subject",
-                "run",
-                "t"
-            ]
-            self.final_elements = [1, 1, self.time]
-
-        for key, val in zip(self.final_index, self.final_elements):
-            if key not in list(self.func.columns):
-                self.func[key] = val
-
-        self.drop_cols = []
-        if len(self.old_index) > 0:
-            for ix in self.old_index:
-                if ix not in self.final_index:
-                    self.drop_cols.append(ix)
-
-        if len(self.drop_cols) > 0:
-            self.func = self.func.drop(self.drop_cols, axis=1)
-
-        self.func.set_index(self.final_index, inplace=True)
+            frame = self.func.copy()
+            if any(name is not None for name in frame.index.names):
+                frame = frame.reset_index()
+            else:
+                frame = frame.reset_index(drop=True)
+        if 'ses' in frame and 'session' not in frame:
+            frame = frame.rename(columns={'ses': 'session'})
+        if 'time' in frame and 't' not in frame:
+            frame = frame.rename(columns={'time': 't'})
+        for field in ('subject', 'run'):
+            if field not in frame:
+                frame[field] = 1
+        acquisition = [k for k in ('subject', 'session', 'task', 'run') if k in frame]
+        if 't' not in frame:
+            frame['t'] = frame.groupby(acquisition, sort=False).cumcount() * self.TR
+        self.final_index = acquisition + ['t']
+        self.task_ids = frame['task'].unique().tolist() if 'task' in frame else None
+        self.time = frame['t'].to_numpy()
+        self.func = frame.set_index(self.final_index)
+        if not self.func.index.is_unique:
+            raise ValueError('Duplicate acquisition/time rows in functional data')
+        if any(not pd.api.types.is_numeric_dtype(dtype) for dtype in self.func.dtypes):
+            raise ValueError('Functional signal columns must be numeric; put acquisition labels in the index and remove source_file metadata')
 
     @classmethod
-    def concat_func(self, df):
-
-        """concat_func
-
-        Concatenates functional MRI data from multiple runs into a single dataframe. Adjusts time indices based on 
-        TR and resets the run index.
-
-        Parameters
-        ----------
-        df : pd.DataFrame
-            Functional data dataframe indexed on `subject`, `run`, and `t`.
-
-        Returns
-        -------
-        pd.DataFrame
-            Concatenated functional data with updated indices.
-
-        Example
-        ----------
-        .. code-block:: python
-
-            func_concat = NideconvFitter.concat_func(func_df)
-        """
-
-        # check if time matches TR
-        t = utils.get_unique_ids(df, id="t")
-        tr = np.diff(t)[0]
-        tr_list = list(np.arange(0, df.shape[0]) * tr)
-
-        # construct new dataframe
-        new_func = pd.DataFrame(df.values, columns=list(df.columns))
-        new_func["subject"] = utils.get_unique_ids(df, id="subject")[0]
-        new_func["t"], new_func["run"] = np.array(tr_list), 1
-        new_func.set_index(["subject", "run", "t"], inplace=True)
-
-        return new_func
+    def concat_func(self, df, TR=None):
+        """Concatenate one subject/session/task's runs on a continuous time axis."""
+        contexts = [key for key in df.index.names if key not in ('run', 't')]
+        for key in contexts:
+            if df.index.get_level_values(key).nunique() != 1:
+                raise ValueError('concat_func expects one subject/session/task')
+        pieces, offset = [], 0.
+        for _, group in df.groupby(level='run', sort=False):
+            group = group.sort_index(level='t')
+            times = group.index.get_level_values('t').to_numpy(dtype=float)
+            step = float(TR) if TR is not None else (float(np.diff(times)[0]) if len(times) > 1 else None)
+            if step is None or step <= 0 or (len(times) > 1 and not np.allclose(np.diff(times), step)):
+                raise ValueError('Provide TR and regularly sampled data for concatenation')
+            frame = group.reset_index()
+            frame['t'] = offset + np.arange(len(frame)) * step
+            frame['run'] = 1
+            offset += len(frame) * step
+            pieces.append(frame)
+        return pd.concat(pieces, ignore_index=True).set_index(contexts + ['run', 't'])
 
     @classmethod
-    def concat_onsets(
-        self,
-        onsets,
-        func
-        ):
-
-        """concat_onsets
-
-        Concatenates event onset data across multiple runs, updating onset times to reflect the new concatenated 
-        timeline.
-
-        Parameters
-        ----------
-        onsets : pd.DataFrame
-            Onset data indexed on `subject`, `run`, and `event_type`.
-        func : pd.DataFrame
-            Functional data used to determine run durations.
-
-        Returns
-        -------
-        pd.DataFrame
-            Concatenated onsets with updated `onset` times.
-
-        Example
-        ----------
-        .. code-block:: python
-
-            onsets_concat = NideconvFitter.concat_onsets(onsets_df, func_df)
-        """
-
-        n_runs = utils.get_unique_ids(onsets, id="run")
-        run_dfs = []
-        for ix, ii in enumerate(n_runs):
-            df = utils.select_from_df(
-                onsets, expression=f"run = {ii}").reset_index()
-            ff = utils.select_from_df(func, expression=f"run = {ii}")
-            df["onset"] += (ix * ff.shape[0])
-            df["run"] = 1
-            run_dfs.append(df)
-
-        new_onsets = pd.concat(run_dfs)
-        new_onsets.set_index(["subject", "run", "event_type"], inplace=True)
-
-        return new_onsets
+    def concat_onsets(self, onsets, func, TR=None):
+        """Shift onsets by cumulative run durations in seconds, not volume counts."""
+        pieces, offset = [], 0.
+        for run, group in func.groupby(level='run', sort=False):
+            times = np.sort(group.index.get_level_values('t').to_numpy(dtype=float))
+            step = float(TR) if TR is not None else (float(np.diff(times)[0]) if len(times) > 1 else None)
+            if step is None or step <= 0:
+                raise ValueError('Provide TR for concatenation of single-volume runs')
+            frame = onsets.loc[onsets.index.get_level_values('run') == run].reset_index()
+            frame['onset'] = frame['onset'] + offset
+            frame['run'] = 1
+            pieces.append(frame)
+            offset += len(group) * step
+        return pd.concat(pieces, ignore_index=True).set_index(onsets.index.names)
 
     @classmethod
-    def concat_runs(
-        self,
-        func,
-        onsets
-        ):
-
-        """concat_runs
-
-        Concatenates functional MRI data and event onsets across multiple runs for each subject. Calls 
-        `concat_func` and `concat_onsets` internally.
-
-        Parameters
-        ----------
-        func : pd.DataFrame
-            Functional MRI data indexed by `subject`, `run`, and `t`.
-        onsets : pd.DataFrame
-            Event onset data indexed by `subject`, `run`, and `event_type`.
-
-        Returns
-        -------
-        dict
-            Dictionary containing concatenated functional (`"func"`) and onset (`"onsets"`) data.
-
-        Example
-        ----------
-        .. code-block:: python
-
-            concatenated_data = NideconvFitter.concat_runs(func_df, onsets_df)
-            func_concat = concatenated_data["func"]
-            onsets_concat = concatenated_data["onsets"]
-        """
-
-        sub_ids = utils.get_unique_ids(func, id="subject")
-        sub_dfs = {}
-        sub_dfs["func"] = []
-        sub_dfs["onsets"] = []
-
-        # loop through subjects
-        for sub in sub_ids:
-
-            # concatenate functional
-            sub_func = utils.select_from_df(
-                func, expression=f"subject = {sub}")
-            sub_dfs["func"].append(self.concat_func(sub_func))
-
-            # concatenate onsets
-            sub_onsets = utils.select_from_df(
-                onsets, expression=f"subject = {sub}")
-            sub_dfs["onsets"].append(self.concat_onsets(sub_onsets, sub_func))
-
-        for key, val in sub_dfs.items():
-            sub_dfs[key] = pd.concat(val)
-
-        return sub_dfs
+    def concat_runs(self, func, onsets, TR=None):
+        """Concatenate runs separately for each subject/session/task."""
+        contexts = [key for key in func.index.names if key not in ('run', 't')]
+        output = {'func': [], 'onsets': []}
+        for key, data in func.groupby(level=contexts, sort=False):
+            key = key if isinstance(key, tuple) else (key,)
+            events = onsets
+            for field, value in zip(contexts, key):
+                if field not in events.index.names:
+                    raise ValueError(f'Onsets lack acquisition field {field!r}')
+                events = events.loc[events.index.get_level_values(field) == value]
+            runs = data.index.get_level_values('run').unique()
+            if not events.index.get_level_values('run').isin(runs).all():
+                raise ValueError('Events reference runs absent from functional data')
+            output['func'].append(self.concat_func(data, TR=TR))
+            output['onsets'].append(self.concat_onsets(events, data, TR=TR))
+        return {key: pd.concat(frames) for key, frames in output.items()}
 
     @staticmethod
     def merge_dfs(
@@ -727,7 +561,7 @@ class InitFitter():
         if "basis" in first:
             order = [src, tm]
         else:
-            order = [tm, trg]
+            order = [tm, src]
 
         return pd.concat(order)
 
@@ -1004,127 +838,43 @@ class InitFitter():
         else:
             return []
 
-    def parameters_for_tc_subjects(
-        self,
-        **kwargs
-        ):
+    def parameters_for_tc_subjects(self, **kwargs):
+        """Extract metrics independently per acquisition/event/covariate."""
+        if not hasattr(self, 'tc_subjects'):
+            raise ValueError('Run timecourses_condition() before extracting parameters')
+        frame = self.tc_subjects
+        names = list(frame.index.names)
+        time = 'time' if 'time' in names else 't'
+        groups = [key for key in names if key != time]
+        self.pars_subjects = self._metrics_for_groups(frame, groups, **kwargs)
+        average_groups = [key for key in groups if key != 'run']
+        averaged = frame.groupby(level=average_groups + [time]).mean()
+        self.avg_pars_subjects = self._metrics_for_groups(averaged, average_groups, **kwargs)
 
-        """parameters_for_tc_subjects
-
-        Extracts HRF parameters for subject-specific timecourses.
-
-        Parameters
-        ----------
-        *args : tuple, optional
-            Additional arguments for :class:`lazyfmri.fitting.HRFMetrics`.
-        **kwargs : dict, optional
-            Additional keyword arguments for :class:`lazyfmri.fitting.HRFMetrics`.
-
-        Returns
-        -------
-        None
-            Updates `self.pars_subjects` with extracted parameters.
-
-        Raises
-        ------
-        ValueError
-            If `self.tc_subjects` is not available.
-
-        Example
-        ----------
-        .. code-block:: python
-
-            fitter.parameters_for_tc_subjects()
-        """
-
-        if not hasattr(self, "tc_subjects"):
-            raise ValueError(
-                f"{self} does not have 'tc_subjects' attribute, run fitter first")
-
-        utils.verbose(
-            f"Deriving parameters from {self} with 'HRFMetrics'",
-            self.verbose
-        )
-        subj_ids = utils.get_unique_ids(self.tc_subjects, id="subject")
-
-        subjs = []
-        subjs_avg_run = []
-        for sub in subj_ids:
-
-            sub_df = utils.select_from_df(
-                self.tc_subjects, expression=f"subject = {sub}")
-            ev_ids = utils.get_unique_ids(sub_df, id="event_type")
-
-            # loop through evs
-            evs = []
-            evs_avg = []
-            for ev in ev_ids:
-
-                # get event-specific dataframe
-                ev_df = utils.select_from_df(
-                    sub_df, expression=f"event_type = {ev}")
-                run_ids = utils.get_unique_ids(sub_df, id="run")
-
-                # loop through runs
-                runs = []
-                for run in run_ids:
-
-                    # get run-specific dataframe
-                    run_df = utils.select_from_df(
-                        ev_df, expression=f"run = {run}")
-                    pars = HRFMetrics(
-                        run_df,
-                        TR=self.TR,
-                        **kwargs
-                    ).return_metrics()
-
-                    pars["event_type"], pars["run"] = ev, run
-                    runs.append(pars)
-
-                # also get parameters of average across runs
-                idx = ["subject", "event_type"]
-                if "time" in list(ev_df.index.names):
-                    idx += ["time"]
-                else:
-                    idx += ["t"]
-
-                avg_df = ev_df.groupby(idx).mean()
-                avg_pars = HRFMetrics(
-                    avg_df,
-                    TR=self.TR,
-                    **kwargs
-                ).return_metrics()
-
-                # save average
-                avg_pars["event_type"] = ev
-                evs_avg.append(avg_pars)
-
-                # save single runs
-                runs = pd.concat(runs)
-                evs.append(runs)
-
-            # avg
-            evs_avg = pd.concat(evs_avg)
-            evs_avg["subject"] = sub
-            subjs_avg_run.append(evs_avg)
-
-            # single runs
-            evs = pd.concat(evs)
-            evs["subject"] = sub
-            subjs.append(evs)
-
-        df_conc = pd.concat(subjs)
-        df_avg = pd.concat(subjs_avg_run)
-        avg_idx = ["subject", "event_type"]
-        idx = avg_idx + ["run"]
-
-        add_idx = self.find_pars_index(df_conc)
-        if isinstance(add_idx, str):
-            idx += [add_idx]
-            avg_idx += [add_idx]
-
-        self.pars_subjects = df_conc.set_index(idx)
-        self.avg_pars_subjects = df_avg.set_index(avg_idx)
+    def _metrics_for_groups(self, frame, groups, **kwargs):
+        """Keep metric ROI identifiers and all profile grouping levels."""
+        results = []
+        for key, profile in frame.groupby(level=groups, sort=False, dropna=False):
+            key = key if isinstance(key, tuple) else (key,)
+            profile = profile.droplevel(groups).sort_index()
+            if not profile.index.is_unique:
+                raise ValueError('Metrics require one profile per acquisition/event/covariate')
+            metrics = HRFMetrics(profile, TR=self.TR, **kwargs).return_metrics().copy()
+            roi_field = kwargs.get('col_name', 'vox')
+            metrics = metrics.reset_index(drop=True)
+            if roi_field not in metrics:
+                if len(metrics) != len(profile.columns):
+                    raise ValueError('Metric rows do not match input signal columns')
+                metrics[roi_field] = (np.arange(len(profile.columns)) if kwargs.get('vox_as_index', False)
+                                      else profile.columns.tolist())
+            for field, value in zip(groups, key):
+                metrics[field] = value
+            # Keep the historic leading subject/event/run order when present.
+            order = [field for field in ('subject', 'event_type', 'run') if field in groups]
+            order += [field for field in groups if field not in order]
+            order += [roi_field] if roi_field not in order else []
+            results.append(metrics.set_index(order))
+        return pd.concat(results) if results else pd.DataFrame()
 
     def parameters_for_epochs(
         self,
@@ -1178,78 +928,17 @@ class InitFitter():
 
         return pars_df
 
-    def parameters_for_tc_condition(
-        self,
-        *args,
-        **kwargs
-        ):
-
-        """parameters_for_tc_condition
-
-        Extracts HRF parameters for condition-averaged timecourses.
-
-        Parameters
-        ----------
-        *args : tuple, optional
-            Additional arguments for :class:`lazyfmri.fitting.HRFMetrics`.
-        **kwargs : dict, optional
-            Additional keyword arguments for :class:`lazyfmri.fitting.HRFMetrics`.
-
-        Returns
-        -------
-        None
-            Updates `self.pars_condition` with extracted parameters.
-
-        Raises
-        ------
-        ValueError
-            If `self.tc_condition` is not available.
-
-        Example
-        ----------
-        .. code-block:: python
-
-            fitter.parameters_for_tc_condition()
-        """
-
-        if not hasattr(self, "tc_condition"):
-            raise ValueError(
-                f"{self} does not have 'tc_condition' attribute, run fitter first")
-
-        utils.verbose(
-            f"Deriving condition-wise parameters from {self} with 'HRFMetrics'",
-            self.verbose)
-        ev_ids = utils.get_unique_ids(self.tc_condition, id="event_type")
-
-        # loop through evs
-        evs = []
-        for ev in ev_ids:
-
-            # get event-specific dataframe
-            ev_df = utils.select_from_df(
-                self.tc_condition, expression=f"event_type = {ev}")
-
-            ev_pars = HRFMetrics(
-                ev_df,
-                TR=self.TR,
-                *args,
-                **kwargs
-            ).return_metrics()
-
-            ev_pars["event_type"] = ev
-            evs.append(ev_pars)
-
-        # concatenate
-        df_conc = pd.concat(evs)
-        df_conc["subject"] = "avg"
-
-        # add indices
-        idx = ["subject", "event_type"]
-        add_idx = self.find_pars_index(df_conc)
-        if isinstance(add_idx, str):
-            idx += [add_idx]
-
-        self.pars_condition = df_conc.set_index(idx)
+    def parameters_for_tc_condition(self, *args, **kwargs):
+        """Extract group-profile metrics without mixing conditions or covariates."""
+        if args:
+            raise TypeError('Pass HRFMetrics options as keyword arguments')
+        if not hasattr(self, 'tc_condition'):
+            raise ValueError('Run timecourses_condition() before extracting parameters')
+        frame = self.tc_condition.copy()
+        frame['subject'] = 'avg'
+        frame = frame.set_index('subject', append=True)
+        groups = [key for key in frame.index.names if key not in ('time', 't')]
+        self.pars_condition = self._metrics_for_groups(frame, groups, **kwargs)
     
     @classmethod
     def format_evs_for_plotting(self, df, indexer="event_type", time_col="time", **kwargs):
@@ -1565,119 +1254,46 @@ class ParameterFitter(InitFitter):
 
         return new_dict
 
-    def fit(
-        self,
-        debug=False,
-        **kwargs
-        ):
-
-        """fit
-
-        Fits HRF parameters across subjects, runs, and event types.
-
-        Parameters
-        ----------
-        debug : bool, optional
-            If `True`, prints verbose messages during the fitting process, by default `False`.
-        **kwargs : dict
-            Additional keyword arguments for HRF fitting.
-
-        Returns
-        -------
-        None
-            Stores fitted HRF parameters and model outputs as object attributes:
-            - `tc_subjects`: Extracted HRF profiles for each subject.
-            - `ev_predictions`: Event-specific model predictions.
-            - `estimates`: Estimated HRF parameters.
-            - `tc_condition`: Mean HRF timecourses across conditions.
-            - `sem_condition`: Standard error of the mean (SEM) of timecourses.
-            - `std_condition`: Standard deviation of timecourses.
-
-        Example
-        ----------
-        .. code-block:: python
-
-            nd_fit.fit(debug=True)
-            print(nd_fit.tc_subjects)
-        """
-
+    def fit(self, debug=False, **kwargs):
+        """Fit only existing acquisition/event combinations and retain ROI labels."""
         self.ddict_ev = self._set_dict()
-
-        # loop through subject
-        for sub in self.sub_ids:
-
-            utils.verbose(f"Fitting '{sub}'", debug)
-
-            # get subject specific onsets
-            self.sub_onsets = utils.select_from_df(
-                self.orig_onsets, expression=f"subject = {sub}")
-            for run in self.run_ids:
-
-                # subject and run specific data
-                utils.verbose(f" run-'{run}'", debug)
-                expr = (
-                    f"subject = {sub}",
-                    "&",
-                    f"run = {run}"
-                )
-                self.run_func = utils.select_from_df(
-                    self.orig_func, expression=expr)
-
-                # loop through events
-                for ev in self.ev_ids:
-
-                    utils.verbose(f"  ev-'{ev}'", debug)
-
-                    # run/event-specific onsets
-                    expr = (
-                        f"run = {run}",
-                        "&",
-                        f"event_type = {ev}"
-                    )
-                    self.ons = utils.select_from_df(
-                        self.sub_onsets, expression=expr)
-                    # print(f"  {self.run_func.shape}")
-
-                    # do fit
-                    self.rf = self.single_response_fitter(
-                        self.run_func.T.values,
-                        self.ons,
-                        TR=self.TR,
-                        **kwargs
-                    )
-
-                    # get profiles and full timecourse predictions
-                    df = self.rf.hrf_profiles.copy()
-                    pr = self.rf.predictions.copy()
-
-                    es = self.rf.estimates.copy()
-                    es["vox"] = list(self.func.columns)
-                    es.set_index(["subject", "event_type",
-                                 "run", "vox"], inplace=True)
-
-                    # append
-                    self.ddict_ev["predictions"].append(pr)
-                    self.ddict_ev["profiles"].append(df)
-                    self.ddict_ev["pars"].append(es)
-
-        # concatenate all subjects
+        identities = [key for key in ('subject', 'session', 'task', 'run') if key in self.orig_func.index.names]
+        for key, data in self.orig_func.groupby(level=identities, sort=False):
+            key = key if isinstance(key, tuple) else (key,)
+            selection = dict(zip(identities, key))
+            events = NideconvFitter._select_acquisition(self.orig_onsets, selection)
+            if events.empty:
+                raise ValueError(f'No onsets for functional acquisition {selection}')
+            for event, onsets in events.groupby(level='event_type', sort=False):
+                self.rf = self.single_response_fitter(data.to_numpy().T, onsets, TR=self.TR, **kwargs)
+                for field, destination, time_fields in [
+                    ('hrf_profiles', 'profiles', ['covariate', 'time']),
+                    ('predictions', 'predictions', ['t'])]:
+                    frame = getattr(self.rf, field).copy()
+                    if frame.shape[1] != len(data.columns):
+                        raise ValueError('Parametric output columns do not match ROI inputs')
+                    frame.columns = data.columns
+                    frame = frame.reset_index()
+                    for name, value in selection.items(): frame[name] = value
+                    frame['event_type'] = event
+                    self.ddict_ev[destination].append(frame.set_index(identities + ['event_type'] + time_fields)[list(data.columns)])
+                estimates = self.rf.estimates.copy().reset_index(drop=True)
+                if len(estimates) != len(data.columns):
+                    raise ValueError('Parametric estimates do not match ROI inputs')
+                estimates['vox'], estimates['event_type'] = list(data.columns), event
+                for name, value in selection.items(): estimates[name] = value
+                self.ddict_ev['pars'].append(estimates.set_index(identities + ['event_type', 'vox']))
         self.ddict_sub = self._concat_dict(self.ddict_ev)
-
-        # set final outputs
-        self.tc_subjects = self.ddict_sub["profiles"]
-        self.ev_predictions = self.ddict_sub["predictions"]
-        self.estimates = self.ddict_sub["pars"]
-
-        self.tc_subjects.columns = self.func.columns
-        self.ev_predictions.columns = self.func.columns
-
-        self.grouper = self.tc_subjects.groupby(
-            level=['event_type', 'covariate', 'time'])
+        self.tc_subjects = self.ddict_sub['profiles']
+        self.ev_predictions = self.ddict_sub['predictions']
+        self.estimates = self.ddict_sub['pars']
+        contexts = [key for key in identities if key != 'run']
+        subject_means = self.tc_subjects.groupby(level=contexts + ['event_type', 'covariate', 'time']).mean()
+        condition = [key for key in contexts if key != 'subject'] + ['event_type', 'covariate', 'time']
+        self.grouper = subject_means.groupby(level=condition)
         self.tc_condition = self.grouper.mean()
-        self.sem_condition = self.grouper.sem()
-        self.std_condition = self.grouper.std()
-
-        self.time = utils.get_unique_ids(self.tc_condition, id="time")
+        self.sem_condition, self.std_condition = self.grouper.sem(), self.grouper.std()
+        self.time = np.sort(self.tc_condition.index.get_level_values('time').unique().to_numpy())
 
 
 class NideconvFitter(InitFitter):
@@ -1710,7 +1326,9 @@ class NideconvFitter(InitFitter):
     n_regressors : int or str, optional
         Number of regressors (`'tr'` syncs regressors with TR). Default is `9`.
     add_intercept : bool, optional
-        Whether to fit an intercept. Default is `False`.
+        Include an unmodulated event response alongside supplied event
+        covariates. Without covariates, unit event amplitudes are always used.
+        This does not control the constant run baseline. Default is `False`.
     lump_events : bool, optional
         If `True`, merges all event types. Default is `False`.
     interval : list, optional
@@ -1722,7 +1340,31 @@ class NideconvFitter(InitFitter):
     covariates : dict, optional
         Covariates for each event (dict of numpy arrays). Default is `None`.
     conf_intercept : bool, optional
-        Includes an intercept in confound model if `True`. Default is `True`.
+        Include one constant baseline per acquisition. The baseline is not
+        penalized in ridge fits. Default is `True`.
+    event_models : dict, optional
+        Per-event overrides, matched by exact event name or an unambiguous
+        shell-style wildcard (for example 'CS_*'). Exact names take priority.
+        Each dictionary may override basis_sets (or basis_set), n_regressors,
+        interval, duration, covariates, add_intercept and fir_bin_mode. duration='from_onsets'
+        retains TSV durations; duration=0 creates onset-locked impulses. When
+        supplied, every observed event must match a rule. All events are fitted
+        jointly in each acquisition. Effective settings are in model_spec.
+    on_rank_deficient : {"raise", "skip"}, optional
+        OLS policy for singular designs (default "raise"). All run models are
+        retained in all_fitters and diagnostics in fit_diagnostics. With
+        "skip", only successful runs enter profiles and predictions. Ridge
+        continues to allow singular designs. To inspect a raised failure,
+        construct with fit=False before calling fit(), or use error.fitter.
+    drop_zero_regressors : bool, optional
+        OLS only: omit exactly zero design columns before checking rank and
+        fitting (default False). Keep the full design and coefficient labels;
+        unidentifiable coefficients and affected profile samples are NaN.
+        Other linear dependencies still follow on_rank_deficient.
+    fir_bin_mode : {'legacy', 'equal'}, optional
+        FIR bin construction, overridable per event. 'equal' requires the
+        corresponding nideconv update and uses equal-width half-open bins.
+        Default 'legacy' preserves existing designs and supports older nideconv.
     **kwargs
         Additional parameters for model initialization.
 
@@ -1762,20 +1404,42 @@ class NideconvFitter(InitFitter):
         fit=True,
         covariates=None,
         conf_intercept=True,
+        event_models=None,
+        on_rank_deficient="raise",
+        drop_zero_regressors=False,
+        fir_bin_mode="legacy",
         **kwargs):
 
+        if on_rank_deficient not in ("raise", "skip"):
+            raise ValueError("on_rank_deficient must be raise or skip")
+        self.on_rank_deficient = on_rank_deficient
+        if not isinstance(drop_zero_regressors, (bool, np.bool_)):
+            raise ValueError("drop_zero_regressors must be boolean")
+        if drop_zero_regressors and fit_type.lower() != "ols":
+            raise ValueError("drop_zero_regressors currently supports OLS only")
+        self.drop_zero_regressors = drop_zero_regressors
+        if fir_bin_mode not in ("legacy", "equal"):
+            raise ValueError("fir_bin_mode must be legacy or equal")
+        self.fir_bin_mode = fir_bin_mode
+        self.event_models = event_models
+        if not np.isfinite(TR) or TR <= 0:
+            raise ValueError('TR must be finite and positive')
+        if not isinstance(osf, (int, np.integer)) or osf < 1:
+            raise ValueError('osf must be a positive integer')
         self.func = func
         self.onsets = onsets
         self.confounds = confounds
         self.basis_sets = basis_sets
-        self.fit_type = fit_type
+        self.fit_type = fit_type.lower()
+        if self.fit_type not in ('ols', 'ridge'):
+            raise ValueError("fit_type must be 'ols' or 'ridge'")
         self.n_regressors = n_regressors
         self.add_intercept = add_intercept
         self.verbose = verbose
         self.lump_events = lump_events
         self.TR = TR
         self.fs = 1 / self.TR
-        self.interval = interval
+        self.interval = list(interval)
         self.merge = merge
         self.osf = osf
         self.do_fit = fit
@@ -1805,6 +1469,7 @@ class NideconvFitter(InitFitter):
 
         # update kwargs
         self.__dict__.update(kwargs)
+        self._resolve_event_models()
 
         # get the model
         if self.fit_type == "ols":
@@ -1857,293 +1522,277 @@ class NideconvFitter(InitFitter):
             self.axis_width = self.plotting_defaults.axis_width
 
     def melt_events(self):
-
-        """melt_events
-
-        Merges all events in the onset dataframe into a single generic event type `"stim"`.
-
-        Returns
-        -------
-        pd.DataFrame
-            Onset dataframe with all events combined into a single category.
-
-        Example
-        ----------
-        .. code-block:: python
-
-            lumped_onsets = fitter.melt_events()
-        """
-
-
+        """Lump event types while retaining all acquisition identifiers."""
         self.lumped_onsets = self.onsets.copy().reset_index()
         self.lumped_onsets['event_type'] = 'stim'
-        self.lumped_onsets = self.lumped_onsets.set_index(
-            ['subject', 'run', 'event_type'])
+        self.lumped_onsets = self.lumped_onsets.set_index(self.onsets.index.names)
         return self.lumped_onsets
 
     def derive_n_regressors(self):
+        """Validate the legacy global basis and resolve its regressor count."""
+        self.allowed_basis_sets = ['fir', 'fourier', 'dct', 'legendre', 'canonical_hrf',
+            'canonical_hrf_with_time_derivative', 'canonical_hrf_with_time_derivative_dispersion']
+        self.tmp_regressors = round((self.interval[1] - self.interval[0]) / self.TR)
+        self.n_regressors = self._event_regressor_count(self.basis_sets, self.n_regressors, self.interval)
 
-        """derive_n_regressors
+    def _event_regressor_count(self, basis, count, interval):
+        allowed = ['fir', 'fourier', 'dct', 'legendre', 'canonical_hrf',
+            'canonical_hrf_with_time_derivative', 'canonical_hrf_with_time_derivative_dispersion']
+        if basis not in allowed:
+            raise ValueError(f'Unrecognized basis {basis!r}; choose from {allowed}')
+        if basis.startswith('canonical_hrf'):
+            return {'canonical_hrf': 1, 'canonical_hrf_with_time_derivative': 2,
+                    'canonical_hrf_with_time_derivative_dispersion': 3}[basis]
+        if isinstance(count, str):
+            tokens = count.lower().split()
+            count = round((interval[1] - interval[0]) / self.TR)
+            if len(tokens) == 3 and tokens[0] == 'tr':
+                operations = {'x': operator.mul, '*': operator.mul, '/': operator.truediv,
+                              '+': operator.add, '-': operator.sub}
+                if tokens[1] not in operations:
+                    raise ValueError('Use tr, or tr <x, /, +, -> <number>')
+                count = int(operations[tokens[1]](count, float(tokens[2])))
+            elif tokens != ['tr']:
+                raise ValueError('Use a positive regressor count or tr <operation> <number>')
+        if not isinstance(count, (int, np.integer)) or count < 1:
+            raise ValueError('n_regressors must resolve to a positive integer')
+        if basis in ('fourier', 'legendre') and count % 2 == 0:
+            count += 1
+        return int(count)
 
-        Determines the number of regressors to use based on the specified basis set. If `"tr"` is specified, 
-        automatically calculates regressors per TR.
+    def _event_spec(self, event, ix=0):
+        if hasattr(self, 'event_models_'):
+            return self.event_models_[str(event)]
+        return dict(basis_sets=getattr(self, 'basis_sets', 'fir'), n_regressors=self.n_regressors,
+            interval=list(self.interval), duration='from_onsets',
+            fir_bin_mode=getattr(self, 'fir_bin_mode', 'legacy'),
+            covariates=self.covariates[ix] if isinstance(getattr(self, 'covariates', None), list) else getattr(self, 'covariates', None),
+            add_intercept=self.add_intercept[ix] if isinstance(getattr(self, 'add_intercept', None), list) else getattr(self, 'add_intercept', False))
 
-        Returns
-        -------
-        None
-            Stores the determined number of regressors in `self.n_regressors`.
+    def _resolve_event_models(self):
+        """Resolve exact names before unambiguous shell-style wildcard patterns.
 
-        Example
-        ----------
-        .. code-block:: python
-
-            fitter.derive_n_regressors()
-            print(fitter.n_regressors)
+        All observed events must match when event_models is supplied. Numeric
+        duration overrides are written only into used_onsets, never caller data.
+        model_spec records every effective event configuration.
         """
+        models = self.event_models
+        if models is not None and (not isinstance(models, dict) or not models):
+            raise ValueError('event_models must be a nonempty dictionary or None')
+        events = utils.get_unique_ids(self.used_onsets, id='event_type')
+        resolved = {}
+        used_rules = set()
+        for ix, event in enumerate(events):
+            name = str(event)
+            base = self._event_spec(event, ix)
+            if models is not None:
+                if name in models:
+                    rule = name
+                else:
+                    matches = [pattern for pattern in models if fnmatch.fnmatchcase(name, pattern)]
+                    if len(matches) != 1:
+                        raise ValueError(f'{name}: expected one matching event model, found {matches}')
+                    rule = matches[0]
+                override = models[rule]
+                if not isinstance(override, dict):
+                    raise ValueError(f'{rule}: event model must be a dictionary')
+                override = dict(override)
+                if 'basis_set' in override:
+                    if 'basis_sets' in override:
+                        raise ValueError('Use only one of basis_set and basis_sets')
+                    override['basis_sets'] = override.pop('basis_set')
+                if set(override) - set(base):
+                    raise ValueError(f'{rule}: unknown model fields {set(override) - set(base)}')
+                base.update(override)
+                used_rules.add(rule)
+            if base['fir_bin_mode'] not in ('legacy', 'equal'):
+                raise ValueError(f'{name}: fir_bin_mode must be legacy or equal')
+            interval = list(map(float, base['interval']))
+            if len(interval) != 2 or not np.isfinite(interval).all() or interval[1] <= interval[0]:
+                raise ValueError(f'{name}: interval must contain two increasing finite times')
+            base['interval'] = interval
+            base['n_regressors'] = self._event_regressor_count(base['basis_sets'], base['n_regressors'], interval)
+            duration = base['duration']
+            if duration is None:
+                duration = 0.
+            if duration != 'from_onsets':
+                if not isinstance(duration, (int, float, np.number)) or not np.isfinite(duration) or duration < 0:
+                    raise ValueError(f'{name}: duration must be nonnegative or from_onsets')
+                mask = self.used_onsets.index.get_level_values('event_type') == event
+                if 'duration' not in self.used_onsets:
+                    self.used_onsets['duration'] = np.nan
+                self.used_onsets.loc[mask, 'duration'] = float(duration)
+            base['duration'] = duration
+            resolved[name] = base
+        if models is not None:
+            unused = set(models) - used_rules
+            if unused:
+                warnings.warn(f'Event model rules not used by this dataset: {sorted(unused)}', RuntimeWarning)
+        self.event_models_ = resolved
+        self.fir_events = [name for name, spec in resolved.items() if spec['basis_sets'] == 'fir']
+        self.is_hybrid = len({spec['basis_sets'] for spec in resolved.values()}) > 1
+        self.model_spec = pd.DataFrame.from_dict(resolved, orient='index').rename_axis('event_type')
 
+    @staticmethod
+    def _prediction_betas(fitter):
+        """Zero omitted coefficients only for predictions on the observed design."""
+        betas = fitter.betas.copy()
+        dropped = getattr(fitter, 'dropped_zero_regressors', [])
+        if len(dropped):
+            betas.loc[dropped] = 0.
+        return betas
 
-        self.allowed_basis_sets = [
-            "fir",
-            "fourier",
-            "dct",
-            "legendre",
-            "canonical_hrf",
-            "canonical_hrf_with_time_derivative",
-            "canonical_hrf_with_time_derivative_dispersion"
-        ]
-
-        self.n_regressors
-        if self.basis_sets not in self.allowed_basis_sets:
-            raise ValueError(
-                f"Unrecognized basis set '{self.basis_sets}'. Must be one of {self.allowed_basis_sets}")
-        else:
-            if self.basis_sets == "canonical_hrf":
-                self.n_regressors = 1
-            elif self.basis_sets == "canonical_hrf_with_time_derivative":
-                self.n_regressors = 2
-            elif self.basis_sets == "canonical_hrf_with_time_derivative_dispersion":
-                self.n_regressors = 3
-            else:
-                # set 1 regressor per TR
-                if isinstance(self.n_regressors, str):
-
-                    self.tmp_regressors = round(
-                        ((self.interval[1] + abs(self.interval[0]))) / self.TR)
-
-                    if len(self.n_regressors) > 2:
-                        # assume operation on TR
-                        els = self.n_regressors.split(" ")
-
-                        if len(els) != 3:
-                            raise TypeError(
-                                f"""Format of this input must be 'tr <operation> <value>' (WITH SPACES), not
-                                '{self.n_regressors}'. Example: 'tr x 2' will use 2 regressors per TR""")
-
-                        op = utils.str2operator(els[1])
-                        val = float(els[-1])
-
-                        self.n_regressors = int(op(self.tmp_regressors, val))
-                    else:
-                        self.n_regressors = self.tmp_regressors
+    @staticmethod
+    def _profiles_from_fitter(fitter, oversample=None):
+        """Retain estimable FIR samples without treating missing bins as zero."""
+        if not len(getattr(fitter, 'dropped_zero_regressors', [])):
+            return fitter.get_timecourses(oversample=oversample)
+        if oversample is None:
+            oversample = fitter.oversample_design_matrix
+        profiles = []
+        for name, event in fitter.events.items():
+            basis = event.get_basis_function(oversample=oversample)
+            for covariate, coefficients in event.betas.groupby(level='covariate', sort=False):
+                coefficients = coefficients.droplevel(['event type', 'covariate']).reindex(basis.columns)
+                missing = coefficients.isna().to_numpy()
+                values = basis.to_numpy().dot(coefficients.fillna(0.).to_numpy())
+                affected = (basis.to_numpy() != 0.).astype(int).dot(missing.astype(int)) > 0
+                values[affected] = np.nan
+                frame = pd.DataFrame(values, index=basis.index, columns=coefficients.columns)
+                frame['event type'], frame['covariate'] = name, covariate
+                profiles.append(frame.reset_index().set_index(['event type', 'covariate', 'time']))
+        return pd.concat(profiles)
 
     @staticmethod
     def get_event_predictions_from_fitter(fitter, intercept=True):
+        """Predict each event, optionally adding only the constant run baseline.
 
-        """get_event_predictions_from_fitter
-
-        Extracts event-specific predictions from a fitted model.
-
-        Parameters
-        ----------
-        fitter : nideconv.GroupResponseFitter
-            The fitted response model.
-        intercept : bool, optional
-            If `True`, includes intercept regressors in the predictions, by default `True`.
-
-        Returns
-        -------
-        pd.DataFrame
-            Dataframe containing predicted response for each event type.
-
-        Example
-        ----------
-        .. code-block:: python
-
-            event_predictions = NideconvFitter.get_event_predictions_from_fitter(fitter)
+        Event profiles exclude this baseline; unrelated nuisance regressors
+        are never added to individual event predictions.
         """
-
-
-        ev_pred = []
-        for ev in fitter.events.keys():
-
+        output = []
+        labels = fitter.X.columns.get_level_values(0)
+        for event in fitter.events:
+            selected = labels == event
             if intercept:
-                X_stim = pd.concat(
-                    [
-                        fitter.X.xs("confounds", axis=1, drop_level=False),
-                        fitter.X.xs(ev, axis=1, drop_level=False)
-                    ],
-                    axis=1
-                )
+                selected |= np.asarray([column[0] == 'confounds' and column[1] == 'intercept'
+                                        for column in fitter.X.columns])
+            design = fitter.X.loc[:, selected]
+            prediction = design.dot(NideconvFitter._prediction_betas(fitter).loc[design.columns]).copy()
+            prediction.index.name = 't'
+            prediction = prediction.reset_index()
+            prediction['event_type'] = event
+            output.append(prediction)
+        return pd.concat(output, ignore_index=True) if output else pd.DataFrame()
 
-                expr = (
-                    f"event type = {ev}",
-                    "or",
-                    "event type = confounds"
-                )
-            else:
-                X_stim = fitter.X.xs(ev, axis=1, drop_level=False)
-                expr = f"event type = {ev}"
+    def _interpolate_timecourse(self, tc, time=None, centers=None, target_time=None, event_type=None):
+        """Linearly interpolate FIR bin-center estimates, for display only.
 
-            betas = utils.select_from_df(fitter.betas, expression=expr)
-            pred = X_stim.dot(betas).reset_index()
-            pred.rename(columns={"time": "t"}, inplace=True)
-
-            if "index" in list(pred.columns):
-                pred.rename(columns={"index": "t"}, inplace=True)
-
-            pred["event_type"] = ev
-            ev_pred.append(pred)
-
-        ev_pred = pd.concat(ev_pred, ignore_index=True)
-        return ev_pred
-
-    def _interpolate_timecourse(self, tc):
+        Bin locations depend on the fitted interval and number of regressors,
+        never on amplitude changes. No extrapolation outside the centers is used.
+        Existing calls with only tc remain supported.
         """
-        Interpolates a single FIR timecourse by identifying plateaus and averaging transition points.
+        tc = np.asarray(tc, dtype=float)
+        time = np.asarray(self.time if time is None else time, dtype=float)
+        if tc.ndim != 1 or time.ndim != 1 or len(tc) != len(time) or not len(tc):
+            raise ValueError('tc and time must be nonempty, equally sized 1D arrays')
+        order = np.argsort(time)
+        time, tc = time[order], tc[order]
+        if not np.isfinite(time).all() or np.any(np.diff(time) <= 0):
+            raise ValueError('FIR time coordinates must be finite and unique')
+        if centers is None:
+            centers = self._fir_bin_centers(event_type)
+        centers = np.asarray(centers, dtype=float)
+        spec = self._event_spec(event_type) if event_type is not None else dict(interval=self.interval, n_regressors=self.n_regressors)
+        width = (float(spec['interval'][1]) - float(spec['interval'][0])) / int(spec['n_regressors'])
+        if np.any(np.min(np.abs(time[:, None] - centers[None, :]), axis=0) >= width / 2):
+            raise ValueError('FIR profile grid does not sample every bin; increase evaluation oversampling')
+        # Choose the sample nearest each bin center. This recovers the plateau's
+        # coefficient without merging equal adjacent coefficients or edge mixing.
+        indices = np.abs(time[:, None] - centers[None, :]).argmin(axis=0)
+        values = tc[indices]
+        if target_time is None:
+            target_time = np.unique(np.r_[centers, time[(time >= centers[0]) & (time <= centers[-1])]])
+        target_time = np.asarray(target_time, dtype=float)
+        if np.any(target_time < centers[0]) or np.any(target_time > centers[-1]):
+            raise ValueError('FIR interpolation cannot extrapolate outside bin centers')
+        return np.interp(target_time, centers, values), target_time
 
-        Parameters
-        ----------
-        tc : np.ndarray
-            1D timecourse array.
-
-        Returns
-        -------
-        np.ndarray
-            Interpolated timecourse.
-        np.ndarray
-            Corresponding time values from self.time.
-        """
-
-        tc = np.asarray(tc)
-        diff = np.diff(tc)
-        gradient = np.sign(diff)
-        idx = np.where(gradient != 0)[0]
-
-        if len(idx) == 0:
-            # If no change, return a flat timecourse
-            return tc[:1], self.time[:1]
-
-        new_idx = ((idx[1:] + idx[:-1]) / 2).astype(int)
-        new_idx = np.insert(new_idx, 0, idx[0] // 2)
-        new_idx = np.insert(new_idx, 0, 0)  # Ensure first point is included
-
-        interp_vals = tc[new_idx]
-        new_time = self.time[new_idx]
-
-        return interp_vals, new_time
+    def _fir_bin_centers(self, event_type=None):
+        """Use actual FIR basis support; retain a uniform fallback for array-only callers."""
+        table = None
+        if hasattr(self, 'model') and hasattr(self.model, '_get_response_fitters'):
+            table = self.model._get_response_fitters()
+        if table is None:
+            table = getattr(self, 'fitters', getattr(self, 'sub_df', None))
+        if isinstance(table, (pd.Series, pd.DataFrame)):
+            for fitter in table.to_numpy().reshape(-1):
+                for event_name, event in getattr(fitter, 'events', {}).items():
+                    if event_type is not None and str(event_name) != str(event_type):
+                        continue
+                    if getattr(event, 'basis_set', None) != 'fir':
+                        continue
+                    basis = event.get_basis_function(oversample=getattr(self, 'osf', 20))
+                    times = basis.index.to_numpy(dtype=float)
+                    centers = []
+                    for column in basis:
+                        support = times[np.abs(basis[column].to_numpy()) > 0]
+                        if not len(support):
+                            raise ValueError('FIR basis contains an unsampled regressor')
+                        centers.append((support[0] + support[-1]) / 2)
+                    centers = np.asarray(centers)
+                    if np.any(np.diff(centers) <= 0):
+                        raise ValueError('FIR basis supports are not ordered')
+                    return centers
+        spec = self._event_spec(event_type) if event_type is not None else dict(interval=self.interval, n_regressors=self.n_regressors)
+        count = int(spec['n_regressors'])
+        start, stop = map(float, spec['interval'])
+        if count < 1 or count != spec['n_regressors'] or not np.isfinite([start, stop]).all() or stop <= start:
+            raise ValueError('FIR requires a positive integer regressor count and increasing interval')
+        edges = np.linspace(start, stop, count + 1)
+        return (edges[:-1] + edges[1:]) / 2
 
 
     def interpolate_fir_subjects(self):
-
-        """interpolate_fir_subjects
-
-        Interpolates the finite impulse response (FIR) model across subjects, resampling plateaus
-        to obtain smoother timecourses.
-
-        Returns
-        -------
-        pd.DataFrame
-            Interpolated FIR timecourses indexed by `subject`, `run`, `event_type`, `covariate`, and `time`.
-
-        Example
-        ----------
-        .. code-block:: python
-
-            interpolated_fir = fitter.interpolate_fir_subjects()
-        """
-
-        # loop through subject IDs
-        subjs = utils.get_unique_ids(self.tc_subjects, id="subject")
-        sub_df = []
-        for sub in subjs:
-
-            # get subject specific dataframes
-            sub_tmp = utils.select_from_df(
-                self.tc_subjects, expression=f"subject = {sub}")
-            run_ids = utils.get_unique_ids(sub_tmp, id="run")
-
-            # loop through runs
-            run_df = []
-            for run in run_ids:
-
-                # get run-specific dataframe
-                run_tmp = utils.select_from_df(
-                    sub_tmp, expression=f"run = {run}")
-
-                # call the interpolate function
-                run_interp = self.interpolate_fir_condition(run_tmp)
-
-                # make indexing the same as input
-                run_interp.columns = run_tmp.columns
-                run_interp = run_interp.reset_index()
-                run_interp["run"] = run
-
-                # append interpolated run dataframe
-                run_df.append(run_interp)
-
-            # concatenate run dataframe and add subject inedx
-            run_df = pd.concat(run_df)
-            run_df["subject"] = sub
-            sub_df.append(run_df)
-
-        # final indexing
-        sub_df = pd.concat(sub_df)
-        sub_df.set_index(["subject", "run", "event_type",
-                         "covariate", "time"], inplace=True)
-        return sub_df
+        """Interpolate each acquisition/event/covariate on a common FIR grid."""
+        return self.interpolate_fir_condition(self.tc_subjects)
 
     def interpolate_fir_condition(self, obj):
-        """
-        Interpolates FIR model responses for all conditions in the input DataFrame.
-
-        Parameters
-        ----------
-        obj : pd.DataFrame
-            DataFrame with FIR model responses, indexed on ['event_type', 'covariate', 'time'].
-
-        Returns
-        -------
-        pd.DataFrame
-            Interpolated timecourses per condition and event type.
-        """
-
-        evs = utils.get_unique_ids(obj, id="event_type")
-        interpolated_dfs = []
-
-        for ev in evs:
-            ev_df = utils.select_from_df(obj, expression=f"event_type = {ev}")
-            covariate = utils.get_unique_ids(ev_df, id="covariate")[0]
-
-            # Interpolate each timecourse column (e.g., voxel or component)
-            interpolated_cols = []
-            for col_idx in range(ev_df.shape[1]):
-                tc = ev_df.iloc[:, col_idx].values
-                interp_tc, new_t = self._interpolate_timecourse(tc)
-                interpolated_cols.append(interp_tc[..., np.newaxis])
-
-            # Stack interpolated columns
-            data = np.concatenate(interpolated_cols, axis=1)
-            df_interp = pd.DataFrame(data)
-            df_interp["time"] = new_t
-            df_interp["event_type"] = ev
-            df_interp["covariate"] = covariate
-
-            interpolated_dfs.append(df_interp)
-
-        df_result = pd.concat(interpolated_dfs)
-        df_result.set_index(["event_type", "covariate", "time"], inplace=True)
-
-        return df_result
+        """Interpolate FIR events only; retain other event curves unchanged."""
+        frame = obj.copy()
+        if 'event type' in frame.index.names:
+            frame.index = frame.index.set_names([
+                'event_type' if name == 'event type' else name for name in frame.index.names])
+        if 'time' not in frame.index.names:
+            raise ValueError('Profiles require a time index')
+        levels = [name for name in frame.index.names if name != 'time']
+        cache, output = {}, []
+        for key, group in frame.groupby(level=levels, sort=False, dropna=False):
+            key = key if isinstance(key, tuple) else (key,)
+            event = str(dict(zip(levels, key))['event_type'])
+            spec = self._event_spec(event)
+            if spec['basis_sets'] != 'fir':
+                output.append(group)
+                continue
+            if event not in cache:
+                centers = self._fir_bin_centers(event)
+                event_mask = frame.index.get_level_values('event_type') == event
+                times = np.sort(frame.loc[event_mask].index.get_level_values('time').unique().to_numpy(dtype=float))
+                target = np.unique(np.r_[centers, times[(times >= centers[0]) & (times <= centers[-1])]])
+                cache[event] = centers, target
+            centers, target = cache[event]
+            group = group.droplevel(levels).sort_index()
+            if not group.index.is_unique:
+                raise ValueError('Duplicate time points within a profile')
+            values = {}
+            for column in frame.columns:
+                values[column], _ = self._interpolate_timecourse(group[column].to_numpy(),
+                    time=group.index.to_numpy(), centers=centers, target_time=target, event_type=event)
+            result = pd.DataFrame(values, index=pd.Index(target, name='time')).reset_index()
+            for name, value in zip(levels, key):
+                result[name] = value
+            output.append(result.set_index(frame.index.names))
+        return pd.concat(output) if output else frame.iloc[:0].copy()
 
     def format_fitters(self):
 
@@ -2165,336 +1814,150 @@ class NideconvFitter(InitFitter):
         """
 
         # pass
-        self.fitters = self.model._get_response_fitters()
+        self.fitters = (self.sub_df.copy() if self.fit_type == 'ridge'
+                        else self.model._get_response_fitters())
         if not isinstance(self.fitters, pd.DataFrame):
             self.fitters = pd.DataFrame(self.fitters)
 
         self.fitters = self.check_for_run_index(self.fitters)
 
     @staticmethod
-    def get_curves_from_fitter(
-        fitter,
-        index=True,
-        icpt=False,
-        ):
+    def get_curves_from_fitter(fitter, index=True, icpt=False):
+        """Extract each basis contribution using label-aligned coefficients.
 
-        """get_curves_from_fitter
-
-        Extracts the predicted response curves for each event type from the fitted model.
-
-        Parameters
-        ----------
-        fitter : nideconv.GroupResponseFitter
-            The fitted response model.
-        index : bool, optional
-            If `True`, maintains dataframe index structure, by default `True`.
-        icpt : bool, optional
-            If `True`, includes the intercept regressor in the predictions, by default `False`.
-
-        Returns
-        -------
-        pd.DataFrame
-            Dataframe containing event-specific response curves.
-
-        Example
-        ----------
-        .. code-block:: python
-
-            response_curves = NideconvFitter.get_curves_from_fitter(fitter)
+        Legacy output names event_type/covariate/t are retained; covariate names
+        continue to identify basis regressors. Multiple event covariates are
+        disambiguated as <covariate>:<regressor>.
         """
-
-
-        betas = fitter.betas
         basis = fitter.get_basis_functions()
-        regr = utils.get_unique_ids(betas, id="regressor")
-
-        ev_df = []
-        evs = utils.get_unique_ids(betas, id="event type")
-
-        # full intercept was fitted
-        if icpt:
-            regr.pop(regr.index("intercept"))
-            evs.pop(evs.index("confounds"))
-
-        for ev in evs:
-            # print(f"{ev}")
-            expr = f"event type = {ev}"
-            ev_beta = utils.select_from_df(betas, expression=expr)
-            ev_basis = utils.select_from_df(basis, expression=expr)
-
-            basis_curves = []
-            for reg in regr:
-
-                # if intercept was fitted, we need to extract the beta/basis
-                # set for that too
+        betas = fitter.betas
+        output = []
+        for event in fitter.events:
+            event_basis = basis.xs(event, level='event type', drop_level=False)
+            event_rows = event_basis.index.get_level_values('time')
+            event_columns = [column for column in basis.columns if column[0] == event and column in betas.index]
+            covariates = list(dict.fromkeys(column[1] for column in event_columns))
+            for column in event_columns:
+                selected = [column]
                 if icpt:
-
-                    # basis sets
-                    reg_basis = ev_basis.loc[:, ["confounds", ev]]
-                    b1 = pd.DataFrame(
-                        reg_basis.loc[:, ev].loc[:, "intercept"].loc[:, reg])
-                    b2 = pd.DataFrame(
-                        reg_basis.loc[:, "confounds"].loc[:, "intercept"])
-                    reg1 = pd.concat([b2, b1], axis=1)
-
-                    # betas
-                    b1 = utils.select_from_df(
-                        betas, expression="event type = confounds")
-                    b2 = utils.select_from_df(
-                        ev_beta, expression="regressor = {reg}")
-                    bet1 = pd.concat([b1, b2])
-
-                else:
-
-                    reg1 = pd.DataFrame(
-                        ev_basis.loc[:, ev].loc[:, "intercept"].loc[:, reg])
-                    bet1 = utils.select_from_df(
-                        ev_beta, expression=f"regressor = {reg}")
-
-                # dot product
-                tmp = reg1.values.dot(bet1.values)
-
-                tmp = pd.DataFrame(
-                    tmp, columns=bet1.columns, index=ev_basis.index)
-                tmp.reset_index(inplace=True)
-                tmp.rename(
-                    columns={
-                        "time": "t",
-                        "event type": "event_type"
-                    },
-                    inplace=True
-                )
-                tmp["covariate"] = reg
-                tmp.set_index(["event_type", "covariate", "t"], inplace=True)
-                basis_curves.append(tmp)
-
-            basis_curves = pd.concat(basis_curves)
-            ev_df.append(basis_curves)
-
-        ev_df = pd.concat(ev_df)
-        if not index:
-            ev_df.reset_index(inplace=True)
-
-        return ev_df
+                    # Include the fitted intercept, not unrelated nuisance signals.
+                    selected = [c for c in basis.columns if c not in event_columns
+                        and c in betas.index and c[0] not in fitter.events and c[-1] == 'intercept'] + selected
+                weights = betas.loc[selected].to_numpy()
+                basis_values = event_basis.loc[:, selected].to_numpy()
+                values = basis_values.dot(np.nan_to_num(weights, nan=0.))
+                values[(basis_values != 0.).astype(int).dot(np.isnan(weights).astype(int)) > 0] = np.nan
+                result = pd.DataFrame(values, columns=betas.columns)
+                result['event_type'] = event
+                result['covariate'] = str(column[2]) if len(covariates) == 1 else f'{column[1]}:{column[2]}'
+                result['t'] = event_rows.to_numpy()
+                # get_basis_functions may contain repeated time rows for separate
+                # covariates. Only use rows for this column's covariate.
+                row_covariates = event_basis.index.get_level_values('covariate')
+                result = result.loc[row_covariates == column[1]]
+                output.append(result)
+        if not output:
+            return pd.DataFrame()
+        result = pd.concat(output, ignore_index=True)
+        return result.set_index(['event_type', 'covariate', 't']) if index else result
 
     def get_basisset_timecourses(self):
-
-        """get_basisset_timecourses
-
-        Extracts the fitted basis set regressors from the model, retrieving timecourses for each event.
-
-        Returns
-        -------
-        None
-            Stores timecourses in object attributes:
-            - `sub_basis`: Basis function timecourses indexed by subject, event type, and time.
-
-        Example
-        ----------
-        .. code-block:: python
-
-            fitter.get_basisset_timecourses()
-            print(fitter.sub_basis)
-        """
-
-
-        # also get the predictions
-        if self.fit_type == "ols":
-            if not hasattr(self, "fitters"):
-                self.fitters = self.model._get_response_fitters()
+        """Collect every acquisition and every ROI-specific ridge fitter."""
+        if not hasattr(self, 'fitters'):
+            if self.fit_type == 'ridge':
+                self.fitters = self.sub_df.copy()
+            else:
                 self.format_fitters()
-
-        sub_ids = utils.get_unique_ids(self.fitters, id="subject")
-        sub_basis = []
-        for sub in sub_ids:
-
-            sub_fitters = utils.select_from_df(
-                self.fitters, expression=f"subject = {sub}")
-
-            # loop through runs
-            self.sub_basis = []
-            run_ids = utils.get_unique_ids(sub_fitters, id="run")
-            for run in run_ids:
-
-                # full model predictions
-                run_fitter = utils.select_from_df(
-                    self.fitters, expression=f"run = {run}").iloc[0][0]
-                curves = self.get_curves_from_fitter(
-                    run_fitter,
-                    index=False,
-                    icpt=self.conf_icpt
-                )
-
-                # append
-                curves["run"] = run
-                self.sub_basis.append(curves)
-
-            # concatenate and index
-            self.sub_basis = pd.concat(self.sub_basis)
-            self.sub_basis["subject"] = sub
-
-            sub_basis.append(self.sub_basis)
-
-        # event-specific events
-        self.sub_basis = pd.concat(sub_basis, ignore_index=True)
-        self.sub_basis.set_index(
-            ["subject", "event_type", "run", "covariate", "t"], inplace=True)
+        output = []
+        identities = list(self.fitters.index.names)
+        for key, row in self.fitters.iterrows():
+            key = key if isinstance(key, tuple) else (key,)
+            curves = [self.get_curves_from_fitter(fitter, index=True, icpt=self.conf_icpt)
+                      for fitter in row if fitter is not None]
+            curves = pd.concat(curves, axis=1)
+            if not curves.columns.is_unique:
+                raise ValueError('Duplicate ROI columns from basis fitters')
+            curves = curves.reset_index()
+            for name, value in zip(identities, key):
+                curves[name] = value
+            output.append(curves)
+        self.sub_basis = pd.concat(output, ignore_index=True).set_index(
+            [identities[0], 'event_type'] + identities[1:] + ['covariate', 't'])
 
     def get_predictions_per_event(self):
-        """
-        Retrieves both full-model and event-specific predictions from the fitted model.
-
-        Stores predictions in object attributes:
-            - self.ev_predictions: Event-level predicted responses.
-            - self.sub_pred_full: Full model predictions per subject.
-
-        Returns
-        -------
-        None
-
-        Example
-        -------
-        >>> fitter.get_predictions_per_event()
-        >>> print(fitter.ev_predictions)
-        """
-
-        if self.fit_type == "ols":
-            if not hasattr(self, "fitters"):
-                self.fitters = self.model._get_response_fitters()
-                self.format_fitters()
-
-        sub_ids = utils.get_unique_ids(self.fitters, id="subject")
-
-        all_ev_preds = []
-        all_full_preds = []
-
-        for sub in sub_ids:
-            sub_fitters = utils.select_from_df(self.fitters, f"subject = {sub}")
-
-            subject_ev_preds = []
-            subject_full_preds = []
-
-            run_ids = utils.get_unique_ids(sub_fitters, id="run")
-            for run in run_ids:
-                run_fitter = utils.select_from_df(
-                    sub_fitters, f"run = {run}"
-                ).iloc[0, 0]  # assumes fitter is in first cell
-
-                # Full model prediction
-                preds = run_fitter.predict_from_design_matrix()
-                preds.columns = self.tc_condition.columns  # ensure consistent columns
-                preds = preds.reset_index().rename(columns={"index": "time"})
-                preds["run"] = run
-                subject_full_preds.append(preds)
-
-                # Event-specific predictions
-                ev_pred = self.get_event_predictions_from_fitter(
-                    run_fitter, intercept=self.conf_icpt
-                )
-                ev_pred["run"] = run
-                subject_ev_preds.append(ev_pred)
-
-            # Concatenate subject-level results
-            subj_full_df = pd.concat(subject_full_preds, ignore_index=True)
-            subj_ev_df = pd.concat(subject_ev_preds, ignore_index=True)
-            subj_full_df["subject"] = subj_ev_df["subject"] = sub
-
-            all_full_preds.append(subj_full_df)
-            all_ev_preds.append(subj_ev_df)
-
-        # Assign outputs to object attributes
-        self.ev_predictions = pd.concat(all_ev_preds, ignore_index=True)
-        self.ev_predictions.set_index(["subject", "event_type", "run", "t"], inplace=True)
-
-        self.sub_pred_full = pd.concat(all_full_preds, ignore_index=True)
-        self.sub_pred_full.set_index(["subject", "run", "time"], inplace=True)
+        """Keep full acquisition identities when collecting fitted predictions."""
+        if not hasattr(self, 'fitters'):
+            self.format_fitters()
+        event_predictions, full_predictions = [], []
+        identities = list(self.fitters.index.names)
+        for key, row in self.fitters.iterrows():
+            key = key if isinstance(key, tuple) else (key,)
+            fitter = row.iloc[0]
+            full = fitter.X.dot(self._prediction_betas(fitter)).copy()
+            full.columns = fitter.input_signal.columns
+            full.index.name = 'time'
+            full = full.reset_index()
+            events = self.get_event_predictions_from_fitter(fitter, intercept=self.conf_icpt)
+            for name, value in zip(identities, key):
+                full[name] = value
+                events[name] = value
+            full_predictions.append(full)
+            if not events.empty:
+                event_predictions.append(events)
+        self.sub_pred_full = pd.concat(full_predictions, ignore_index=True).set_index(identities + ['time'])
+        self.ev_predictions = (pd.concat(event_predictions, ignore_index=True)
+            .set_index([identities[0], 'event_type'] + identities[1:] + ['t'])) if event_predictions else pd.DataFrame()
 
 
     def timecourses_condition(self):
+        """Fetch profiles and calculate equal-subject group means and uncertainty.
+
+        tc_sem/tc_std retain their within-subject, across-run interpretation.
+        sem_condition/std_condition describe the distribution of subject means.
+        Raw FIR profiles remain unchanged; *_interp attributes are display-only.
         """
-        Computes condition-wise timecourses by averaging across runs and extracting
-        subject-level and condition-level HRF responses from the model.
-
-        Stores timecourse data in object attributes:
-            - self.tc_condition: Condition-wise average across subjects.
-            - self.tc_subjects: Subject-level timecourses.
-            - self.tc_mean: Mean timecourse (subject-level).
-            - self.tc_sem: Standard error of the mean.
-            - self.tc_std: Standard deviation.
-            - self.sem_condition: SEM at condition level.
-            - self.std_condition: STD at condition level.
-            - self.time: Extracted time axis.
-            - self.rsq_: R² values from model (if available).
-            - self.ev_predictions: Event-level predictions (if OLS fit).
-        """
-
-        # Default covariate
-        if not isinstance(self.covariates, str):
-            self.covariates = "intercept"
-
-        utils.verbose(
-            f"Fetching subject/condition-wise time courses from {self.model}",
-            self.verbose
-        )
-
-        # --- Fetch timecourses ---
-        if self.fit_type == "ols":
-            self.tc_condition = self.model.get_conditionwise_timecourses()
-            self.tc_subjects = self.model.get_timecourses()
+        if hasattr(self, 'fit_diagnostics') and self.fitters.empty:
+            raise RuntimeError('No successfully fitted runs; inspect fit_diagnostics and all_fitters')
+        self.profile_covariate = self.covariates if isinstance(self.covariates, str) else 'intercept'
+        if self.fit_type == 'ols':
+            # Avoid nideconv's reset_index().mean(), which averages string run IDs.
+            if any(len(getattr(row.iloc[0], 'dropped_zero_regressors', []))
+                   for _, row in getattr(self, 'fitters', pd.DataFrame()).iterrows()):
+                parts = {key: self._profiles_from_fitter(row.iloc[0], self.osf)
+                         for key, row in self.fitters.iterrows()}
+                profiles = pd.concat(parts, names=list(self.fitters.index.names))
+            else:
+                profiles = self.model.get_timecourses()
         else:
-            self.tc_condition = self.tc_subjects.groupby(level=["event type", "covariate", "time"]).mean()
+            profiles = self.tc_subjects.copy()
             self.fitters = self.sub_df.copy()
-
-        # --- Subject-level grouping ---
-        self.obj_grouped = self.tc_subjects.groupby(
-            level=["subject", "event type", "covariate", "time"])
-
+        profiles = self.check_for_run_index(profiles)
+        names = ['event_type' if name == 'event type' else name for name in profiles.index.names]
+        profiles.index = profiles.index.set_names(names)
+        identity = [key for key in ('subject', 'session', 'task', 'run') if key in names]
+        self.tc_subjects = self.change_name_set_index(
+            profiles, index=identity + ['event_type', 'covariate', 'time'])
+        if any(not pd.api.types.is_numeric_dtype(dtype) for dtype in self.tc_subjects.dtypes):
+            raise ValueError('Time-course signal columns must be numeric; remove acquisition metadata from signal columns')
+        within = [key for key in identity if key != 'run'] + ['event_type', 'covariate', 'time']
+        self.obj_grouped = self.tc_subjects.groupby(level=within)
         self.tc_mean = self.obj_grouped.mean()
         self.tc_sem = self.obj_grouped.sem()
         self.tc_std = self.obj_grouped.std()
-
-        # --- Clean index names ---
-        self.tc_mean = self.change_name_set_index(self.tc_mean)
-        self.tc_sem = self.change_name_set_index(self.tc_sem)
-        self.tc_std = self.change_name_set_index(self.tc_std)
-
-        # --- Aggregate condition-level stats ---
-        self.grouper = ["event_type", "covariate", "time"]
-        self.sem_condition = self.tc_sem.groupby(level=self.grouper).mean()
-        self.std_condition = self.tc_std.groupby(level=self.grouper).mean()
-
-        # --- Finalize condition & subject-level dataframes ---
-        self.tc_condition = self.change_name_set_index(
-            self.tc_condition, index=self.grouper
-        )
-
-        self.tc_subjects = self.check_for_run_index(self.tc_subjects)
-        self.tc_subjects = self.change_name_set_index(
-            self.tc_subjects,
-            index=["subject", "run", "event_type", "covariate", "time"]
-        )
-
-        # Drop unnecessary task column
-        if "task" in self.tc_subjects.columns:
-            self.tc_subjects.drop(columns=["task"], inplace=True)
-
-        # --- Get time axis ---
-        self.time = (
-            self.tc_condition.groupby("time").mean().reset_index()["time"].values
-        )
-
-        # --- FIR-specific interpolation ---
-        if self.basis_sets == "fir":
+        self.grouper = [key for key in within if key != 'subject']
+        group = self.tc_mean.groupby(level=self.grouper)
+        self.tc_condition = group.mean()
+        self.sem_condition = group.sem()
+        self.std_condition = group.std()
+        self.time = np.sort(self.tc_condition.index.get_level_values('time').unique().to_numpy())
+        if getattr(self, 'fir_events', None) or self.basis_sets == 'fir':
             self.tc_condition_interp = self.interpolate_fir_condition(self.tc_condition)
             self.tc_subjects_interp = self.interpolate_fir_subjects()
-
-        # --- R² and predictions ---
         try:
             self.rsq_ = self.model.get_rsq()
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             self.rsq_ = None
-
-        if self.fit_type == "ols":
+        if self.fit_type == 'ols':
             self.fitters = self.model._get_response_fitters()
             self.format_fitters()
             self.get_predictions_per_event()
@@ -2604,6 +2067,15 @@ class NideconvFitter(InitFitter):
         """
 
 
+        identities = [key for key in ('subject', 'session', 'task', 'run') if key in self.func.index.names]
+        if any(key not in self.used_onsets.index.names for key in identities):
+            raise ValueError('Onsets must include the same acquisition identifiers as functional data')
+        signal_keys = self.func.reset_index()[identities].drop_duplicates()
+        event_keys = self.used_onsets.reset_index()[identities].drop_duplicates()
+        matched = signal_keys.merge(event_keys, on=identities, how='left', indicator=True)
+        missing = matched.loc[matched['_merge'] == 'left_only', identities]
+        if not missing.empty:
+            raise ValueError(f'Functional acquisitions without matching events: {missing.to_dict("records")}')
         self.model = nd.GroupResponseFitter(
             self.func,
             self.used_onsets,
@@ -2659,237 +2131,284 @@ class NideconvFitter(InitFitter):
             fitter.define_events()
         """
 
-        utils.verbose(
-            f"Selected '{self.basis_sets}'-basis sets (with {self.n_regressors} regressors)",
-            self.verbose)
+        if getattr(self, 'event_models', None) is not None:
+            utils.verbose('Selected per-event basis functions (joint model):', self.verbose)
+            for event, spec in self.event_models_.items():
+                utils.verbose(
+                    f"  {event}: basis={spec['basis_sets']}; "
+                    f"n_regressors={spec['n_regressors']}; "
+                    f"interval={spec['interval']}; duration={spec['duration']}",
+                    self.verbose)
+        else:
+            utils.verbose(
+                f"Selected '{self.basis_sets}'-basis sets (with {self.n_regressors} regressors)",
+                self.verbose)
 
         # define events
         self.cond = utils.get_unique_ids(self.used_onsets, id="event_type")
         self.run_ids = utils.get_unique_ids(self.used_onsets, id="run")
 
-        # add events to model
-        if self.fit_type.lower() == "ols":
+        # Every event is added to the same acquisition-specific regression.
+        if self.fit_type.lower() == 'ols':
             for ix, event in enumerate(self.cond):
-                utils.verbose(f"Adding event '{event}' to model", self.verbose)
-
-                if isinstance(self.covariates, list):
-                    cov = self.covariates[ix]
-                else:
-                    cov = self.covariates
-
-                if isinstance(self.add_intercept, list):
-                    icpt = self.add_intercept[ix]
-                else:
-                    icpt = self.add_intercept
-
-                self.model.add_event(
-                    str(event),
-                    basis_set=self.basis_sets,
-                    n_regressors=self.n_regressors,
-                    interval=self.interval,
-                    add_intercept=icpt,
-                    covariates=cov)
+                spec = self._event_spec(event, ix)
+                covariates = spec['covariates']
+                covariate_names = [covariates] if isinstance(covariates, str) else covariates
+                # Upstream otherwise duplicates an explicitly supplied intercept.
+                add_intercept = spec['add_intercept'] and (
+                    covariate_names is None or 'intercept' not in covariate_names)
+                self.model.add_event(str(event), basis_set=spec['basis_sets'],
+                    n_regressors=spec['n_regressors'], interval=spec['interval'],
+                    add_intercept=add_intercept, covariates=covariates,
+                    **({'fir_bin_mode': spec['fir_bin_mode']} if spec['fir_bin_mode'] != 'legacy' else {}))
 
         else:
+            utils.verbose('Setting up models ridge-regression', self.verbose)
+            identities = [key for key in ('subject', 'session', 'task', 'run') if key in self.func.index.names]
+            self.sub_ids = self.func.index.get_level_values('subject').unique().tolist()
+            self.run_ids = self.func.index.get_level_values('run').unique().tolist()
+            fitter_rows, profiles, predictions, event_predictions = [], [], [], []
+            for key, acquisition in self.func.groupby(level=identities, sort=False):
+                key = key if isinstance(key, tuple) else (key,)
+                selection = dict(zip(identities, key))
+                fitters, profile_columns, prediction_columns, event_columns = {}, [], [], []
+                for column in acquisition.columns:
+                    fitter = self.make_response_fitter(acquisition[[column]], selection=selection)
+                    fitters[column] = fitter
+                    if not self.do_fit:
+                        continue
+                    self._fit_ridge_response(fitter)
+                    profile_columns.append(fitter.get_timecourses())
+                    prediction = fitter.predict_from_design_matrix().copy()
+                    prediction.columns = [column]
+                    prediction_columns.append(prediction)
+                    events = self.get_event_predictions_from_fitter(fitter, intercept=self.conf_icpt)
+                    if not events.empty:
+                        event_columns.append(events.set_index(['event_type', 't'])[[column]])
+                fitter_rows.append(pd.DataFrame([fitters], index=pd.MultiIndex.from_tuples([key], names=identities)))
+                for columns, destination in [(profile_columns, profiles), (prediction_columns, predictions), (event_columns, event_predictions)]:
+                    if not columns:
+                        continue
+                    result = pd.concat(columns, axis=1)
+                    if destination is predictions:
+                        result.index.name = 'time'
+                    result = result.reset_index()
+                    for name, value in selection.items():
+                        result[name] = value
+                    destination.append(result)
+            self.sub_df = pd.concat(fitter_rows)
+            if profiles:
+                self.tc_subjects = pd.concat(profiles, ignore_index=True).set_index(identities + ['event type', 'covariate', 'time'])
+            else:
+                self.tc_subjects = pd.DataFrame()
+            self.sub_ev_df = (pd.concat(event_predictions, ignore_index=True).set_index(
+                [identities[0], 'event_type'] + identities[1:] + ['t'])) if event_predictions else pd.DataFrame()
+            self.ev_predictions = self.sub_ev_df.copy()
+            self.sub_pred_full = (pd.concat(predictions, ignore_index=True).set_index(
+                identities + ['time'])) if predictions else pd.DataFrame()
 
-            utils.verbose("Setting up models ridge-regression", self.verbose)
+    @staticmethod
+    def _fit_ridge_response(fitter, cv=20, alphas=None):
+        """Fit one signal with an unpenalized acquisition baseline.
 
-            # get subjects
-            try:
-                self.sub_ids = utils.get_unique_ids(self.func, id="subject")
-            except BaseException:
-                self.sub_ids = [1]
+        sklearn estimates the baseline within each CV training fold. Restore
+        its coefficient to the original design so downstream predictions and
+        event coefficient labels retain their existing layout.
+        """
+        X = fitter.X.to_numpy(dtype=float)
+        y = fitter.input_signal.to_numpy(dtype=float)
+        if y.ndim != 2 or y.shape[1] != 1 or len(y) < 2:
+            raise ValueError('Ridge response fitting requires one signal and at least two samples')
+        if not np.isfinite(X).all() or not np.isfinite(y).all():
+            raise ValueError('Ridge inputs must contain finite numeric values')
+        baseline = np.asarray([column[0] == 'confounds' and column[1] == 'intercept'
+                               for column in fitter.X.columns])
+        if baseline.sum() > 1:
+            raise ValueError('Expected at most one acquisition baseline')
+        if baseline.any() and not np.all(X[:, baseline] == 1.):
+            raise ValueError('The acquisition baseline must be a constant column of ones')
+        predictors = X[:, ~baseline]
+        alphas = np.logspace(7, 0, 20) if alphas is None else alphas
+        fitter.rcv = linear_model.RidgeCV(alphas=alphas, fit_intercept=bool(baseline.any()),
+                                         cv=min(cv, len(y)))
+        fitter.rcv.fit(predictors, y[:, 0])
+        betas = np.zeros((X.shape[1], 1))
+        betas[~baseline, 0] = np.asarray(fitter.rcv.coef_).ravel()
+        if baseline.any():
+            betas[baseline, 0] = fitter.rcv.intercept_
+        prediction = X.dot(betas)
+        fitter.betas = betas
+        fitter._send_betas_to_regressors()
+        fitter._residuals = pd.DataFrame(y - prediction, index=fitter.input_signal.index,
+                                        columns=fitter.input_signal.columns)
+        fitter.sse = (fitter._residuals ** 2).sum(axis=0)
+        fitter.ssquares = fitter.sse.copy()
 
-            self.do_fit = True
-            self.sub_df = []
-            self.sub_ev_df = []
-            self.tc_subjects = []
-            for sub in self.sub_ids:
-
-                try:
-                    self.run_ids = [
-                        int(i) for i in utils.get_unique_ids(self.func, id="run")]
-                    self.run_df = []
-                    self.run_pred_ev_df = []
-                    self.run_prof_ev_df = []
-                    set_indices = ["subject", "run"]
-                    set_ev_idc = ["event_type", "run", "t"]
-                    set_prof_idc = ["subject", "run", "event type", "covariate", "time"]
-                except BaseException:
-                    self.run_ids = [None]
-                    self.run_df = None
-                    self.run_pred_ev_df = None
-                    self.run_prof_ev_df = None
-                    set_indices = ["subject"]
-                    set_ev_idc = ["event_type", "t"]
-                    set_prof_idc = [
-                        "subject", "event type", "covariate", "time"]
-
-                # loop through runs, if available
-                for run in self.run_ids:
-
-                    # loop trough voxels (ridge only works for 1d data)
-                    self.vox_df = []
-                    self.ev_predictions = []
-                    self.vox_prof = []
-                    for ix, col in enumerate(list(self.func.columns)):
-
-                        # select single voxel timecourse from main DataFrame
-                        if isinstance(run, int):
-                            self.vox_signal = pd.DataFrame(utils.select_from_df(
-                                self.func[col], expression=f"run = {run}")[col])
-                        else:
-                            self.vox_signal = pd.DataFrame(self.func[col])
-
-                        # make response fitter
-                        if isinstance(self.covariates, list):
-                            cov = self.covariates[ix]
-                        else:
-                            cov = self.covariates
-
-                        self.rf = self.make_response_fitter(
-                            self.vox_signal, run=run, cov=cov)
-
-                        # fit immediately; makes life easier
-                        if self.do_fit:
-                            self.rf.fit(type="ridge")
-
-                            # HRF profiles
-                            self.vox_prof.append(
-                                self.rf.get_timecourses().reset_index())
-
-                            # timecourse predictions
-                            self.ev_pred = self.get_event_predictions_from_fitter(
-                                self.rf, intercept=self.conf_icpt)
-                            self.ev_predictions.append(self.ev_pred)
-
-                        self.rf_df = pd.DataFrame({col: self.rf}, index=[0])
-                        self.vox_df.append(self.rf_df)
-
-                    self.vox_df = pd.concat(self.vox_df, axis=1)
-
-                    if len(self.ev_predictions) > 0:
-                        self.ev_predictions = pd.concat(
-                            self.ev_predictions, axis=1)
-
-                    if len(self.vox_prof) > 0:
-                        self.vox_prof = pd.concat(self.vox_prof, axis=1)
-
-                    if isinstance(run, int):
-                        self.vox_df["run"] = run
-                        self.run_df.append(self.vox_df)
-
-                        if isinstance(self.ev_predictions, pd.DataFrame):
-                            self.ev_predictions["run"] = run
-                            self.run_pred_ev_df.append(self.ev_predictions)
-
-                        if isinstance(self.vox_prof, pd.DataFrame):
-                            self.vox_prof["run"] = run
-                            self.run_prof_ev_df.append(self.vox_prof)
-
-                    else:
-                        self.vox_df["subject"] = sub
-                        self.sub_df.append(self.vox_df)
-
-                        if isinstance(self.ev_predictions, pd.DataFrame):
-                            self.sub_ev_df.append(self.ev_predictions)
-
-                        if isinstance(self.vox_prof, pd.DataFrame):
-                            self.vox_prof["subject"] = sub
-                            self.tc_subjects.append(self.vox_prof)
-
-                if isinstance(self.run_df, list):
-                    self.run_df = pd.concat(self.run_df)
-                    self.run_df["subject"] = sub
-                    self.sub_df.append(self.run_df)
-
-                if isinstance(self.run_pred_ev_df, list):
-                    self.run_pred_ev_df = pd.concat(self.run_pred_ev_df)
-                    self.sub_ev_df.append(self.run_pred_ev_df)
-
-                if isinstance(self.run_prof_ev_df, list):
-                    self.run_prof_ev_df = pd.concat(self.run_prof_ev_df)
-                    self.run_prof_ev_df["subject"] = sub
-                    self.tc_subjects.append(self.run_prof_ev_df)
-
-            self.sub_df = pd.concat(self.sub_df).set_index(set_indices)
-
-            if len(self.sub_ev_df) > 0:
-                self.sub_ev_df = pd.concat(self.sub_ev_df)
-                self.sub_ev_df.set_index(set_ev_idc, inplace=True)
-
-            if len(self.tc_subjects) > 0:
-                self.tc_subjects = pd.concat(self.tc_subjects)
-                self.tc_subjects.set_index(set_prof_idc, inplace=True)
-
-    def make_response_fitter(self, data, run=None, cov=None):
-
-        # specify voxel-specific model
-        model = nd.ResponseFitter(
-            input_signal=data,
-            sample_rate=self.fs,
-            add_intercept=self.conf_icpt,
-            oversample_design_matrix=self.osf
-        )
-
-        # get onsets
-        for i in self.cond:
-            model.add_event(
-                str(i),
-                onsets=self.make_onsets_for_response_fitter(i, run=run),
-                basis_set=self.basis_sets,
-                n_regressors=self.n_regressors,
-                interval=self.interval,
-                covariates=cov
-            )
-
+    def make_response_fitter(self, data, run=None, cov=None, subject=None, selection=None):
+        """Build one acquisition-specific model, with event-specific covariates."""
+        selection = dict(selection or {})
+        for field, value in [('subject', subject), ('run', run)]:
+            if value is not None:
+                selection[field] = value
+        for field in ('subject', 'session', 'task', 'run'):
+            if field in data.index.names and field not in selection:
+                values = data.index.get_level_values(field).unique()
+                if len(values) != 1:
+                    raise ValueError(f'Expected one {field} in response fitter input')
+                selection[field] = values[0]
+        if self._select_acquisition(self.used_onsets, selection).empty:
+            raise ValueError(f'No events match functional acquisition {selection}')
+        model = nd.ResponseFitter(input_signal=data, sample_rate=self.fs,
+            add_intercept=self.conf_icpt, oversample_design_matrix=self.osf)
+        if self.confounds is not None:
+            confounds = self._select_acquisition(self.confounds, selection)
+            if len(confounds) != len(data) or not confounds.index.equals(data.index):
+                raise ValueError('Confounds and functional data must have matching acquisition/time indices')
+            model.add_confounds('confounds', confounds.to_numpy())
+        for ix, event in enumerate(self.cond):
+            event_frame = self._select_acquisition(self.used_onsets, selection).reset_index()
+            event_frame = event_frame.loc[event_frame['event_type'] == event]
+            if event_frame.empty:
+                continue
+            spec = self._event_spec(event, ix)
+            event_cov = spec['covariates']
+            if cov is not None:
+                event_cov = cov
+            covariates = event_frame[event_cov] if event_cov is not None else None
+            if isinstance(covariates, pd.Series):
+                covariates = covariates.to_frame()
+            intercept = spec['add_intercept']
+            if covariates is not None:
+                covariates = covariates.reset_index(drop=True).copy()
+                if intercept and 'intercept' not in covariates:
+                    covariates.insert(0, 'intercept', 1.)
+            duration = event_frame['duration'].to_numpy() if 'duration' in event_frame else None
+            if duration is not None and not np.isfinite(duration).all():
+                duration = None
+            model.add_event(str(event), onsets=event_frame['onset'].to_numpy(),
+                basis_set=spec['basis_sets'], n_regressors=spec['n_regressors'], interval=spec['interval'],
+                covariates=covariates, durations=duration,
+                **({'fir_bin_mode': spec['fir_bin_mode']} if spec.get('fir_bin_mode', 'legacy') != 'legacy' else {}))
         return model
 
-    def make_onsets_for_response_fitter(self, i, run=None):
-        select_from_onsets = self.used_onsets.copy()
-        if isinstance(run, int):
-            select_from_onsets = utils.select_from_df(
-                select_from_onsets, expression=f"run = {run}")
-            drop_idcs = ["subject", "run"]
-        else:
-            drop_idcs = ["subject"]
+    @staticmethod
+    def _select_acquisition(frame, selection):
+        """Select exact labels without numeric coercion or substring matching."""
+        selected = frame
+        for name, value in selection.items():
+            if name in selected.index.names:
+                selected = selected.loc[selected.index.get_level_values(name) == value]
+            elif name in selected.columns:
+                selected = selected.loc[selected[name] == value]
+            elif len(selection) and name in ('session', 'task'):
+                raise ValueError(f'Acquisition metadata {name!r} is missing from input')
+        return selected
 
-        return select_from_onsets.reset_index().drop(
-            drop_idcs, axis=1).set_index('event_type').loc[i].onset
+    def make_onsets_for_response_fitter(self, i, run=None, subject=None, selection=None):
+        selection = dict(selection or {})
+        if subject is not None:
+            selection['subject'] = subject
+        if run is not None:
+            selection['run'] = run
+        frame = self._select_acquisition(self.used_onsets, selection).reset_index()
+        for key in ('subject', 'session', 'task', 'run'):
+            if key in frame and frame[key].nunique() > 1:
+                raise ValueError(f'Onsets span multiple {key} labels; specify the acquisition')
+        return frame.loc[frame['event_type'] == i, 'onset']
 
     def fit(self):
+        """Fit OLS runs independently, preserving models and failure diagnostics.
 
-        """fit
-
-        Fits a deconvolution model to the functional MRI data based on subject, run, and event information. Uses 
-        `single_response_fitter` to fit the data and store results, including timecourse predictions, profiles, 
-        and parameter estimates.
-
-        Parameters
-        ----------
-        debug : bool, optional
-            If `True`, prints verbose messages during fitting, by default `False`.
-        **kwargs : dict
-            Additional parameters passed to the `single_response_fitter` function.
-
-        Example
-        ----------
-        .. code-block:: python
-
-            fitter = NideconvFitter(func, onsets, TR=1.32)
-            fitter.fit(debug=True)
+        Rank is checked before fitting. A skipped singular run never contributes
+        coefficients, predictions or group averages. Other fitting failures
+        always raise; the exception retains this object as error.fitter.
         """
-
-        # fitting
-        utils.verbose(
-            f"Fitting with '{self.fit_type}' minimization",
-            self.verbose)
-        if self.fit_type.lower() == "ols":
-            self.model.fit(type=self.fit_type)
-            self.fitters = self.model._get_response_fitters()
+        if self.fit_type == 'ols':
+            if not hasattr(self.model, 'all_response_fitters'):
+                self.model.all_response_fitters = self.model.response_fitters.copy()
+            self.model.response_fitters = self.model.all_response_fitters.copy()
             self.format_fitters()
-
-        utils.verbose("Fitting completed", self.verbose)
+            self.all_fitters = self.fitters.copy()
+            records, successful, failures = [], [], []
+            for key, row in self.all_fitters.iterrows():
+                fitter = row.iloc[0]
+                record = dict(n_samples=fitter.X.shape[0], n_columns=fitter.X.shape[1],
+                              rank=None, nullity=None, condition_number=np.nan,
+                              singular_values=None, zero_columns=None, dropped_columns=(),
+                              n_columns_fitted=fitter.X.shape[1],
+                              status='failed', error='')
+                try:
+                    X = fitter.X.to_numpy(dtype=float)
+                    if not np.isfinite(X).all():
+                        raise ValueError('Design contains nonfinite values')
+                    zero = np.all(X == 0., axis=0)
+                    dropped = zero if getattr(self, 'drop_zero_regressors', False) else np.zeros(X.shape[1], dtype=bool)
+                    fitter.dropped_zero_regressors = fitter.X.columns[dropped].copy()
+                    active = X[:, ~dropped]
+                    record.update(dropped_columns=tuple(fitter.X.columns[dropped]),
+                                  n_columns_fitted=active.shape[1])
+                    singular = np.linalg.svd(active, compute_uv=False)
+                    # Match the cutoff used by nideconv's lstsq(rcond=-1).
+                    tolerance = np.finfo(float).eps * singular[0] if len(singular) else 0.
+                    rank = int(np.sum(singular > tolerance))
+                    record.update(rank=rank, nullity=active.shape[1] - rank,
+                        original_nullity=X.shape[1] - rank,
+                        singular_values=tuple(singular),
+                        zero_columns=tuple(fitter.X.columns[np.all(X == 0., axis=0)]),
+                        condition_number=(float(singular[0] / singular[-1])
+                            if rank == active.shape[1] and len(singular) and singular[-1] > 0 else np.inf))
+                    if active.shape[1] == 0:
+                        raise ValueError('No nonzero design columns remain')
+                    if rank < active.shape[1]:
+                        record.update(status='rank_deficient', error='Rank-deficient design')
+                    else:
+                        original_design = fitter.X
+                        original_events = fitter.events
+                        try:
+                            fitter.X = original_design.loc[:, ~dropped]
+                            active_events = set(fitter.X.columns.get_level_values(0))
+                            fitter.events = {name: event for name, event in original_events.items()
+                                             if name in active_events}
+                            fitter.fit(type='ols')
+                            if not hasattr(fitter, 'betas') or not np.isfinite(np.asarray(fitter.betas, dtype=float)).all():
+                                raise ValueError('Missing or nonfinite fitted coefficients')
+                            coefficients = fitter.betas.reindex(original_design.columns)
+                        finally:
+                            fitter.X = original_design
+                            fitter.events = original_events
+                        fitter.betas = coefficients
+                        fitter._send_betas_to_regressors()
+                        if dropped.any():
+                            fitter._residuals = fitter.input_signal - fitter.X.dot(self._prediction_betas(fitter))
+                        record['status'] = 'success'
+                except Exception as error:
+                    record.update(status='failed', error=str(error))
+                records.append(record)
+                successful.append(record['status'] == 'success')
+                if record['status'] != 'success':
+                    failures.append(f"{key}: {record['error']}")
+            self.fit_diagnostics = pd.DataFrame(records, index=self.all_fitters.index)
+            self.failed_runs = self.fit_diagnostics.loc[self.fit_diagnostics['status'] != 'success'].copy()
+            self.fitters = self.all_fitters.loc[successful].copy()
+            # Keep native nideconv aggregation restricted to successful runs.
+            # Every original ResponseFitter remains accessible in all_fitters.
+            self.model.response_fitters = self.model.all_response_fitters.loc[successful].copy()
+            self.failed_fitters = self.all_fitters.loc[np.logical_not(successful)].copy()
+            policy = getattr(self, 'on_rank_deficient', 'raise')
+            fatal = (self.fit_diagnostics['status'] == 'failed').any()
+            if failures and (policy == 'raise' or fatal):
+                error = RuntimeError('Response fitting failed: ' + '; '.join(failures))
+                error.fitter = self
+                raise error
+            if failures:
+                warnings.warn(f'Skipped {len(failures)} rank-deficient run(s); inspect fit_diagnostics and all_fitters',
+                              RuntimeWarning)
+        else:
+            if not self.do_fit:
+                self.do_fit = True
+                self.define_events()
+            self.fitters = self.sub_df.copy()
+        utils.verbose('Fitting completed', self.verbose)
 
     def plot_average_per_event(
         self,
@@ -3007,6 +2526,7 @@ class NideconvFitter(InitFitter):
         """
 
         self.__dict__.update(kwargs)
+        inset_ttp, inset_fwhm = list(inset_ttp), list(inset_fwhm)
 
         if axs is None:
             if not hasattr(self, "figsize"):
@@ -3016,42 +2536,32 @@ class NideconvFitter(InitFitter):
         if not hasattr(self, "tc_condition"):
             self.timecourses_condition()
 
-        # average across runs
-        self.tc_df = utils.select_from_df(
-            self.tc_condition,
-            expression=f"covariate = {self.covariates}")
-
-        # average across runs
-        self.avg_across_runs = self.tc_df.groupby(
-            ["event_type", "time"]).mean()
-
-        if not isinstance(events, (list, np.ndarray)):
-            events = self.cond
-            self.event_indices = None
-        else:
-            utils.verbose(f"Flipping events to {events}", self.verbose)
-            self.avg_across_runs = pd.concat(
-                [utils.select_from_df(
-                    self.avg_across_runs,
-                    expression=f"event_type = {ii}")
-                    for ii in events])
-
-            # get list of switched indices
-            self.event_indices = [list(events).index(ii) for ii in self.cond]
-
-        # average across voxels
-        self.avg_across_runs_voxels = self.avg_across_runs.mean(axis=1)
-
-        # parse into list so it's compatible with LazyLine (requires an array
-        # of lists)
-        self.event_avg = self.avg_across_runs_voxels.groupby(
-            "event_type").apply(np.hstack).to_list()
-        self.event_sem = self.avg_across_runs.sem(
-            axis=1).groupby("event_type").apply(
-            np.hstack).to_list()
-        self.event_std = self.avg_across_runs.std(
-            axis=1).groupby("event_type").apply(
-            np.hstack).to_list()
+        if not hasattr(self, 'tc_subjects'):
+            self.timecourses_condition()
+        frame = self.tc_subjects
+        covariate = getattr(self, 'profile_covariate', 'intercept')
+        frame = frame.xs(covariate, level='covariate')
+        # Avoid averaging distinct sessions/tasks implicitly.
+        for field in ('session', 'task'):
+            if field in frame.index.names and frame.index.get_level_values(field).nunique() > 1:
+                raise ValueError(f'Select one {field} before plotting an event average')
+        per_subject = frame.mean(axis=1).groupby(level=['subject', 'event_type', 'time']).mean()
+        if add_offset:
+            per_subject = per_subject.groupby(level=['subject', 'event_type'], group_keys=False).apply(
+                lambda profile: profile - profile.sort_index(level='time').iloc[0])
+        grouped = per_subject.groupby(level=['event_type', 'time'])
+        self.avg_across_runs_voxels = grouped.mean()
+        self.event_indices = None
+        events = self.cond if events is None else list(events)
+        self.event_avg, self.event_sem, self.event_std = [], [], []
+        self.time = np.sort(per_subject.index.get_level_values('time').unique().to_numpy())
+        for event in events:
+            self.event_avg.append(grouped.mean().xs(event).reindex(self.time).to_numpy())
+            self.event_sem.append(grouped.sem().xs(event).reindex(self.time).to_numpy())
+            self.event_std.append(grouped.std().xs(event).reindex(self.time).to_numpy())
+        # Keep historical intermediate attributes available to callers.
+        self.tc_df = frame
+        self.avg_across_runs = frame.groupby(level=['event_type', 'time']).mean()
 
         # reorder base on indices again
         if isinstance(self.event_indices, list):
@@ -3060,14 +2570,6 @@ class NideconvFitter(InitFitter):
                     [self.event_avg, self.event_sem, self.event_std]):
                 reordered = [gg[i] for i in self.event_indices]
                 setattr(self, f"event_{tt}", reordered)
-
-        # shift all HRFs to zero
-        if add_offset:
-            for ev in range(len(self.event_avg)):
-                if self.event_avg[ev][0] > 0:
-                    self.event_avg[ev] -= self.event_avg[ev][0]
-                else:
-                    self.event_avg[ev] += abs(self.event_avg[ev][0])
 
         # decide error type
         if error_type == "sem":
@@ -3294,6 +2796,19 @@ class NideconvFitter(InitFitter):
             error=None,
             **kwargs)
 
+
+    def _event_plot_statistics(self, add_offset=False):
+        frame = self.tc_subjects.xs(getattr(self, 'profile_covariate', 'intercept'), level='covariate')
+        for field in ('session', 'task'):
+            if field in frame.index.names and frame.index.get_level_values(field).nunique() > 1:
+                raise ValueError(f'Select one {field} before plotting profiles')
+        subject = frame.groupby(level=['subject', 'event_type', 'time']).mean()
+        if add_offset:
+            subject = subject.groupby(level=['subject', 'event_type'], group_keys=False).apply(
+                lambda group: group - group.sort_index(level='time').iloc[0])
+        group = subject.groupby(level=['event_type', 'time'])
+        return group.mean(), group.sem(), group.std()
+
     def plot_average_per_voxel(
             self,
             add_offset: bool = True,
@@ -3357,7 +2872,8 @@ class NideconvFitter(InitFitter):
         if not hasattr(self, "tc_condition"):
             self.timecourses_condition()
 
-        cols = list(self.tc_condition.columns)
+        plot_mean, plot_sem, _ = self._event_plot_statistics(add_offset=add_offset)
+        cols = list(plot_mean.columns)
         cols_id = np.arange(0, len(cols))
         if n_cols is not None:
 
@@ -3389,14 +2905,9 @@ class NideconvFitter(InitFitter):
             self.voxel_in_events = []
             self.error_in_voxels = []
             for idc, stim in enumerate(self.cond):
-                col_data = self.tc_condition[col][stim].values
-                err_data = self.sem_condition[col][stim].values
+                col_data = plot_mean[col].xs(stim).to_numpy(copy=True)
+                err_data = plot_sem[col].xs(stim).to_numpy(copy=True)
 
-                if add_offset:
-                    if col_data[0] > 0:
-                        col_data -= col_data[0]
-                    else:
-                        col_data += abs(col_data[0])
 
                 self.voxel_in_events.append(col_data[np.newaxis, :])
                 self.error_in_voxels.append(err_data[np.newaxis, :])
@@ -3609,7 +3120,7 @@ class NideconvFitter(InitFitter):
         self.max_vals = np.array([np.amax(self.all_voxels_in_event[ii])
                                  for ii in range(len(self.all_voxels_in_event))])
 
-        if not axs:
+        if axs is None:
             fig, axs = plt.subplots(figsize=figsize)
 
         if isinstance(cmap, str):
@@ -3663,19 +3174,20 @@ class NideconvFitter(InitFitter):
         if not hasattr(self, "tc_condition"):
             self.timecourses_condition()
 
+        plot_mean, plot_sem, plot_std = self._event_plot_statistics(add_offset=add_offset)
         n_cols = len(list(self.cond))
         figsize = (n_cols * 6, 6)
 
-        if not axs:
+        if axs is None:
             fig = plt.figure(figsize=figsize)
             gs = fig.add_gridspec(1, n_cols)
 
         if error_type == "std":
-            err = self.std_condition.copy()
+            err = plot_std.copy()
         elif error_type == "sem":
-            err = self.sem_condition.copy()
+            err = plot_sem.copy()
         else:
-            err = self.std_condition.copy()
+            err = plot_std.copy()
 
         if not isinstance(events, list) and not isinstance(events, np.ndarray):
             events = self.cond
@@ -3686,7 +3198,7 @@ class NideconvFitter(InitFitter):
         for ix, event in enumerate(events):
 
             # add axis
-            if not axs:
+            if axs is None:
                 ax = fig.add_subplot(gs[ix])
             else:
                 ax = axs
@@ -3699,7 +3211,7 @@ class NideconvFitter(InitFitter):
                         kwargs[key] = None
 
             event_df = utils.select_from_df(
-                self.tc_condition, expression=f"event_type = {event}")
+                plot_mean, expression=f"event_type = {event}")
             error_df = utils.select_from_df(
                 err, expression=f"event_type = {event}")
 
@@ -3712,19 +3224,13 @@ class NideconvFitter(InitFitter):
                     utils.select_from_df(
                         event_df,
                         expression='ribbon',
-                        indices=[ii]).values)
+                        indices=[ii]).to_numpy(copy=True))
                 col_error = np.squeeze(
                     utils.select_from_df(
                         error_df,
                         expression='ribbon',
-                        indices=[ii]).values)
+                        indices=[ii]).to_numpy(copy=True))
 
-                # shift to zero
-                if add_offset:
-                    if col_data[0] > 0:
-                        col_data -= col_data[0]
-                    else:
-                        col_data += abs(col_data[0])
 
                 self.data_for_plot.append(col_data)
                 self.error_for_plot.append(col_error)
@@ -3739,7 +3245,7 @@ class NideconvFitter(InitFitter):
                 axs=ax,
                 **kwargs)
 
-            if not axs:
+            if axs is None:
                 if save_as:
                     fig.savefig(save_as, dpi=300, bbox_inches='tight')
 
@@ -3833,12 +3339,11 @@ class CVDeconv(InitFitter):
         """
 
         self.run_ids = utils.get_unique_ids(self.func, id="run")
-        if len(self.run_ids) <= 2:
-            raise ValueError(
-                "Crossvalidating is somewhat pointless with with fewer than 3 runs..")
+        if len(self.run_ids) < 2 or not isinstance(split, (int, np.integer)) or not 1 <= split < len(self.run_ids):
+            raise ValueError('Cross-validation requires at least two runs and 1 <= split < number of runs')
 
         # get all possible combination of runs
-        return utils.unique_combinations(self.run_ids, l=split)
+        return list(combinations(self.run_ids, split))
 
     def single_fitter(self, func, onsets, **kwargs):
 
@@ -3885,84 +3390,66 @@ class CVDeconv(InitFitter):
 
     # def out_of_set_prediction(self):
     def predict_out_of_set(self, src, trg):
+        """Average labeled training coefficients, separately for each acquisition context.
 
-        """predict_out_of_set
-
-        Predicts the responses for unseen (left-out) runs based on the beta weights from trained data.
-
-        Parameters
-        ----------
-        src : :class:`lazyfmri.fitting.NideconvFitter` or list of :class:`lazyfmri.fitting.NideconvFitter`
-            The fitted model(s) used to obtain beta weights.
-        trg : int, str, float, or list
-            The run(s) for which predictions should be generated.
-
-        Returns
-        -------
-        pd.DataFrame
-            A DataFrame containing R² values for each subject, where columns represent the fMRI voxels or regions.
-
-        Example
-        ----------
-        .. code-block:: python
-
-            r2_scores = cv.predict_out_of_set(trained_fitter, [1, 2])
+        Held-out runs are scored separately, then averaged equally. A regressor
+        absent from any training fit is not silently filled with a zero coefficient.
         """
-
-        if isinstance(src, list):
-            self.betas = pd.DataFrame(pd.concat([src.fitters.iloc[i].betas for i in range(
-                src.fitters.shape[0])], axis=1).mean(axis=1))
-            ref_obj = src[0]
-        else:
-            ref_obj = src
-            self.betas = src.fitters.iloc[0].betas
-
-        if isinstance(trg, (float, int, str)):
-            trg = [trg]
-
-        cv_r2 = []
-        sub_df = []
-        sub_ids = utils.get_unique_ids(ref_obj.func, id="subject")
-        for sub in sub_ids:
-
-            sub_fitters = utils.select_from_df(
-                src.fitters, expression=f"subject = {sub}")
-
-            if isinstance(src, list):
-                self.betas = pd.DataFrame(pd.concat([sub_fitters.iloc[i][0].betas for i in range(
-                    sub_fitters.shape[0])], axis=1).mean(axis=1))
-            else:
-                self.betas = sub_fitters.iloc[0][0].betas
-
-            run_r2 = []
-            for run in trg:
-
-                # find design matrix of unfitted run
-                expr = (f"subject = {sub}", "&", f"run = {run}")
-                X = utils.select_from_df(
-                    self.full_fitters, expression=expr).iloc[0][0].X
-                prediction = X.dot(self.betas)
-
-                # get r2
-                run_f = utils.select_from_df(
-                    self.full_model.func, expression=expr)
-
-                r2 = []
-                for i in range(run_f.shape[-1]):
-                    r2.append(metrics.r2_score(
-                        run_f.values[:, i], prediction.values[:, i]))
-
-                run_r2.append(np.array(r2))
-
-            # average over unfitted runs
-            run_r2 = np.array(run_r2).mean(axis=0)
-            sub_df.append(np.array(run_r2))
-
-        sub_r2 = np.array(sub_df)
-        cv_r2 = pd.DataFrame(sub_r2, columns=list(self.func.columns))
-        cv_r2["subject"] = sub_ids
-
-        return cv_r2
+        sources = src if isinstance(src, list) else [src]
+        targets = [trg] if isinstance(trg, (str, int, float, np.integer)) else list(trg)
+        if not sources or not targets:
+            raise ValueError('Specify training fitters and held-out runs')
+        training = []
+        for fitted in sources:
+            table = fitted.fitters
+            if isinstance(table, pd.Series):
+                table = table.to_frame()
+            for key, row in table.iterrows():
+                key = key if isinstance(key, tuple) else (key,)
+                metadata = dict(zip(table.index.names, key))
+                if metadata.get('run') in targets:
+                    raise ValueError('Held-out run occurs in training fitters')
+                training.append((metadata, row))
+        full = self.full_fitters
+        if isinstance(full, pd.Series):
+            full = full.to_frame()
+        scores = []
+        for key, row in full.iterrows():
+            key = key if isinstance(key, tuple) else (key,)
+            metadata = dict(zip(full.index.names, key))
+            if metadata.get('run') not in targets:
+                continue
+            context = {k: v for k, v in metadata.items() if k != 'run'}
+            eligible = [record for record in training if all(record[0].get(k) == v for k, v in context.items())]
+            if not eligible:
+                raise ValueError(f'No training fits for {context}')
+            # OLS has one multivariate fitter; ridge has one fitter per signal.
+            values = {}
+            for column, target_fitter in row.items():
+                fitters = [record[1][column] for record in eligible]
+                template = fitters[0].betas
+                coefficients = []
+                for fitter in fitters:
+                    if set(fitter.betas.index) != set(template.index) or set(fitter.betas.columns) != set(template.columns):
+                        raise ValueError('Training designs have different regressor/ROI labels; use a consistent model')
+                    coefficients.append(fitter.betas.reindex(index=template.index, columns=template.columns).to_numpy(dtype=float))
+                self.betas = pd.DataFrame(np.mean(coefficients, axis=0), index=template.index, columns=template.columns)
+                design = target_fitter.X
+                if set(design.columns) != set(self.betas.index):
+                    raise ValueError('Training and held-out designs have different regressor labels')
+                prediction = design.dot(self.betas.reindex(design.columns))
+                observed = target_fitter.input_signal.reindex(columns=prediction.columns)
+                if observed.shape != prediction.shape:
+                    raise ValueError('Held-out predictions and data have different shapes')
+                for roi in prediction.columns:
+                    values[roi] = metrics.r2_score(observed[roi].to_numpy(), prediction[roi].to_numpy())
+            scores.append({**context, **values})
+        if not scores:
+            raise ValueError('No requested held-out acquisitions found')
+        result = pd.DataFrame(scores)
+        contexts = [key for key in ('subject', 'session', 'task') if key in result]
+        roi_columns = [key for key in result if key not in contexts]
+        return result.groupby(contexts, as_index=False)[roi_columns].mean()[roi_columns + contexts]
 
     def crossvalidate(self, split=2, **kwargs):
 
@@ -3999,7 +3486,8 @@ class CVDeconv(InitFitter):
         )
 
         # get fitters
-        self.full_fitters = self.full_model.model._get_response_fitters()
+        self.full_fitters = (self.full_model.model._get_response_fitters()
+                            if hasattr(self.full_model, 'model') else self.full_model.sub_df.copy())
 
         self.combos = self.return_combinations(split=split)
 
@@ -4009,10 +3497,8 @@ class CVDeconv(InitFitter):
         for ix, combo in enumerate(self.combos):
             unfitted_runs = [i for i in self.run_ids if i not in combo]
 
-            self.fold_f = pd.concat([utils.select_from_df(
-                self.func, expression=f"run = {i}") for i in combo])
-            self.fold_o = pd.concat([utils.select_from_df(
-                self.onsets, expression=f"run = {i}") for i in combo])
+            self.fold_f = self.func.loc[self.func.index.get_level_values('run').isin(combo)]
+            self.fold_o = self.onsets.loc[self.onsets.index.get_level_values('run').isin(combo)]
 
             fit_ = self.single_fitter(
                 self.fold_f,
@@ -4028,7 +3514,7 @@ class CVDeconv(InitFitter):
             self.r2_.append(df)
 
         self.r2_ = pd.concat(self.r2_)
-        self.r2_.set_index(["subject", "fold"], inplace=True)
+        self.r2_ = self.r2_.set_index([key for key in ('subject', 'session', 'task', 'fold') if key in self.r2_])
 
 
 def fwhm_lines(
@@ -4103,7 +3589,9 @@ class HRFMetrics():
         plot : bool, optional
             If `True`, plots the HRF profile when parameter extraction fails (useful for debugging). Default is `False`.
         nan_policy : bool, optional
-            If `True`, sets all extracted parameters to zero for flat (zero-variance) timecourses. Default is `True`.
+            If `True`, failed extractions return NaN. Default is `False`.
+            Flat or variance-excluded profiles always return NaN, with reasons
+            available in the returned dataframe's attrs['qc'].
         debug : bool, optional
             If `True`, prints additional debugging information during parameter extraction. Default is `False`.
         progress : bool, optional
@@ -4111,14 +3599,17 @@ class HRFMetrics():
         thr_var : int or float, optional
             Variance threshold for input profiles. Time-series with variance below this threshold are ignored. Default is `0`.
         shift : int or float, optional
-            A constant shift applied to all profiles before extraction to avoid negative baselines. Default is `0`.
+            Optional baseline sample count to subtract before extraction.
+            None leaves the profile unchanged; 0 or 1 subtracts its first sample.
+            Default is None. Baseline correction never modifies the input.
         vox_as_index : bool, optional
             If `True`, uses DataFrame column indices as voxel identifiers. Otherwise, original column names are retained. Default is `False`.
         col_name : str, optional
             Custom name for the added index when processing 2D DataFrames. Example: `"roi"` for region-based processing. Default is `"vox"`.
         peak : int, optional
-            Specifies which peak to use when multiple peaks exist. Uses `scipy.signal.find_peaks` to identify peaks.
-            A value of `1` selects the largest peak (default).
+            Select the nth qualifying peak in chronological order. None uses
+            the largest absolute response, subject to force_pos/force_neg.
+            If fewer than n peaks qualify, the largest response is used.
 
         Example
         ----------
@@ -4233,148 +3724,63 @@ class HRFMetrics():
         **kwargs
         ):
 
-        """_get_metrics
+        """Extract independent ROI metrics with explicit QC for excluded inputs.
 
-        Extracts key HRF metrics, including peak amplitude, time-to-peak, full-width half-maximum (FWHM), and area under the curve (AUC).
-
-        Parameters
-        ----------
-        hrf : pd.DataFrame or np.ndarray
-            The input HRF time-series.
-        TR : float, optional
-            Repetition time in seconds, required if input is a NumPy array.
-        force_pos : bool or list, optional
-            Forces extraction from the **positive** response peak, by default `False`.
-        force_neg : bool or list, optional
-            Forces extraction from the **negative** response peak, by default `False`.
-        plot : bool, optional
-            If `True`, plots the HRF profile for debugging, by default `False`.
-        nan_policy : bool, optional
-            If `True`, sets NaN values when HRF extraction fails, by default `True`.
-        debug : bool, optional
-            If `True`, prints debugging information, by default `False`.
-        progress : bool, optional
-            Displays a progress bar, by default `False`.
-        thr_var : int or float, optional
-            Variance threshold for filtering time-series, by default `0`.
-        shift : int or float, optional
-            Shifts the HRF profile to avoid negative baselines, by default `0`.
-        vox_as_index : bool, optional
-            If `True`, uses DataFrame column indices as voxel identifiers, by default `False`.
-        col_name : str, optional
-            Name for index column in the output DataFrame, by default `"vox"`.
-        incl : list, optional
-            List of HRF parameters to extract, by default includes `magnitude`, `fwhm`, `time_to_peak`, etc.
-        peak : int, optional
-            Specifies which peak to use in case of multiple peaks, by default `None`.
-
-        Returns
-        -------
-        pd.DataFrame
-            DataFrame containing extracted HRF parameters.
-        np.ndarray
-            Final processed HRF.
-
-        Example
-        ----------
-        .. code-block:: python
-
-            metrics, final_hrf = HRFMetrics._get_metrics(some_profile, TR=1.5)
+        Excluded/failed metrics are NaN, never fabricated zeros. QC reasons are
+        stored in metrics.attrs['qc']; the historical metric columns are kept.
         """
-
-        # force into list for iterability
-        if isinstance(incl, str):
-            incl = [incl]
-
-        # set shift to None because this doesn't deal with 2D arrays; just get
-        # the format right
-        hrf = self._verify_input(
-            hrf,
-            TR=TR,
-            shift=None
-        )
-
-        orig_cols = list(hrf.columns)
-
-        # find columns abs(var)>0
-        filtered_variance = (hrf.var(axis=0) > thr_var).values
-        filtered_df = hrf.iloc[:, filtered_variance]
-        cols = list(filtered_df.columns)
-        utils.verbose(
-            f" {filtered_df.shape[1]}/{hrf.shape[1]}\tvertices survived variance threshold of {thr_var}",
-            debug
-        )
-
-        if len(cols) == 0:
-            raise ValueError(
-                f"Variance threshold of {thr_var} is too strict; no vertices survived")
-
-        if not isinstance(force_neg, list):
-            force_neg = [force_neg for _ in cols]
-
-        if not isinstance(force_pos, list):
-            force_pos = [force_pos for _ in cols]
-
-        # print(force_pos)
-        col_metrics = []
-        col_fwhm = []
-
-        # initialize empty dataframe
-        metrics = pd.DataFrame(
-            np.zeros(
-                (len(orig_cols), len(incl))), columns=incl)
-
-        # separate loop for fancy progress bar
-        if progress:
-            with alive_bar(filtered_df.shape[1], force_tty=True) as bar:
-                for ix, col in enumerate(filtered_df):
-                    pars, fwhm_, final_hrf = self._get_single_hrf_metrics(
-                        filtered_df[col],
-                        TR=TR,
-                        force_pos=force_pos[ix],
-                        force_neg=force_neg[ix],
-                        **kwargs
-                    )
-
-                    # progress
-                    bar()
-
-                    col_metrics.append(pars)
-                    col_fwhm.append(fwhm_)
-        else:
-            for ix, col in enumerate(filtered_df):
-
-                pars, fwhm_, final_hrf = self._get_single_hrf_metrics(
-                    filtered_df[col],
-                    TR=TR,
-                    force_pos=force_pos[ix],
-                    force_neg=force_neg[ix],
-                    **kwargs
-                )
-
-                col_metrics.append(pars)
-                col_fwhm.append(fwhm_)
-
-        if len(col_metrics) > 0:
-            col_metrics = pd.concat(col_metrics)
-
-        # insert into empty dataframe
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", FutureWarning)
-            metrics.iloc[filtered_variance, :] = col_metrics.values.copy()
-
-        if len(orig_cols) > 1:
-            if vox_as_index:
-                set_as = np.arange(0, len(orig_cols), dtype=int)
-            else:
-                set_as = orig_cols
-
-            metrics[col_name] = set_as
-
-        # set to integer
-        if "magnitude_ix" in list(metrics.columns):
-            metrics["magnitude_ix"] = metrics["magnitude_ix"].astype(int)
-
+        frame = self._verify_input(hrf, TR=TR, shift=None).copy()
+        columns = list(frame.columns)
+        requested = [incl] if isinstance(incl, str) else list(incl)
+        def flags(value):
+            if isinstance(value, (list, tuple, np.ndarray)):
+                if len(value) != len(columns):
+                    raise ValueError('Peak-direction flags must match all input ROI columns')
+                return list(value)
+            return [value] * len(columns)
+        positive, negative = flags(force_pos), flags(force_neg)
+        rows, quality = [], {}
+        final_hrf = frame.copy()
+        nan_policy = kwargs.get('nan_policy', False)
+        context = alive_bar(len(columns), force_tty=True) if progress else nullcontext(lambda: None)
+        with context as advance:
+            for ix, column in enumerate(columns):
+                profile = frame[column]
+                values = profile.to_numpy(dtype=float)
+                reason = None
+                if not np.isfinite(values).all():
+                    reason = 'nonfinite_signal'
+                    if not nan_policy:
+                        raise ValueError(f'Nonfinite HRF values in {column}')
+                elif len(values) < 2 or np.var(values, ddof=1) <= thr_var:
+                    reason = 'below_variance_threshold'
+                record = {name: np.nan for name in requested}
+                if reason is None:
+                    try:
+                        result, _, final_hrf = self._get_single_hrf_metrics(
+                            profile, TR=TR, force_pos=positive[ix], force_neg=negative[ix],
+                            debug=debug, **kwargs)
+                        unknown = set(requested) - set(result.columns)
+                        if unknown:
+                            raise ValueError(f'Unknown HRF metrics: {sorted(unknown)}')
+                        record = result.iloc[0].reindex(requested).to_dict()
+                        reason = 'ok'
+                        numeric = [v for v in record.values() if isinstance(v, (float, np.floating))]
+                        if any(not np.isfinite(v) for v in numeric):
+                            reason = 'partial_metrics'
+                    except (ValueError, FloatingPointError, ZeroDivisionError) as exc:
+                        if not nan_policy:
+                            raise ValueError(f'HRF metric extraction failed for {column}: {exc}') from exc
+                        reason = str(exc)
+                rows.append(record)
+                quality[column] = reason
+                advance()
+        metrics = pd.DataFrame(rows, columns=requested)
+        if len(columns) > 1:
+            metrics[col_name] = np.arange(len(columns)) if vox_as_index else columns
+        if 'magnitude_ix' in metrics:
+            metrics['magnitude_ix'] = pd.array(metrics['magnitude_ix'], dtype='Int64')
+        metrics.attrs['qc'] = quality
         return metrics, final_hrf
 
     @staticmethod
@@ -4470,17 +3876,14 @@ class HRFMetrics():
         elif isinstance(hrf, pd.Series):
             hrf = pd.DataFrame(hrf)
 
-        # shift to zero
-        if isinstance(shift, int):
-            if shift > 1:
-                bsl = hrf.values[:shift].mean()
-            else:
-                bsl = hrf.values[0]
-
-            if bsl > 0:
-                hrf -= bsl
-            elif bsl < 0:
-                hrf += abs(bsl)
+        # Work on a copy: metric baseline correction must not alter input data.
+        hrf = hrf.copy()
+        if isinstance(shift, (int, np.integer)):
+            if shift < 0:
+                raise ValueError('shift must be nonnegative or None')
+            samples = max(1, shift)
+            baseline = hrf.iloc[:samples].mean(axis=0)
+            hrf = hrf - baseline
         return hrf
 
     @classmethod
@@ -4678,31 +4081,25 @@ class HRFMetrics():
         return final_val, val_t, np.nan
 
     @classmethod
-    def _resample(
-        self,
-        hrf,
-        resample_to_shape=500
-        ):
-
+    def _resample(self, hrf, resample_to_shape=500):
+        """Interpolate values against actual time coordinates, including uneven grids."""
         time, time_col = self._get_time(hrf)
-        time_rs = np.linspace(
-            time[0],
-            time[-1],
-            resample_to_shape
-        )
-
-        hrf_rs = pd.DataFrame(
-            glm.resample_stim_vector(
-                hrf.values,
-                resample_to_shape,
-                interpolate="linear"
-            ).squeeze(),
-            columns=hrf.columns
-        )
-        hrf_rs[time_col] = time_rs
-        hrf_rs.set_index([time_col], inplace=True)
-
-        return time_rs, hrf_rs
+        time = np.asarray(time, dtype=float)
+        values = hrf.to_numpy(dtype=float)
+        if len(time) < 2 or not np.isfinite(time).all() or not np.isfinite(values).all():
+            raise ValueError('HRF resampling requires at least two finite observations')
+        order = np.argsort(time)
+        time, values = time[order], values[order]
+        if np.any(np.diff(time) <= 0):
+            raise ValueError('HRF time coordinates must be unique')
+        if resample_to_shape is None:
+            target = time
+        else:
+            if int(resample_to_shape) != resample_to_shape or resample_to_shape < 2:
+                raise ValueError('resample_to_shape must be an integer of at least 2')
+            target = np.linspace(time[0], time[-1], int(resample_to_shape))
+        data = np.column_stack([np.interp(target, time, values[:, col]) for col in range(values.shape[1])])
+        return target, pd.DataFrame(data, columns=hrf.columns, index=pd.Index(target, name=time_col))
     
     @classmethod
     def _get_riseslope_siero(
@@ -4861,7 +4258,7 @@ class HRFMetrics():
             t1
         )
 
-        if intsc == np.nan or verify_slope:
+        if not np.isfinite(intsc) or verify_slope:
             
             # this y_lim will scale other subplots too
             tmp = hrf_rs.values.squeeze()
@@ -4882,7 +4279,7 @@ class HRFMetrics():
                 **kwargs
             )
 
-            if intsc == np.nan and not nan_policy:
+            if not np.isfinite(intsc) and not nan_policy:
                 raise ValueError("Could not extract onset time from profile; regression fit doesn't cross 0 ")
 
         return slope_val, intsc
@@ -4935,182 +4332,39 @@ class HRFMetrics():
         return time_corr, hrf_corr
 
     @classmethod
-    def _get_amplitude(
-        self,
-        hrf,
-        force_pos=False,
-        force_neg=False,
-        peak=None,
-        t_start=0,
-        resample_to_shape=500,
-        max_scaler=0.05,
-        noise_scaler=1,
-        verify_peaks=False,
-        **kwargs
-        ):
-
-        """_get_amplitude
-
-        Extracts the peak amplitude of the HRF.
-
-        Parameters
-        ----------
-        hrf : pd.DataFrame
-            The input HRF time-series.
-        force_pos : bool, optional
-            If `True`, forces extraction from a positive response, by default `False`.
-        force_neg : bool, optional
-            If `True`, forces extraction from a negative response, by default `False`.
-        peak : int, optional
-            Specifies which peak to use, by default `None`.
-
-        Returns
-        -------
-        dict
-            Dictionary containing:
-            - `"amplitude"`: The peak value.
-            - `"t"`: Time at which the peak occurs.
-            - `"t_ix"`: Index of the peak.
-
-        Example
-        ----------
-        .. code-block:: python
-
-            amplitude_info = HRFMetrics._get_amplitude(hrf_data)
-        """
-
-        # fetch time stamps
-        time, time_col = self._get_time(hrf)
-
-        # resample
-        time_rs, hrf_rs = self._resample(
-            hrf,
-            resample_to_shape=resample_to_shape
-        )
-
-        # correct for 0
-        time_corr, hrf_corr = self._correct_t0(
-            hrf_rs,
-            t_start=t_start
-        )
-
-        # find index where t=0
-        t0_idx = utils.find_nearest(time_rs, t_start)[0]
-                    
-        # use scipy.signal.find_peaks to find n'th peak
-        if isinstance(peak, int):
-
-            ref = hrf_corr.values.squeeze()
-
-            prominence = max(max_scaler*ref.max(), noise_scaler*np.std(ref))
-            pos = list(
-                signal.find_peaks(
-                    ref,
-                    prominence=prominence
-                )[0]
-            )
-
-            # print(f"Before: {pos}")
-            pos = [i for i in pos if hrf_corr.values.squeeze()[int(i)]>0]
-            # print(f"After: {pos}")
-            
-            neg = list(
-                signal.find_peaks(
-                    -ref,
-                    prominence=prominence
-                )[0]
-            )
-
-            neg = [i for i in neg if hrf_corr.values.squeeze()[int(i)]<0]
-
-            if force_pos or force_neg:
-                if force_pos:
-                    ppeaks = pos
-            
-                if force_neg:
-                    ppeaks = neg
-            else:
-                ppeaks = sorted(pos + neg)
-
-
-
-            if verify_peaks:
-                pl = self.plot_profile_for_debugging(
-                    hrf_rs,
-                    peaks=[i+t0_idx for i in ppeaks],
-                    **kwargs
-                )
-
-            if len(ppeaks) > peak - 1:
-                mag_ix = ppeaks[peak - 1]
-                mag = ref[mag_ix]
-
-                t_ix = utils.find_nearest(
-                    hrf_rs,
-                    mag
-                )[0]
-
-                ddict = {
-                    "amplitude": ref[mag_ix],
-                    "t": time_rs[t_ix],
-                    "t_ix": t_ix
-                }
-            else:
-                # go for absolute max
-                negative = self._check_negative(
-                    hrf_corr,
-                    force_neg=force_neg,
-                    force_pos=force_pos
-                )
-
-                if not force_pos:
-                    if negative:
-                        mag_tmp = hrf_corr.min(axis=0).values
-                    else:
-                        mag_tmp = hrf_corr.max(axis=0).values
-                else:
-                    mag_tmp = hrf_corr.max(axis=0).values
-
-                mag_ix = utils.find_nearest(
-                    hrf_rs.values.squeeze(),
-                    mag_tmp
-                )[0]
-
-                ddict = {
-                    "amplitude": mag_tmp[0],
-                    "t": time_rs[mag_ix],
-                    "t_ix": mag_ix
-                }         
-
-        else:
-
-            # check negative:
-            negative = self._check_negative(
-                hrf_corr,
-                force_neg=force_neg,
-                force_pos=force_pos
-            )
-
-            if not force_pos:
-                if negative:
-                    mag_tmp = hrf_corr.min(axis=0).values
-                else:
-                    mag_tmp = hrf_corr.max(axis=0).values
-            else:
-                mag_tmp = hrf_corr.max(axis=0).values
-
-            mag_ix = utils.find_nearest(
-                hrf_rs.values.squeeze(),
-                mag_tmp
-            )[0]
-
-            ddict = {
-                "amplitude": mag_tmp[0],
-                "t": time_rs[mag_ix],
-                "t_ix": mag_ix
-            }
-
-        return ddict
+    def _get_amplitude(self, hrf, force_pos=False, force_neg=False, peak=None,
+        t_start=0, resample_to_shape=500, max_scaler=0.05, noise_scaler=1,
+        verify_peaks=False, **kwargs):
+        """Select peaks by time index, never by matching a repeated amplitude."""
+        if force_pos and force_neg:
+            raise ValueError('force_pos and force_neg are mutually exclusive')
+        time, curve = self._resample(hrf, resample_to_shape=resample_to_shape)
+        if curve.shape[1] != 1:
+            raise ValueError('Peak extraction requires one profile at a time')
+        valid = np.flatnonzero(time >= t_start)
+        if not len(valid):
+            raise ValueError('No HRF observations at or after t_start')
+        signal_values = curve.iloc[:, 0].to_numpy()
+        values = signal_values[valid]
+        if peak is not None and (not isinstance(peak, (int, np.integer)) or peak < 1):
+            raise ValueError('peak must be a positive integer or None')
+        selected = None
+        peaks = np.array([], dtype=int)
+        if peak is not None:
+            prominence = max(max_scaler * np.max(np.abs(values)), noise_scaler * np.std(values))
+            positive = signal.find_peaks(values, prominence=prominence)[0]
+            negative = signal.find_peaks(-values, prominence=prominence)[0]
+            positive = positive[values[positive] > 0]
+            negative = negative[values[negative] < 0]
+            peaks = positive if force_pos else negative if force_neg else np.sort(np.r_[positive, negative])
+            if len(peaks) >= peak:
+                selected = int(peaks[peak - 1])
+        if selected is None:
+            selected = int(np.argmax(values) if force_pos else np.argmin(values) if force_neg else np.argmax(np.abs(values)))
+        index = int(valid[selected])
+        if verify_peaks:
+            self.plot_profile_for_debugging(curve, peaks=valid[peaks].tolist(), **kwargs)
+        return {'amplitude': signal_values[index], 't': time[index], 't_ix': index}
 
     @classmethod
     def _get_derivatives(
@@ -5496,10 +4750,13 @@ class HRFMetrics():
             t_start=t_start
         )
 
-        hrf_corr_arr = hrf_corr.values.squeeze()
+        hrf_corr_arr = hrf_corr.to_numpy(copy=True).squeeze()
 
         if normalize:
-            hrf_corr_arr /= hrf_corr_arr.max()
+            scale = np.max(np.abs(hrf_corr_arr))
+            if not np.isfinite(scale) or scale == 0:
+                return {'pos_area': np.nan, 'neg_area': np.nan}
+            hrf_corr_arr = hrf_corr_arr / scale
 
         # Separate positive and negative parts
         pos_mask = hrf_corr_arr > 0
@@ -5512,9 +4769,13 @@ class HRFMetrics():
             else:
                 return 0.0  # No valid points → area is 0
 
-        # Compute positive and negative AUCs safely
-        pos_area = compute_auc_safely(time_corr[pos_mask], hrf_corr_arr[pos_mask])
-        neg_area = compute_auc_safely(time_corr[neg_mask], hrf_corr_arr[neg_mask])
+        # Integrate the clipped curve on the entire axis. Removing opposite-
+        # sign samples would bridge disconnected lobes and inflate the area.
+        roots = FWHM._crossings(time_corr, hrf_corr_arr, 0.)
+        integration_time = np.unique(np.r_[time_corr, roots])
+        integration_values = np.interp(integration_time, time_corr, hrf_corr_arr)
+        pos_area = compute_auc_safely(integration_time, np.maximum(integration_values, 0.))
+        neg_area = compute_auc_safely(integration_time, np.minimum(integration_values, 0.))
 
         if verify_auc:
             extra_plot = []
@@ -5647,8 +4908,11 @@ class HRFMetrics():
                 time,
                 hrf.values,
                 negative=negative,
-                amplitude=mag["amplitude"]
+                amplitude=mag["amplitude"],
+                peak_time=mag["t"]
             )
+            if fwhm_val.status != 'ok' and not nan_policy:
+                raise ValueError(fwhm_val.status)
 
             fwhm_dict = {
                 "fwhm": fwhm_val.fwhm,
@@ -5935,117 +5199,41 @@ class HRFMetrics():
 
 
 class FWHM():
-    def __init__(
-        self,
-        x,
-        hrf,
-        amplitude=None,
-        negative=False,
-        resample=500,
-        ):
-        """FWHM
+    def __init__(self, x, hrf, resample=500, negative=False, amplitude=None, peak_time=None):
+        """Measure crossings bracketing the selected peak; return NaN if incomplete."""
+        self.x = np.asarray(x, dtype=float).reshape(-1)
+        self.hrf = np.asarray(hrf, dtype=float).reshape(-1)
+        self.resample, self.negative, self.amplitude = resample, negative, amplitude
+        if len(self.x) != len(self.hrf) or len(self.x) < 2:
+            raise ValueError('FWHM requires equally sized time/signal arrays with at least two points')
+        if not np.isfinite(self.x).all() or not np.isfinite(self.hrf).all() or np.any(np.diff(self.x) <= 0):
+            raise ValueError('FWHM requires finite values and increasing time coordinates')
+        size = max(len(self.x), int(resample))
+        self.use_x = np.unique(np.r_[self.x, np.linspace(self.x[0], self.x[-1], size)])
+        self.use_rf = np.interp(self.use_x, self.x, self.hrf)
+        extremum = np.argmin(self.use_rf) if negative else np.argmax(self.use_rf)
+        peak_time = self.use_x[extremum] if peak_time is None else float(peak_time)
+        self.half_max = (float(amplitude) if amplitude is not None else self.use_rf[extremum]) / 2
+        roots = self._crossings(self.use_x, self.use_rf, self.half_max)
+        self.hmx = [(np.array([root]), np.array([self.half_max])) for root in roots]
+        before, after = roots[roots < peak_time], roots[roots > peak_time]
+        self.status = 'ok' if len(before) and len(after) else 'missing_half_max_crossings'
+        self.ts = [before[-1], after[0]] if self.status == 'ok' else []
+        self.t0_, self.t1_ = self.ts if self.ts else (np.nan, np.nan)
+        self.fwhm = self.t1_ - self.t0_
 
-        Class to extract the full-width at half-max of a given profile. The profile can either have a positive or negative
-        peak, in which case the `negative`-flag should be set accordingly. The final output is stored in the `fwhm` attribute
-        of the class.
+    @staticmethod
+    def _crossings(x, y, level):
+        delta = y - level
+        roots = list(x[delta == 0])
+        for i in np.flatnonzero(delta[:-1] * delta[1:] < 0):
+            roots.append(x[i] + (x[i+1] - x[i]) * (-delta[i]) / (delta[i+1] - delta[i]))
+        return np.unique(roots)
 
-        Parameters
-        ----------
-        x: np.ndarray
-            Generally this an array reflecting the time dimension
-        hrf: np.ndarray
-            Input profile (it says `hrf`, but it can be anything; also 1D pRF profiles)
-        negative: bool, optional
-            Assume the FWHM needs to be extracted from a negative bump or not
-        resample: int, optional
-            Resample the input to a higher grid so that the intersection between the profile and half-max can be drawn more
-            accurately
-        """
-
-        self.x = x
-        self.hrf = hrf
-        self.resample = resample
-        self.negative = negative
-        self.amplitude = amplitude
-        if x.shape[0] < self.resample:
-            self.use_x = glm.resample_stim_vector(self.x, self.resample, interpolate="linear")
-            self.use_rf = glm.resample_stim_vector(self.hrf, self.resample, interpolate="linear")
-        else:
-            self.use_x = x.copy()
-            self.use_rf = hrf.copy()
-
-        # Use amplitude if given
-        if self.amplitude is not None:
-            self.half_max = self.amplitude / 2.0
-        else:
-            self.half_max = min(self.use_rf) / 2.0 if self.negative else max(self.use_rf) / 2.0
-
-        # Get intersection points with half-max
-        try:
-            self.hmx = utils.find_intersection(
-                self.use_x,
-                self.use_rf,
-                np.full_like(self.use_rf, self.half_max)
-            )
-        except Exception:
-            self.hmx = []
-
-        # Try to select 2 points around the peak
-        self.ts = []
-        if isinstance(self.hmx, list) and len(self.hmx) >= 2:
-            try:
-                peak_ix = np.argmin(self.use_rf) if self.negative else np.argmax(self.use_rf)
-                peak_time = self.use_x[peak_ix]
-                hmx_times = [i[0][0] for i in self.hmx]
-
-                # Split intersections into pre- and post-peak
-                pre = [t for t in hmx_times if t < peak_time]
-                post = [t for t in hmx_times if t > peak_time]
-
-                if len(pre) > 0 and len(post) > 0:
-                    # Take the closest before and after the peak
-                    self.ts = [max(pre), min(post)]
-                else:
-                    raise ValueError("Could not find FWHM on both sides of peak.")
-            except Exception:
-                self.ts = []
-
-        if len(self.hmx) < 2:
-            if len(self.hmx) == 1:
-                # Fallback: use single intersection and end of window
-                self.ts = [self.hmx[0][0][0], self.use_x[-1]]
-            else:
-                raise ValueError("Could not find sufficient points close to half max..")
-
-        # Fallback: just grab first 2 if above fails
-        if len(self.ts) < 2 and isinstance(self.hmx, list) and len(self.hmx) >= 2:
-            self.ts = sorted([i[0][0] for i in self.hmx[:2]])
-
-        # If still insufficient points, use full window as fallback
-        if len(self.ts) < 2:
-            self.t0_ = self.use_x[0]
-            self.t1_ = self.use_x[-1]
-        else:
-            self.t0_, self.t1_ = self.ts
-
-        self.fwhm = abs(self.t1_ - self.t0_)
-
-    def half_max_x(
-        self,
-        x,
-        y,
-        amplitude=None
-        ):
-
-        if max is None:
-            if not self.negative:
-                half = max(y) / 2.0
-            else:
-                half = min(y) / 2.0
-        else:
-            half = amplitude / 2.0
-
-        return utils.find_intersection(x, y, np.full_like(y, half))
+    def half_max_x(self, x, y, amplitude=None):
+        x, y = np.asarray(x), np.asarray(y)
+        amplitude = (np.min(y) if self.negative else np.max(y)) if amplitude is None else amplitude
+        return [(np.array([root]), np.array([amplitude / 2])) for root in self._crossings(x, y, amplitude / 2)]
 
 def error_function(
         parameters,
@@ -6078,21 +5266,17 @@ def error_function(
 
 
 def double_gamma_with_d(a1, a2, b1, b2, c, d1, d2, x=None, negative=False):
-
-    # correct for negative onsets
-    if x[0] < 0:
-        x -= x[0]
-
-    if not negative:
-        y = (x / (d1))**a1 * np.exp(-(x - d1) / b1) - \
-            c * (x / (d2))**a2 * np.exp(-(x - d2) / b2)
-    else:
-        y = (x / (d1))**a1 * -np.exp(-(x - d1) / b1) - \
-            c * (x / (d2))**a2 * -np.exp(-(x - d2) / b2)
-
-    y[x < 0] = 0
-
-    return y
+    """Evaluate a causal HRF without moving onset zero or mutating x."""
+    if x is None:
+        raise ValueError('Provide HRF time coordinates with x')
+    time = np.asarray(x, dtype=float)
+    if min(a1, a2, b1, b2, d1, d2) <= 0:
+        raise ValueError('HRF shape, scale and delay parameters must be positive')
+    positive_time = np.maximum(time, 0.)
+    curve = ((positive_time / d1)**a1 * np.exp(-(positive_time - d1) / b1)
+             - c * (positive_time / d2)**a2 * np.exp(-(positive_time - d2) / b2))
+    curve = np.where(time < 0, 0., curve)
+    return -curve if negative else curve
 
 
 def make_prediction(
@@ -6109,8 +5293,7 @@ def make_prediction(
     # this correction is needed to get the HRF in the correct time domain
     dt = 1 / (osf / TR)
 
-    time_points = np.linspace(*interval,
-                              np.rint(float(interval[-1]) / dt).astype(int))
+    time_points = _sample_time_grid(interval, dt)
     hrf = [double_gamma_with_d(
         *parameters,
         x=time_points,
@@ -6301,7 +5484,7 @@ class FitHRFparams():
         self.verbose = verbose
         self.TR = TR
         self.osf = osf
-        self.interval = interval
+        self.interval = list(interval)
         self.starting_params = starting_params
         self.n_jobs = n_jobs
         self.bounds = bounds
@@ -6349,6 +5532,7 @@ class FitHRFparams():
                     ftol=self.ftol,
                     cov_as_ampl=self.cov_as_ampl,
                     osf=self.osf,
+                    interval=self.interval,
                     method=self.method
                 ) for i in range(self.data.shape[0])
             )
@@ -6365,6 +5549,7 @@ class FitHRFparams():
                     ftol=self.ftol,
                     cov_as_ampl=self.cov_as_ampl,
                     osf=self.osf,
+                    interval=self.interval,
                     method=self.method
                 )
                 self.tmp_results.append(tt)
@@ -6418,9 +5603,8 @@ class FitHRFparams():
         assert hasattr(
             self, "iterative_search_params"), "No parameters found, please run iterative_fit()"
 
-        dt = 1 / self.osf
-        time_points = np.linspace(
-            *self.interval, np.rint(float(self.interval[-1]) / dt).astype(int))
+        dt = self.TR / self.osf
+        time_points = _sample_time_grid(self.interval, dt)
 
         hrfs = []
         preds = []
@@ -6456,7 +5640,7 @@ class FitHRFparams():
         predictions = np.array(preds)
 
         if isinstance(resample_to_shape, int):
-            time_points = np.linspace(*self.interval, num=resample_to_shape)
+            time_points = np.linspace(time_points[0], time_points[-1], num=resample_to_shape)
 
         self.hrf_profiles = pd.DataFrame(hrf_profiles.T)
         self.hrf_profiles["time"] = time_points
@@ -6546,7 +5730,7 @@ class Epoch(InitFitter):
         self.func = func
         self.onsets = onsets
         self.TR = TR
-        self.interval = interval
+        self.interval = list(interval)
         self.merge = merge
         self.verbose = verbose
 
@@ -6562,180 +5746,67 @@ class Epoch(InitFitter):
         self.epoch_input()
 
     @staticmethod
-    def correct_baseline(
-        d_,
-        bsl=20,
-        verbose=False
-        ):
-
-        """Correct the baseline of time-series data.
-
-        Shifts the data to ensure the baseline is centered around zero. If the mean of the first `bsl` timepoints
-        is negative, it shifts the entire time-series upwards. If positive, it shifts downwards.
-
-        Parameters
-        ----------
-        d_ : pd.DataFrame or np.ndarray
-            Input time-series data. If a dataframe is provided, the operation is applied per column.
-        bsl : int, optional
-            Number of initial timepoints to use for baseline correction. Default is `20`.
-        verbose : bool, optional
-            If `True`, prints shift information. Default is `False`.
-
-        Returns
-        -------
-        pd.DataFrame or np.ndarray
-            Baseline-corrected data with the same format as input.
-        """
-
+    def correct_baseline(d_, bsl=20, verbose=False):
+        """Subtract each signal's initial-sample mean without changing the input."""
+        values = np.asarray(d_, dtype=float)
+        if not isinstance(bsl, (int, np.integer)) or not 1 <= bsl <= len(values):
+            raise ValueError('bsl must be between 1 and the number of samples')
+        corrected = values - values[:bsl].mean(axis=0)
         if isinstance(d_, pd.DataFrame):
-            d_vals = d_.values
-            return_df = True
-        else:
-            d_vals = d_.copy()
-            return_df = False
-
-        if d_vals.ndim < 2:
-            d_vals = d_vals[..., np.newaxis]
-
-        shift_cols = []
-        for col in range(d_vals.shape[-1]):
-
-            col_vals = d_vals[:, col]
-            m_ = col_vals[:bsl].mean()
-            if m_ < 0:
-                utils.verbose(
-                    f"Shifting profile UP with {round(abs(m_),2)}", verbose)
-                d_shift = col_vals + abs(m_)
-            else:
-                utils.verbose(
-                    f"Shifting profile DOWN with {round(m_,2)}", verbose)
-                d_shift = col_vals - m_
-
-            if d_shift.ndim < 2:
-                d_shift = d_shift[..., np.newaxis]
-
-            shift_cols.append(d_shift)
-
-        shift_cols = np.concatenate(shift_cols, axis=1)
-        if return_df:
-            return pd.DataFrame(shift_cols, index=d_.index)
-        else:
-            return d_shift
+            return pd.DataFrame(corrected, index=d_.index, columns=d_.columns)
+        if isinstance(d_, pd.Series):
+            return pd.Series(corrected, index=d_.index, name=d_.name)
+        return corrected
 
     @staticmethod
     def _get_epoch_timepoints(interval, TR):
+        """TR-spaced offsets within the half-open requested interval."""
+        start, stop = map(float, interval)
+        if not np.isfinite([start, stop, TR]).all() or TR <= 0 or stop <= start:
+            raise ValueError('Specify a positive TR and increasing finite interval')
+        first = int(np.ceil(start / TR - 1e-10))
+        last = int(np.ceil(stop / TR - 1e-10))
+        return np.arange(first, last) * TR
 
-        """Generate timepoints for the epoch window.
+    def epoch_events(self, df_func, df_onsets, index=False):
+        """Extract full epochs without wrapping negative indices or relabeling samples.
 
-        Computes a time array covering the epoch interval at the given TR.
-
-        Parameters
-        ----------
-        interval : list
-            The time interval for epoch extraction, specified as `[start, end]`.
-        TR : float
-            Repetition time (TR) in seconds.
-
-        Returns
-        -------
-        np.ndarray
-            Array of timepoints spanning the given interval with a step size equal to `TR`.
+        Event onsets are aligned to their nearest acquired sample; offsets remain
+        exact multiples of TR. Boundary epochs are skipped with a warning.
         """
-
-        total_length = interval[1] - interval[0]
-        timepoints = np.linspace(
-            interval[0],
-            interval[1],
-            int(total_length * (1 / TR) * 1),
-            endpoint=False)
-
-        return timepoints
-
-    def epoch_events(
-        self,
-        df_func,
-        df_onsets,
-        index=False,
-        ):
-
-        """Extract event-specific epochs from functional data.
-
-        Iterates over all events in the provided onset dataframe and extracts corresponding time windows from
-        the functional data.
-
-        Parameters
-        ----------
-        df_func : pd.DataFrame
-            Functional data indexed on `subject`, `run`, and `t`.
-        df_onsets : pd.DataFrame
-            Onset data indexed on `subject`, `run`, and `event_type`.
-        index : bool, optional
-            Whether to set hierarchical index on the output dataframe. Default is `False`.
-
-        Returns
-        -------
-        pd.DataFrame
-            Extracted epochs with time (`t`), event type, subject, and run information.
-        """
-
-        ev_epochs = []
-
-        info = {}
-        for el in ["event_type", "subject", "run"]:
-            info[el] = utils.get_unique_ids(df_onsets, id=el)
-
-        df_idx = ["subject", "run", "event_type", "epoch", "t"]
-        for ev in info["event_type"]:
-
-            epochs = []
-            ev_onsets = utils.select_from_df(
-                df_onsets, expression=f"event_type = {ev}")
-            for i, t in enumerate(ev_onsets.onset.values):
-
-                if ev not in ["response", "blink"]:
-                    # find closest ID to interval
-                    t_start = t - abs(self.interval[0])
-                    ix_start = int(t_start / self.TR)
-
-                    samples = self.interval[1] + abs(self.interval[0])
-                    n_sampl = int(samples / self.TR)
-                    ix_end = ix_start + n_sampl
-
-                    # extract from data
-                    # [...,np.newaxis]
-                    stim_epoch = df_func.iloc[ix_start:ix_end, :].values
-                    time = self._get_epoch_timepoints(self.interval, self.TR)
-
-                    df_stim_epoch = pd.DataFrame(stim_epoch)
-
-                    if len(time) != len(stim_epoch):
-                        print(
-                            f"""WARNING: could not extract full epoch around event; onset={round(t,2)}s,
-t_start={round(t_start,2)}s with {n_sampl} samples ({samples}s).
-Epoch has {len(stim_epoch)} samples""")
-
-                    df_stim_epoch["t"], df_stim_epoch["epoch"], df_stim_epoch["event_type"] = time[:len(
-                        stim_epoch)], i, ev
-                    epochs.append(df_stim_epoch)
-
-            # concatenate into 3d array (time,ev,stimulus_nr), average, and
-            # store in dataframe
-            ev_epoch = pd.concat(epochs)
-
-            # format dataframe
-            ev_epoch["subject"], ev_epoch["run"] = info["subject"][0], info["run"][0]
-
-            ev_epochs.append(ev_epoch)
-
-        # concatenate into dataframe
-        df_epochs = pd.concat(ev_epochs)
-
-        # set index or not
-        if index:
-            df_epochs.set_index(df_idx, inplace=True)
-
-        return df_epochs
+        identities = [key for key in ('subject', 'session', 'task', 'run') if key in df_func.index.names]
+        for key in identities:
+            if df_func.index.get_level_values(key).nunique() != 1:
+                raise ValueError('epoch_events requires one acquisition at a time')
+        times = df_func.index.get_level_values('t').to_numpy(dtype=float)
+        order = np.argsort(times)
+        times, data = times[order], df_func.iloc[order]
+        if len(times) > 1 and not np.allclose(np.diff(times), self.TR):
+            raise ValueError('Epoch extraction requires regularly sampled data')
+        relative_time = self._get_epoch_timepoints(self.interval, self.TR)
+        offsets = np.rint(relative_time / self.TR).astype(int)
+        output = []
+        events = df_onsets.reset_index()
+        for event, group in events.groupby('event_type', sort=False):
+            if event in ('response', 'blink'):
+                continue
+            for epoch, (_, row) in enumerate(group.iterrows()):
+                onset = float(row['onset'])
+                if not np.isfinite(onset):
+                    raise ValueError('Event onset must be finite')
+                center = int(np.argmin(np.abs(times - onset)))
+                indices = center + offsets
+                if not len(indices) or indices.min() < 0 or indices.max() >= len(data) or onset < times[0] or onset > times[-1]:
+                    warnings.warn(f'Skipping incomplete epoch: event={event}, onset={onset}', RuntimeWarning)
+                    continue
+                result = pd.DataFrame(data.iloc[indices].to_numpy(copy=True), columns=data.columns)
+                for field in identities:
+                    result[field] = data.index.get_level_values(field)[0]
+                result['event_type'], result['epoch'], result['t'] = event, epoch, relative_time
+                output.append(result)
+        fields = identities + ['event_type', 'epoch', 't']
+        result = pd.concat(output, ignore_index=True) if output else pd.DataFrame(columns=list(data.columns) + fields)
+        return result.set_index(fields) if index else result
 
     def epoch_runs(
         self,
@@ -6833,65 +5904,18 @@ Epoch has {len(stim_epoch)} samples""")
 
         return pd.concat(task_df)
 
-    def epoch_subjects(
-        self,
-        df_func,
-        df_onsets
-        ):
-
-        """Extract epochs for all subjects.
-
-        Loops over all subjects in the dataset, extracts subject-specific functional data, and applies :func:`lazyfmri.fitting.Epoch.epoch_tasks()` 
-        or :func:`lazyfmri.fitting.Epoch.epoch_runs()` to process all tasks/runs within each subject.
-
-        Parameters
-        ----------
-        df_func : pd.DataFrame
-            Functional data indexed on `subject`, `task`, `run`, and `t`.
-        df_onsets : pd.DataFrame
-            Onset data indexed on `subject`, `task`, `run`, and `event_type`.
-
-        Returns
-        -------
-        pd.DataFrame
-            Extracted epochs for all subjects combined.
-        """
-
-        self.sub_ids = utils.get_unique_ids(self.func, id="subject")
-
-        # loop through subject IDs
-        sub_df = []
-        for sub in self.sub_ids:
-
-            # extract task-specific dataframes
-            expr = f"subject = {sub}"
-            self.sub_func = utils.select_from_df(df_func, expression=expr)
-            self.sub_stims = utils.select_from_df(df_onsets, expression=expr)
-
-            try:
-                self.task_ids = utils.get_unique_ids(self.sub_func, id="task")
-            except BaseException:
-                self.task_ids = None
-
-            if isinstance(self.task_ids, list):
-                sub_epoch = self.epoch_tasks(self.sub_func, self.sub_stims)
-                self.idx = [
-                    "subject",
-                    "task",
-                    "run",
-                    "event_type",
-                    "epoch",
-                    "t"]
-            else:
-                sub_epoch = self.epoch_runs(self.sub_func, self.sub_stims)
-                self.idx = ["subject", "run", "event_type", "epoch", "t"]
-
-            sub_epoch.set_index(self.idx, inplace=True)
-            sub_df.append(sub_epoch)
-
-        sub_df = pd.concat(sub_df)
-
-        return sub_df
+    def epoch_subjects(self, df_func, df_onsets):
+        """Group on all acquisition fields rather than subject/run alone."""
+        identities = [key for key in ('subject', 'session', 'task', 'run') if key in df_func.index.names]
+        output = []
+        for key, data in df_func.groupby(level=identities, sort=False):
+            key = key if isinstance(key, tuple) else (key,)
+            events = df_onsets
+            for field, value in zip(identities, key):
+                events = events.loc[events.index.get_level_values(field) == value]
+            output.append(self.epoch_events(data, events, index=True))
+        self.idx = identities + ['event_type', 'epoch', 't']
+        return pd.concat(output)
 
     def epoch_input(self):
 
@@ -6988,7 +6012,7 @@ class GLM(InitFitter):
 
                 n_cols = len(evs) * fc
                 arr = np.zeros((n_cols))
-                arr[start:start + fc] = 1
+                arr[start] = 1  # Derivative coefficients are nuisance terms, not amplitude.
                 copes.append(arr)
 
                 start += fc
@@ -7083,7 +6107,7 @@ class GLM(InitFitter):
     @classmethod
     def format_r2(self, glm_obj):
         idx = {}
-        for i in ["subject", "task", "run"]:
+        for i in ["subject", "session", "task", "run"]:
             try:
                 IDs = utils.get_unique_ids(glm_obj.orig, id=i)
             except BaseException:
@@ -7102,7 +6126,7 @@ class GLM(InitFitter):
     @classmethod
     def format_tstats(self, glm_obj):
         idx = {}
-        for i in ["subject", "task", "run"]:
+        for i in ["subject", "session", "task", "run"]:
             try:
                 IDs = utils.get_unique_ids(glm_obj.orig, id=i)
             except BaseException:
@@ -7125,7 +6149,7 @@ class GLM(InitFitter):
     @classmethod
     def format_obj(self, glm_obj):
         idx = {}
-        for i in ["subject", "task", "run"]:
+        for i in ["subject", "session", "task", "run"]:
             try:
                 IDs = utils.get_unique_ids(glm_obj.orig, id=i)
             except BaseException:
@@ -7171,112 +6195,30 @@ class GLM(InitFitter):
         return ddict
 
     @classmethod
-    def glm_runs(
-        self,
-        df_func,
-        df_onsets,
-        **kwargs
-        ):
-
-        # loop through runs
-        self.run_ids = utils.get_unique_ids(df_func, id="run")
-        # print(f"task-{task}\t| runs = {run_ids}")
-        run_df = []
-        for run in self.run_ids:
-
-            expr = f"run = {run}"
-            run_func = utils.select_from_df(df_func, expression=expr)
-            run_stims = utils.select_from_df(df_onsets, expression=expr)
-
-            # get glms
-            df = self.single_glm(
-                run_func,
-                run_stims,
-                **kwargs
-            )
-
-            run_df.append(df)
-
-        return run_df
+    def glm_runs(self, df_func, df_onsets, **kwargs):
+        """Fit each complete acquisition separately, including session metadata."""
+        identities = [key for key in ('subject', 'session', 'task', 'run') if key in df_func.index.names]
+        result = []
+        for key, data in df_func.groupby(level=identities, sort=False):
+            key = key if isinstance(key, tuple) else (key,)
+            events = NideconvFitter._select_acquisition(df_onsets, dict(zip(identities, key)))
+            if events.empty:
+                raise ValueError(f'No events for acquisition {key}')
+            result.append(self.single_glm(data, events, **kwargs))
+        return result
 
     @classmethod
-    def glm_tasks(
-        self,
-        df_func,
-        df_onsets,
-        **kwargs
-        ):
-
-        # read task IDs
-        self.task_ids = utils.get_unique_ids(df_func, id="task")
-
-        # loop through task IDs
-        task_df = []
-        for task in self.task_ids:
-
-            # extract task-specific dataframes
-            expr = f"task = {task}"
-            task_func = utils.select_from_df(df_func, expression=expr)
-            task_stims = utils.select_from_df(df_onsets, expression=expr)
-
-            df = self.glm_runs(
-                task_func,
-                task_stims,
-                **kwargs
-            )
-
-            task_df += df
-
-        return task_df
+    def glm_tasks(self, df_func, df_onsets, **kwargs):
+        return self.glm_runs(df_func, df_onsets, **kwargs)
 
     @classmethod
-    def glm_subjects(
-        self,
-        df_func,
-        df_onsets,
-        **kwargs
-        ):
-
-        self.sub_ids = utils.get_unique_ids(df_func, id="subject")
-
-        # loop through subject IDs
-        sub_df = []
-        for sub in self.sub_ids:
-
-            # extract task-specific dataframes
-            expr = f"subject = {sub}"
-            self.sub_func = utils.select_from_df(df_func, expression=expr)
-            self.sub_stims = utils.select_from_df(df_onsets, expression=expr)
-
-            try:
-                self.task_ids = utils.get_unique_ids(self.sub_func, id="task")
-            except BaseException:
-                self.task_ids = None
-
-            if isinstance(self.task_ids, list):
-                sub_glm = self.glm_tasks(
-                    self.sub_func,
-                    self.sub_stims,
-                    **kwargs
-                )
-                self.idx = ["subject", "task", "run"]
-            else:
-                sub_glm = self.glm_runs(
-                    self.sub_func,
-                    self.sub_stims,
-                    **kwargs
-                )
-                self.idx = ["subject", "run"]
-
-            # sub_glm.set_index(self.idx, inplace=True)
-            sub_df += sub_glm
-
-        # sub_df = pd.concat(sub_df)
-        return sub_df
+    def glm_subjects(self, df_func, df_onsets, **kwargs):
+        return self.glm_runs(df_func, df_onsets, **kwargs)
 
     def glm_input(self, **kwargs):
 
-        # run glm
+        # Keep the model sampling rate equal to the acquisition sampling rate.
+        kwargs.setdefault('TR', self.TR)
         self.df_glm = self.glm_subjects(
             self.func,
             self.onsets,
@@ -7311,17 +6253,9 @@ class GLM(InitFitter):
         return max_r2, max_idx
 
     def find_r2(self, vox_nr, df=None):
-
-        if not isinstance(df, pd.DataFrame):
-            df = self.glm_output["r2"]
-
-        r2 = df.iloc[:, vox_nr].values
-        if len(r2) > 0:
-            r2 = r2.mean()
-        else:
-            r2 = r2[0]
-
-        return r2
+        df = self.glm_output['r2'] if df is None else df
+        values = df.iloc[:, vox_nr].to_numpy()
+        return float(np.mean(values)) if len(values) else np.nan
 
     def plot_ev_predictions(
         self,
