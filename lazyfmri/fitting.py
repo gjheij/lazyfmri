@@ -5696,6 +5696,9 @@ class Epoch(InitFitter):
     interval : list, optional
         Time interval around each event onset to extract the epoch data. 
         Default is `[-2, 14]`, meaning extraction starts 2 seconds before and ends 14 seconds after the event.
+    sampling_rate : float, optional
+        Target epoch sampling frequency in Hz. If None, use the original
+        input frequency (1 / TR) without interpolation.
     merge : bool, optional
         Whether to concatenate runs before extracting epochs. Default is `False`.
 
@@ -5724,12 +5727,18 @@ class Epoch(InitFitter):
         TR=0.105,
         interval=[-2, 14],
         merge=False,
+        sampling_rate=None,
         verbose=False
         ):
 
         self.func = func
         self.onsets = onsets
         self.TR = TR
+        if sampling_rate is not None:
+            if not np.isscalar(sampling_rate) or not np.isfinite(sampling_rate) or sampling_rate <= 0:
+                raise ValueError('sampling_rate must be a finite positive frequency in Hz')
+        self.sampling_rate = sampling_rate
+        self.epoch_TR = 1.0 / sampling_rate if sampling_rate is not None else TR
         self.interval = list(interval)
         self.merge = merge
         self.verbose = verbose
@@ -5783,10 +5792,18 @@ class Epoch(InitFitter):
         times, data = times[order], df_func.iloc[order]
         if len(times) > 1 and not np.allclose(np.diff(times), self.TR):
             raise ValueError('Epoch extraction requires regularly sampled data')
-        relative_time = self._get_epoch_timepoints(self.interval, self.TR)
-        offsets = np.rint(relative_time / self.TR).astype(int)
+        resample = self.sampling_rate is not None and not np.isclose(self.epoch_TR, self.TR)
+        relative_time = self._get_epoch_timepoints(self.interval, self.epoch_TR)
+        offsets = np.rint(relative_time / self.TR).astype(int) if not resample else None
+        values = data.to_numpy(copy=False)
         output = []
         events = df_onsets.reset_index()
+        # With resampling, evaluate each epoch on the requested time grid
+        # relative to the nearest acquired sample, matching legacy alignment.
+        if resample:
+            from scipy.interpolate import interp1d
+            interpolator = interp1d(times, values, axis=0, kind='linear',
+                                    bounds_error=True, assume_sorted=True)
         for event, group in events.groupby('event_type', sort=False):
             if event in ('response', 'blink'):
                 continue
@@ -5795,11 +5812,22 @@ class Epoch(InitFitter):
                 if not np.isfinite(onset):
                     raise ValueError('Event onset must be finite')
                 center = int(np.argmin(np.abs(times - onset)))
-                indices = center + offsets
-                if not len(indices) or indices.min() < 0 or indices.max() >= len(data) or onset < times[0] or onset > times[-1]:
+                if resample:
+                    sample_times = times[center] + relative_time
+                    incomplete = (not len(sample_times) or sample_times[0] < times[0] - 1e-9
+                                  or sample_times[-1] > times[-1] + 1e-9)
+                else:
+                    indices = center + offsets
+                    incomplete = (not len(indices) or indices.min() < 0 or indices.max() >= len(data))
+                if incomplete or onset < times[0] or onset > times[-1]:
                     warnings.warn(f'Skipping incomplete epoch: event={event}, onset={onset}', RuntimeWarning)
                     continue
-                result = pd.DataFrame(data.iloc[indices].to_numpy(copy=True), columns=data.columns)
+                if resample:
+                    # Clip tiny floating-point deviations at the grid endpoints.
+                    epoch_values = interpolator(np.clip(sample_times, times[0], times[-1]))
+                else:
+                    epoch_values = values[indices].copy()
+                result = pd.DataFrame(epoch_values, columns=data.columns)
                 for field in identities:
                     result[field] = data.index.get_level_values(field)[0]
                 result['event_type'], result['epoch'], result['t'] = event, epoch, relative_time
